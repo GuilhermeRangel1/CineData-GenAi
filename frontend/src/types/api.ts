@@ -7,6 +7,16 @@ export interface ErroApi {
   mensagem: string
 }
 
+export interface MensagemChatbot {
+  role: 'user' | 'assistant'
+  conteudo: string
+}
+
+export interface RespostaChatbot {
+  mensagem: string
+  modelo: string
+}
+
 export interface MetadadosPagina {
   pagina: number
   tamanho_pagina: number

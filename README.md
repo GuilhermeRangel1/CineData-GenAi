@@ -273,11 +273,14 @@ Copy-Item backend\.env.example backend\.env
 notepad backend\.env
 ```
 
-Defina `TMDB_API_TOKEN` no arquivo. O Docker Compose carrega esse arquivo
-quando inicia o backend; depois de configurá-lo, inicie ou recrie os serviços
-com `docker compose up --build`. O arquivo `.env` fica apenas no seu computador
-e não é enviado ao GitHub. Cada pessoa que clonar o projeto e quiser usar a
-integração precisa configurar seu próprio token.
+Defina `TMDB_API_TOKEN` para habilitar busca/importação pelo TMDB. Para usar o
+chatbot, crie uma chave no [Google AI Studio](https://aistudio.google.com/apikey)
+e defina `GEMINI_API_KEY` no mesmo arquivo. O assistente usa Gemini 3.8 Flash
+por padrão e exige uma sessão ativa. O Docker Compose carrega essas variáveis ao
+iniciar o backend; depois de configurá-las, recrie os serviços com
+`docker compose up --build`. O arquivo `.env` fica apenas no seu computador e
+não é enviado ao GitHub. Cada pessoa que clonar o projeto precisa configurar
+suas próprias chaves para usar essas integrações.
 
 Na primeira execução, o backend constrói o schema, aplica as migrações e carrega
 os CSVs antes de ficar saudável; com esse catálogo, a preparação inicial pode
@@ -368,6 +371,8 @@ O frontend ficará em `http://localhost:5173`. A variável
 | `INITIAL_ADMIN_NAME` | Backend e configuração raiz do Compose | Nome da conta administrativa inicial. |
 | `INITIAL_ADMIN_PASSWORD` | Backend e configuração raiz do Compose | Senha inicial; mantenha-a fora do repositório. |
 | `TMDB_API_TOKEN` | `backend/.env` | Token necessário para a busca e importação de filmes pelo TMDB. |
+| `GEMINI_API_KEY` | `backend/.env` | Chave privada usada pelo backend para conversar com o Gemini. |
+| `GEMINI_MODEL` | `backend/.env` | Modelo Gemini Flash; padrão `gemini-3.8-flash`. |
 | `VITE_API_BASE_URL` | `frontend/.env` | Endereço-base da API usado pelo Vite no desenvolvimento. |
 
 Os arquivos `.env` contêm segredos e não devem ser commitados. Os arquivos
