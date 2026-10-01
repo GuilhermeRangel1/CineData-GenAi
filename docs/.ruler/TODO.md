@@ -67,7 +67,7 @@ resultados no Gold. Consulte [`../genai/metric-rules.md`](../genai/metric-rules.
 e [`../genai/reference-queries.sql`](../genai/reference-queries.sql). Rever as
 decisões documentadas antes de iniciar a etapa 2.
 
-## 2. Módulo backend GenAI — segundo bloco concluído
+## 2. Módulo backend GenAI — quarto bloco concluído
 
 **Entrada:** somente após completar os critérios de saída da etapa 1 e revisar
 com o usuário um checkpoint contendo as regras e consultas de referência.
@@ -82,20 +82,23 @@ com o usuário um checkpoint contendo as regras e consultas de referência.
       escopo mínimo sem necessidade do enunciado. O contrato está em
       [`../genai/api-contract.md`](../genai/api-contract.md); endpoints ainda não
       foram implementados.
-- [ ] Implementar conexão ao Gold por caminho configurável, SQLite `mode=ro`,
-      timeout e tratamento claro de base ausente/inválida.
-- [ ] Implementar ferramenta SQL tipada: permitir uma consulta, somente leitura,
+- [x] Implementar conexão ao Gold por caminho configurável, SQLite `mode=ro`,
+      timeout e tratamento claro de base ausente/inválida. A implementação e
+      os testes determinísticos estão em `genai/app/gold_database.py` e
+      `genai/tests/test_gold_database.py`.
+- [x] Implementar ferramenta SQL tipada: permitir uma consulta, somente leitura,
       somente tabelas Gold necessárias, limite de linhas e tempo; bloquear escrita,
       DDL, múltiplas instruções, `ATTACH`/`DETACH` e acesso externo.
-- [ ] Validar SQL com parser adequado a SQLite e reforçar a proteção na própria
+- [x] Validar SQL com parser adequado a SQLite e reforçar a proteção na própria
       conexão somente leitura; validação recusada nunca chega a ser executada.
-- [ ] Implementar testes determinísticos com SQLite temporário para permissões,
+- [x] Implementar testes determinísticos com SQLite temporário para permissões,
       limites, erros e consultas; sem depender de rede nem chave de provedor.
 
 **Critério de saída da etapa:** API isolada, contrato e ferramenta de leitura
-Gold implementados e verificados localmente. O segundo bloco termina com o
-esqueleto executável e o health check verificado; pare e aguarde o usuário
-revisar e fazer o commit antes de implementar a conexão com o Gold.
+Gold implementados e verificados localmente. O quarto bloco termina com a
+conexão read-only, o parser, os limites e os testes da ferramenta SQL
+verificados; pare e aguarde o usuário revisar e fazer o commit antes de iniciar
+a etapa 3.
 
 ## 3. Agente e perguntas obrigatórias
 

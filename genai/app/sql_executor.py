@@ -1,0 +1,79 @@
+"""Execução limitada de consultas SQL já validadas."""
+
+import sqlite3
+import time
+from dataclasses import dataclass
+from typing import Any
+
+from app.errors import QueryExecutionError, QueryTimeoutError
+from app.gold_database import EXPECTED_TABLES, GoldDatabase
+from app.sql_guard import ValidatedQuery
+
+_DENIED_ACTIONS = {
+    sqlite3.SQLITE_ATTACH,
+    sqlite3.SQLITE_DETACH,
+    sqlite3.SQLITE_DELETE,
+    sqlite3.SQLITE_DROP_INDEX,
+    sqlite3.SQLITE_DROP_TABLE,
+    sqlite3.SQLITE_DROP_TRIGGER,
+    sqlite3.SQLITE_DROP_VIEW,
+    sqlite3.SQLITE_INSERT,
+    sqlite3.SQLITE_PRAGMA,
+    sqlite3.SQLITE_TRANSACTION,
+    sqlite3.SQLITE_UPDATE,
+}
+
+
+@dataclass(frozen=True)
+class QueryResult:
+    """Resultado tabular limitado para a camada da API."""
+
+    columns: tuple[str, ...]
+    rows: tuple[dict[str, Any], ...]
+    truncated: bool
+
+
+class GoldQueryExecutor:
+    """Executa apenas consultas previamente aprovadas pelo guard."""
+
+    def __init__(self, database: GoldDatabase, max_rows: int = 100, timeout_seconds: float = 5.0):
+        self.database = database
+        self.max_rows = max_rows
+        self.timeout_seconds = timeout_seconds
+
+    def execute(self, query: ValidatedQuery) -> QueryResult:
+        """Executa uma consulta com autorização SQLite e limites operacionais."""
+
+        with self.database.connect() as connection:
+            connection.set_authorizer(self._authorize)
+            deadline = time.monotonic() + self.timeout_seconds
+            connection.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1_000)
+            try:
+                cursor = connection.execute(query.sql)
+                values = cursor.fetchmany(self.max_rows + 1)
+            except sqlite3.OperationalError as exc:
+                if "interrupted" in str(exc).lower():
+                    raise QueryTimeoutError("A consulta excedeu o tempo máximo.") from exc
+                raise QueryExecutionError("A consulta não pôde ser executada.") from exc
+            except sqlite3.Error as exc:
+                raise QueryExecutionError("A consulta não pôde ser executada.") from exc
+            finally:
+                connection.set_progress_handler(None, 0)
+
+        columns = tuple(description[0] for description in cursor.description or ())
+        truncated = len(values) > self.max_rows
+        rows = tuple(dict(zip(columns, row, strict=True)) for row in values[: self.max_rows])
+        return QueryResult(columns=columns, rows=rows, truncated=truncated)
+
+    def _authorize(self, action: int, arg1: str | None, arg2: str | None, *_args: Any) -> int:
+        if action in _DENIED_ACTIONS:
+            return sqlite3.SQLITE_DENY
+        if action == sqlite3.SQLITE_READ and arg1 not in EXPECTED_TABLES:
+            return sqlite3.SQLITE_DENY
+        if action == sqlite3.SQLITE_FUNCTION and arg2 in {
+            "load_extension",
+            "readfile",
+            "writefile",
+        }:
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK

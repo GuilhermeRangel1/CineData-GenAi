@@ -1,9 +1,9 @@
 # CineData GenAI - instruções do projeto
 
-**Escopo vigente:** o segundo bloco da etapa 2 do plano GenAI está concluído.
-O próximo bloco autorizado deve tratar somente da conexão read-only ao Gold.
-Não implemente executor SQL, agente, provedor/modelo, chamadas externas ou
-integração de interface antes de um novo checkpoint revisado pelo usuário.
+**Escopo vigente:** o quarto bloco da etapa 2 do plano GenAI está concluído.
+A conexão e a ferramenta SQL de leitura estão protegidas e testadas. O próximo
+bloco pertence à etapa 3 e deve tratar somente da escolha/integração do agente
+e do provedor, após um novo checkpoint revisado pelo usuário.
 
 ## Processo obrigatório de trabalho em checkpoints
 

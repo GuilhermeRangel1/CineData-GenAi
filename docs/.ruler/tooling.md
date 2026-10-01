@@ -1,9 +1,10 @@
 # Tooling e convenções — CineData GenAI
 
-**Escopo vigente:** o segundo bloco da etapa 2 está concluído. O próximo bloco
-deve tratar somente da conexão read-only ao Gold. Não implemente executor SQL,
-agente, provedor/modelo, chamadas externas ou integração de interface antes de
-o usuário revisar e commitar este checkpoint.
+**Escopo vigente:** o quarto bloco da etapa 2 está concluído. A conexão
+read-only e a ferramenta SQL de leitura estão implementadas e testadas. O
+próximo bloco pertence à etapa 3; não implemente agente, provedor/modelo,
+chamadas externas ou integração de interface antes de o usuário revisar e
+commitar este checkpoint.
 
 ## Separação do módulo
 

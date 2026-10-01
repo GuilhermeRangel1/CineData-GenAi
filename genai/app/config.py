@@ -1,6 +1,7 @@
 """Configuração local do módulo GenAI."""
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,6 +12,8 @@ class Settings(BaseSettings):
     service_name: str = "CineData GenAI"
     api_prefix: str = "/api/v1"
     max_question_length: int = 1000
+    gold_database_path: Path = Path("../data/cinerocket.db")
+    gold_timeout_seconds: float = 5.0
 
     model_config = SettingsConfigDict(
         env_file=".env",
