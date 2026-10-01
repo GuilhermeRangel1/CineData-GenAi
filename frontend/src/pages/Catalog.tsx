@@ -39,6 +39,30 @@ export function Catalog({
     duracao_maxima: '',
     nota_minima: '',
   })
+  const [appliedAdvanced, setAppliedAdvanced] = useState(advanced)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const pessoa = advanced.pessoa.trim()
+      const produtora = advanced.produtora.trim()
+      const anoInicial = advanced.ano_inicial.trim()
+      const anoFinal = advanced.ano_final.trim()
+      const next = {
+        ...advanced,
+        pessoa: pessoa.length >= 3 ? pessoa : '',
+        produtora: produtora.length >= 3 ? produtora : '',
+        ano_inicial: /^\d{4}$/.test(anoInicial) ? anoInicial : '',
+        ano_final: /^\d{4}$/.test(anoFinal) ? anoFinal : '',
+      }
+      const unchanged = Object.keys(next).every(
+        (key) => appliedAdvanced[key as keyof typeof appliedAdvanced] === next[key as keyof typeof next],
+      )
+      if (!unchanged) {
+        setAppliedAdvanced(next)
+        setPage(1)
+      }
+    }, 450)
+    return () => clearTimeout(timer)
+  }, [advanced, appliedAdvanced])
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setQuery(search.trim())
@@ -58,13 +82,13 @@ export function Catalog({
       params.set('priorizar_capa', 'true')
       if (query) params.set('busca', query)
       if (genre) params.set('genero', genre)
-      for (const [key, value] of Object.entries(advanced)) {
+      for (const [key, value] of Object.entries(appliedAdvanced)) {
         const normalizado = key === 'nota_minima' ? value.trim().replace(',', '.') : value.trim()
         if (normalizado) params.set(key, normalizado)
       }
       return listarFilmes(params, signal)
     },
-    [page, query, genre, order, advanced],
+    [page, query, genre, order, appliedAdvanced],
   )
   const { data, loading, error, retry } = useResource(loader, revision)
   if (data && page > Math.max(1, data.meta.total_paginas))

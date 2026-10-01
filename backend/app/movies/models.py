@@ -68,6 +68,7 @@ bridge_movie_company = Table(
         String(64),
         ForeignKey("dim_companies.sk_company_id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     ),
 )
 

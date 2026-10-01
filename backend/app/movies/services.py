@@ -4,7 +4,7 @@ import logging
 from math import ceil
 from uuid import uuid4
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -27,6 +27,8 @@ from app.movies.models import (
     FactMoviePerformance,
     MovieReview,
     PersonType,
+    bridge_movie_company,
+    bridge_movie_person,
 )
 from app.movies.schemas import (
     AvaliacaoCriacao,
@@ -72,17 +74,24 @@ class CatalogoFilmesService:
         )
 
         if consulta.busca:
-            termo = self._escapar_like(consulta.busca.casefold())
-            busca_local = func.lower(DimMovie.titulo).like(f"%{termo}%", escape="\\")
-            condicoes_titulo = [busca_local]
+            movie_ids = self._ids_busca(
+                consulta.busca,
+                "dim_movies_search",
+                "sk_movie_id",
+                DimMovie.sk_movie_id,
+                DimMovie.titulo,
+            )
+            existe_titulo_local = await self._session.scalar(
+                select(DimMovie.sk_movie_id)
+                .where(DimMovie.sk_movie_id.in_(movie_ids))
+                .limit(1)
+            )
+            condicoes_titulo = [DimMovie.sk_movie_id.in_(movie_ids)]
 
             # A base local pode guardar o título original/em inglês. Quando o
             # termo não existe nela, o TMDB fornece as traduções equivalentes
             # para recuperarmos o mesmo registro, sem criar uma cópia.
-            existe_titulo_local = await self._session.scalar(
-                select(DimMovie.sk_movie_id).where(busca_local).limit(1)
-            )
-            if existe_titulo_local is None:
+            if existe_titulo_local is None and len(consulta.busca.strip()) >= 3:
                 try:
                     titulos_equivalentes = await TmdbGateway(
                         get_settings().tmdb_api_token
@@ -114,20 +123,30 @@ class CatalogoFilmesService:
             statement = statement.join(DimMovie.genres).where(DimGenre.sk_genre_id == genero_id)
 
         if consulta.pessoa:
-            termo = self._escapar_like(consulta.pessoa.casefold())
-            statement = statement.where(
-                DimMovie.people.any(
-                    func.lower(DimPerson.nome_pessoa).like(f"%{termo}%", escape="\\")
-                )
+            pessoa_ids = self._ids_busca(
+                consulta.pessoa,
+                "dim_people_search",
+                "sk_person_id",
+                DimPerson.sk_person_id,
+                DimPerson.nome_pessoa,
             )
+            movie_ids = select(bridge_movie_person.c.sk_movie_id).where(
+                bridge_movie_person.c.sk_person_id.in_(pessoa_ids)
+            )
+            statement = statement.where(DimMovie.sk_movie_id.in_(movie_ids))
 
         if consulta.produtora:
-            termo = self._escapar_like(consulta.produtora.casefold())
-            statement = statement.where(
-                DimMovie.companies.any(
-                    func.lower(DimCompany.nome_produtora).like(f"%{termo}%", escape="\\")
-                )
+            company_ids = self._ids_busca(
+                consulta.produtora,
+                "dim_companies_search",
+                "sk_company_id",
+                DimCompany.sk_company_id,
+                DimCompany.nome_produtora,
             )
+            movie_ids = select(bridge_movie_company.c.sk_movie_id).where(
+                bridge_movie_company.c.sk_company_id.in_(company_ids)
+            )
+            statement = statement.where(DimMovie.sk_movie_id.in_(movie_ids))
 
         if consulta.ano_inicial:
             statement = statement.where(
@@ -160,9 +179,10 @@ class CatalogoFilmesService:
         # As relações do catálogo são únicas por chave no schema; não há linhas
         # duplicadas a eliminar. Evitar DISTINCT mantém o filtro por gênero
         # indexável mesmo com o catálogo Gold completo.
-        total = await self._session.scalar(
-            select(func.count()).select_from(statement.order_by(None).subquery())
-        )
+        count_statement = select(func.count()).select_from(*statement.get_final_froms())
+        if statement.whereclause is not None:
+            count_statement = count_statement.where(statement.whereclause)
+        total = await self._session.scalar(count_statement)
         total_itens = total or 0
 
         if consulta.ordenar_por == "relevancia":
@@ -279,6 +299,29 @@ class CatalogoFilmesService:
     @staticmethod
     def _escapar_like(valor: str) -> str:
         return valor.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    @classmethod
+    def _ids_busca(cls, termo, tabela, coluna_id, fallback_id, fallback_texto):
+        """Uses the trigram index for substrings; short searches retain LIKE semantics."""
+        if len(termo) >= 3:
+            frase = '"' + termo.replace('"', '""') + '"'
+            tabela_base = tabela.removesuffix("_search")
+            return (
+                select(text(f"{tabela_base}.{coluna_id}"))
+                .select_from(
+                    text(
+                        f"{tabela_base} JOIN {tabela} "
+                        f"ON {tabela_base}.rowid = {tabela}.rowid"
+                    )
+                )
+                .where(text(f"{tabela} MATCH :termo_fts"))
+                .params(termo_fts=frase)
+            )
+
+        escaped = cls._escapar_like(termo.casefold())
+        return select(fallback_id).where(
+            func.lower(fallback_texto).like(f"%{escaped}%", escape="\\")
+        )
 
     @staticmethod
     def _para_resumo(filme: DimMovie) -> FilmeResumo:
