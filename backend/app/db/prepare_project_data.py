@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 from pathlib import Path
 
@@ -58,6 +59,29 @@ def _validate_gold(path: Path) -> None:
     finally:
         if connection is not None:
             connection.close()
+
+
+def _validate_gold_fingerprint(path: Path) -> None:
+    manifest_value = os.environ.get("GOLD_DATABASE_FINGERPRINT_PATH")
+    if not manifest_value:
+        return
+    manifest = Path(manifest_value)
+    if not manifest.is_file():
+        raise SystemExit(f"Manifesto SHA-256 do Gold não encontrado em {manifest}.")
+    try:
+        parts = manifest.read_text(encoding="ascii").split()
+        if len(parts) != 2 or not re.fullmatch(r"[0-9a-fA-F]{64}", parts[0]):
+            raise ValueError("formato inválido")
+        expected_size = int(parts[1])
+    except (OSError, UnicodeError, ValueError) as error:
+        raise SystemExit(
+            f"Manifesto SHA-256 inválido em {manifest}; esperado: SHA-256 e tamanho."
+        ) from error
+    if expected_size != path.stat().st_size:
+        raise SystemExit(
+            f"O tamanho de {path} não corresponde ao manifesto {manifest}; "
+            "atualize o Gold e seu checksum em conjunto."
+        )
 
 
 def _validate_operational_database(path: Path) -> None:
@@ -137,6 +161,7 @@ def prepare_project_data() -> None:
     )
     data_directory.mkdir(parents=True, exist_ok=True)
     _validate_gold(gold_path)
+    _validate_gold_fingerprint(gold_path)
 
     operational_database = data_directory / "rocketlab.db"
     if operational_database.exists():

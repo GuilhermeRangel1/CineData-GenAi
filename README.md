@@ -22,6 +22,9 @@ O Gold `data/cinerocket.db` fica junto dos dados do projeto e está configurado
 para distribuição pelo Git LFS. Instale o Git LFS antes de clonar; para um clone
 já feito, rode `git lfs install` e `git lfs pull`. O Compose valida o arquivo antes
 de iniciar; um pointer LFS sem o objeto real resulta em erro explicativo. O
+manifesto `data/cinerocket.db.sha256` acompanha o Gold para evitar reler o banco
+inteiro em cada inicialização. Se o dataset mudar, atualize hash e tamanho no
+manifesto junto com o objeto LFS. O
 sincronizador também aceita `GOLD_DATABASE_PATH` ou `--gold-database`. O esquema
 e suas limitações estão no guia de
 [banco de dados](docs/database.md). O backend importa as tabelas para o SQLite

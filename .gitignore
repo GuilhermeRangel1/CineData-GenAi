@@ -18,6 +18,7 @@ cinerocket-db.zip
 /data/*
 !/data/.gitkeep
 !/data/cinerocket.db
+!/data/cinerocket.db.sha256
 
 # Sistema operacional e IDE
 .DS_Store

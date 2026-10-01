@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, MetaData, String, func
+from sqlalchemy import BigInteger, DateTime, MetaData, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 NAMING_CONVENTION = {
@@ -28,3 +28,5 @@ class GoldDatabaseSync(Base):
     imported_at: Mapped[datetime] = mapped_column(
         DateTime(), nullable=False, server_default=func.now()
     )
+    source_size_bytes: Mapped[int | None] = mapped_column(BigInteger(), nullable=True)
+    source_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)

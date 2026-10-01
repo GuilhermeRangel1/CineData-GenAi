@@ -8,12 +8,19 @@ services:
       PROJECT_DATA_DIRECTORY: /app/data
       LEGACY_DATABASE_DIRECTORY: /legacy
       GOLD_DATABASE_PATH: /workspace/cinerocket.db
+      GOLD_DATABASE_FINGERPRINT_PATH: /workspace/cinerocket.db.sha256
     volumes:
       - ./data:/app/data
       - cinedata-db:/legacy:ro
       - type: bind
         source: ./data/cinerocket.db
         target: /workspace/cinerocket.db
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data/cinerocket.db.sha256
+        target: /workspace/cinerocket.db.sha256
         read_only: true
         bind:
           create_host_path: false
@@ -30,6 +37,7 @@ services:
       ENVIRONMENT: docker
       DATABASE_URL: sqlite+aiosqlite:////app/data/rocketlab.db
       GOLD_DATABASE_PATH: /workspace/cinerocket.db
+      GOLD_DATABASE_FINGERPRINT_PATH: /workspace/cinerocket.db.sha256
       BACKEND_CORS_ORIGINS: '["http://localhost:5173", "http://localhost:8080"]'
       LOG_LEVEL: INFO
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-cinedata-demo-local-only-change-before-deploy}
@@ -42,6 +50,12 @@ services:
       - type: bind
         source: ./data/cinerocket.db
         target: /workspace/cinerocket.db
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data/cinerocket.db.sha256
+        target: /workspace/cinerocket.db.sha256
         read_only: true
         bind:
           create_host_path: false

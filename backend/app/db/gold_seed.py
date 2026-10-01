@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import sqlite3
 import sys
 from collections.abc import Iterator, Sequence
@@ -145,12 +146,64 @@ def _configure_engine(engine: Engine) -> None:
         del connection_record
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA cache_size=-65536")
+        cursor.execute("PRAGMA temp_store=MEMORY")
+        cursor.execute("PRAGMA busy_timeout=5000")
         cursor.close()
 
 
-def _gold_fingerprint(path: Path) -> str:
+def _gold_fingerprint(path: Path) -> tuple[str, str, int, bool]:
+    """Uses the tracked LFS checksum so normal startups do not reread 581 MB."""
+    configured_gold = Path(
+        os.environ.get("GOLD_DATABASE_PATH", DEFAULT_GOLD_DATABASE)
+    ).expanduser().resolve()
+    configured_manifest = os.environ.get("GOLD_DATABASE_FINGERPRINT_PATH")
+    manifest_path = (
+        Path(configured_manifest)
+        if configured_manifest and configured_gold == path.resolve()
+        else Path(f"{path}.sha256")
+    )
+    source_size = path.stat().st_size
+    manifest_digest: str | None = None
+    if manifest_path.is_file():
+        parts = manifest_path.read_text(encoding="ascii").split()
+        if len(parts) != 2 or not re.fullmatch(r"[0-9a-fA-F]{64}", parts[0]):
+            raise GoldDatabaseError(
+                f"Manifesto de fingerprint inválido em {manifest_path}; esperado: SHA256 e tamanho."
+            )
+        try:
+            expected_size = int(parts[1])
+        except ValueError as error:
+            raise GoldDatabaseError(
+                f"Tamanho inválido no manifesto de fingerprint {manifest_path}."
+            ) from error
+        if expected_size != source_size:
+            raise GoldDatabaseError(
+                f"O tamanho de {path} não corresponde ao manifesto {manifest_path}; "
+                "atualize o Gold e seu checksum em conjunto."
+            )
+        manifest_digest = parts[0].lower()
+
+    if manifest_digest is None:
+        # Bases customizadas sem manifesto continuam usando hash integral.
+        source_hash = hashlib.sha256()
+        with path.open("rb") as source:
+            while block := source.read(8 * 1024 * 1024):
+                source_hash.update(block)
+        source_digest = source_hash.hexdigest()
+    else:
+        source_digest = manifest_digest
+
+    digest = hashlib.sha256()
+    digest.update(f"gold-import-version:{GOLD_IMPORT_VERSION}\0".encode())
+    digest.update(bytes.fromhex(source_digest))
+    return digest.hexdigest(), source_digest, source_size, manifest_digest is not None
+
+
+def _legacy_gold_fingerprint(path: Path) -> str:
+    """Recognizes the pre-manifest fingerprint once when upgrading an existing DB."""
     digest = hashlib.sha256()
     digest.update(f"gold-import-version:{GOLD_IMPORT_VERSION}\0".encode())
     with path.open("rb") as source:
@@ -417,20 +470,47 @@ def seed_from_gold_database(
                 f"faltam: {missing}."
             )
 
-        fingerprint = _gold_fingerprint(source_path)
+        fingerprint, source_digest, source_size, has_manifest = _gold_fingerprint(source_path)
         tables = Base.metadata.tables
         backup_path = None
         with engine.connect() as connection:
-            previous = connection.execute(
-                select(GoldDatabaseSync.fingerprint).where(
+            previous_sync = connection.execute(
+                select(
+                    GoldDatabaseSync.fingerprint,
+                    GoldDatabaseSync.source_digest,
+                    GoldDatabaseSync.source_size_bytes,
+                ).where(
                     GoldDatabaseSync.dataset_name == "cinerocket"
                 )
-            ).scalar_one_or_none()
-            if (force or previous != fingerprint) and _has_application_data(
-                connection, tables
+            ).one_or_none()
+            previous = previous_sync.fingerprint if previous_sync else None
+            if (
+                previous_sync is not None
+                and previous_sync.source_digest is None
+                and previous_sync.source_size_bytes is None
+                and has_manifest
+                and _legacy_gold_fingerprint(source_path) == previous
             ):
-                backup_path = _create_pre_sync_backup(engine)
+                # Atualiza somente o formato do fingerprint na migração da lógica;
+                # não cria um backup/reimport desnecessário de 679 MB.
+                previous = fingerprint
+            has_application_data = (
+                (force or previous != fingerprint)
+                and _has_application_data(connection, tables)
+            )
+        if has_application_data:
+            backup_path = _create_pre_sync_backup(engine)
         if previous == fingerprint and not force:
+            with engine.begin() as connection:
+                connection.execute(
+                    update(GoldDatabaseSync)
+                    .where(GoldDatabaseSync.dataset_name == "cinerocket")
+                    .values(
+                        fingerprint=fingerprint,
+                        source_size_bytes=source_size,
+                        source_digest=source_digest,
+                    )
+                )
             return None
         if backup_path is not None:
             print(f"Backup preventivo criado: {backup_path}", flush=True)
@@ -473,10 +553,20 @@ def seed_from_gold_database(
             )
             connection.execute(
                 sqlite_insert(GoldDatabaseSync)
-                .values(dataset_name="cinerocket", fingerprint=fingerprint)
+                .values(
+                    dataset_name="cinerocket",
+                    fingerprint=fingerprint,
+                    source_size_bytes=source_size,
+                    source_digest=source_digest,
+                )
                 .on_conflict_do_update(
                     index_elements=[GoldDatabaseSync.dataset_name],
-                    set_={"fingerprint": fingerprint, "imported_at": text("CURRENT_TIMESTAMP")},
+                    set_={
+                        "fingerprint": fingerprint,
+                        "imported_at": text("CURRENT_TIMESTAMP"),
+                        "source_size_bytes": source_size,
+                        "source_digest": source_digest,
+                    },
                 )
             )
         return processed

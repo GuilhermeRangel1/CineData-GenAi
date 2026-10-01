@@ -109,6 +109,12 @@ e cria backup preventivo do banco operacional se ele já contém dados. Avaliaç
 locais permanecem preservadas e o resumo de notas é recomposto considerando a
 base Gold e essas avaliações.
 
+O manifesto `data/cinerocket.db.sha256` guarda o SHA-256 e o tamanho do objeto
+Gold distribuído via Git LFS. O Compose o monta somente para leitura junto ao
+banco; assim, a API identifica a versão sem reler os 581 MB a cada inicialização.
+Ao atualizar o Gold, atualize também esse manifesto. Bases personalizadas sem
+manifesto continuam usando hash integral.
+
 A migração `0020_add_original_language` adiciona `idioma_original` ao modelo e
 ao banco operacional, e o sincronizador importa a coluna. Migrações futuras
 serão aplicadas pelo próximo início do serviço. O Gold `./data/cinerocket.db`
@@ -130,6 +136,20 @@ via Git LFS; ZIPs e bancos operacionais permanecem fora do Git. O preparador
 falha com instrução clara se o clone tiver apenas o pointer LFS ou se o Gold
 não tiver o schema esperado.
 
+### Desempenho local
+
+O catálogo usa FTS5 com tokenizer trigram para pesquisar trechos de pelo menos
+três caracteres em títulos, pessoas e produtoras. Buscas de um ou dois
+caracteres preservam a semântica anterior com `LIKE`. Triggers mantêm os índices
+sincronizados quando os dados do catálogo mudam. A contagem de resultados usa
+`COUNT(*)` diretamente sobre as tabelas filtradas, sem materializar todas as
+colunas dos filmes em uma subconsulta.
+
+O SQLite operacional usa WAL, `synchronous=NORMAL`, cache de páginas de 64 MiB,
+temporários em memória e timeout de lock de 5 segundos. WAL mantém leituras
+disponíveis durante gravações; `NORMAL` melhora o desempenho, com a possibilidade
+de perder a transação mais recente em uma falha abrupta de energia.
+
 ## Histórico de migrações
 
 | Revisão | Alteração |
@@ -142,6 +162,8 @@ não tiver o schema esperado.
 | `0016_clean_movie_runtime`–`0018_add_dislike_reaction` | Higiene/validação de métricas e reação negativa. |
 | `0019_track_gold_database_sync` | Fingerprint da fonte aplicada ao banco operacional. |
 | `0020_add_original_language` | Importa o idioma original dos filmes para o schema operacional. |
+| `0021_add_catalog_search_indexes` | FTS5 trigram para buscar trechos em títulos, pessoas e produtoras. |
+| `0022_cache_gold_fingerprint` | Persiste checksum e tamanho do Gold para evitar hashing repetido. |
 
 O mapa de gostos usa o catálogo operacional e o índice SQLite FTS5 de sinopses.
 Detalhes de rotas e limites estão em
