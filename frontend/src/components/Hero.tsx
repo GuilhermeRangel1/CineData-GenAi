@@ -9,19 +9,23 @@ import { Icon } from './Icon'
 
 const DELAY_DE_ABERTURA_MS = 450
 const DELAY_DE_REVELACAO_MS = 4200
+const PAUSA_ENTRE_REPRODUCOES_MS = 2200
+const REVELACAO_APOS_REINICIO_MS = 650
 
 export function Hero({ onExplore, paused = false }: { onExplore: () => void; paused?: boolean }) {
   const host = useRef<HTMLDivElement>(null)
   const section = useRef<HTMLElement>(null)
-  const player = useRef<YouTubePlayer | null>(null)
-  const mutedPreference = useRef(true)
   const delay = useRef<number | null>(null)
   const revealDelay = useRef<number | null>(null)
+  const replayDelay = useRef<number | null>(null)
+  const player = useRef<YouTubePlayer | null>(null)
+  const replaying = useRef(false)
+  const mutedPreference = useRef(true)
   const [shouldLoad, setShouldLoad] = useState(false)
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
-  const [muted, setMuted] = useState(true)
   const [unavailable, setUnavailable] = useState(false)
+  const [muted, setMuted] = useState(true)
 
   useEffect(() => {
     function clearDelay() {
@@ -32,6 +36,8 @@ export function Hero({ onExplore, paused = false }: { onExplore: () => void; pau
       clearDelay()
       if (revealDelay.current !== null) window.clearTimeout(revealDelay.current)
       revealDelay.current = null
+      if (replayDelay.current !== null) window.clearTimeout(replayDelay.current)
+      replayDelay.current = null
       setShouldLoad(false)
       setReady(false)
       setPlaying(false)
@@ -65,41 +71,13 @@ export function Hero({ onExplore, paused = false }: { onExplore: () => void; pau
     let active = true
     let instance: YouTubePlayer | undefined
     const hostElement = host.current
-    let fallbackShown = false
-    let fallbackTimer: number | undefined
-    const clearFallbackTimer = () => {
-      if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer)
-      fallbackTimer = undefined
-    }
-    const revealVideo = () => {
+    const revealVideo = (waitMs = DELAY_DE_REVELACAO_MS) => {
       if (revealDelay.current !== null) window.clearTimeout(revealDelay.current)
       revealDelay.current = window.setTimeout(() => {
         if (active) setReady(true)
         revealDelay.current = null
-      }, DELAY_DE_REVELACAO_MS)
+      }, waitMs)
     }
-    const showFallback = () => {
-      if (!active || !hostElement) return
-      fallbackShown = true
-      clearFallbackTimer()
-      const iframe = document.createElement('iframe')
-      iframe.title = 'Trailer oficial de Spider-Man: Across the Spider-Verse'
-      iframe.src = `https://www.youtube-nocookie.com/embed/${HOME_TRAILER_ID}?autoplay=1&mute=1&controls=0&loop=1&playlist=${HOME_TRAILER_ID}&start=0&rel=0`
-      iframe.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture'
-      iframe.allowFullscreen = true
-      iframe.referrerPolicy = 'strict-origin-when-cross-origin'
-      iframe.onload = () => {
-        if (!active) return
-        setPlaying(true)
-        setUnavailable(false)
-        revealVideo()
-      }
-      hostElement.replaceChildren(iframe)
-      setReady(false)
-      setPlaying(false)
-      setUnavailable(false)
-    }
-    fallbackTimer = window.setTimeout(showFallback, 3500)
     const timeout = window.setTimeout(() => {
       if (!active) return
       setUnavailable(true)
@@ -109,8 +87,7 @@ export function Hero({ onExplore, paused = false }: { onExplore: () => void; pau
 
     void loadYouTube()
       .then((api) => {
-        if (!active || !hostElement || fallbackShown) return
-        clearFallbackTimer()
+        if (!active || !hostElement) return
         const mount = document.createElement('div')
         hostElement.replaceChildren(mount)
         instance = new api.Player(mount, {
@@ -124,38 +101,56 @@ export function Hero({ onExplore, paused = false }: { onExplore: () => void; pau
             modestbranding: 1,
             playsinline: 1,
             start: 0,
-            loop: 1,
-            playlist: HOME_TRAILER_ID,
+            loop: 0,
             rel: 0,
             origin: window.location.origin,
           },
           events: {
             onReady: ({ target }) => {
               if (!active) return
-              player.current = target
               target.getIframe().title = 'Trailer oficial de Spider-Man: Across the Spider-Verse'
               target.getIframe().tabIndex = -1
+              player.current = target
               if (mutedPreference.current) target.mute()
               else target.unMute()
               target.playVideo()
             },
-            onStateChange: ({ data }) => {
+            onStateChange: ({ data, target }) => {
               if (!active) return
               if (data === 1) {
                 window.clearTimeout(timeout)
                 setPlaying(true)
                 setUnavailable(false)
-                revealVideo()
+                const revealWait = replaying.current
+                  ? REVELACAO_APOS_REINICIO_MS
+                  : DELAY_DE_REVELACAO_MS
+                replaying.current = false
+                revealVideo(revealWait)
               } else if (data === 2) {
                 if (revealDelay.current !== null) window.clearTimeout(revealDelay.current)
                 revealDelay.current = null
                 setPlaying(false)
+              } else if (data === 0) {
+                if (revealDelay.current !== null) window.clearTimeout(revealDelay.current)
+                revealDelay.current = null
+                setPlaying(false)
+                setReady(false)
+                replaying.current = true
+                if (replayDelay.current !== null) window.clearTimeout(replayDelay.current)
+                replayDelay.current = window.setTimeout(() => {
+                  replayDelay.current = null
+                  if (!active) return
+                  target.seekTo(0, true)
+                  target.playVideo()
+                }, PAUSA_ENTRE_REPRODUCOES_MS)
               }
             },
             onError: () => {
               if (!active) return
               window.clearTimeout(timeout)
-              showFallback()
+              setUnavailable(true)
+              setPlaying(false)
+              setReady(false)
             },
             onAutoplayBlocked: () => {
               if (!active) return
@@ -168,27 +163,30 @@ export function Hero({ onExplore, paused = false }: { onExplore: () => void; pau
       .catch(() => {
         if (!active) return
         window.clearTimeout(timeout)
-        showFallback()
+        setUnavailable(true)
+        setPlaying(false)
+        setReady(false)
       })
 
     return () => {
       active = false
-      clearFallbackTimer()
       if (revealDelay.current !== null) window.clearTimeout(revealDelay.current)
       revealDelay.current = null
+      if (replayDelay.current !== null) window.clearTimeout(replayDelay.current)
+      replayDelay.current = null
       window.clearTimeout(timeout)
       instance?.destroy()
       player.current = null
+      replaying.current = false
       hostElement?.replaceChildren()
     }
   }, [shouldLoad])
 
   function toggleSound() {
-    const nextMuted = !mutedPreference.current
-    mutedPreference.current = nextMuted
-    if (nextMuted) player.current?.mute()
+    mutedPreference.current = !mutedPreference.current
+    setMuted(mutedPreference.current)
+    if (mutedPreference.current) player.current?.mute()
     else player.current?.unMute()
-    setMuted(nextMuted)
   }
 
   const loadingTrailer = shouldLoad && !ready && !unavailable
@@ -242,8 +240,10 @@ export function Hero({ onExplore, paused = false }: { onExplore: () => void; pau
             {ready && !unavailable && (
               <button
                 className="icon-button"
+                type="button"
                 onClick={toggleSound}
-                aria-label={muted ? 'Ativar som do vídeo' : 'Silenciar vídeo'}
+                aria-label={muted ? 'Ativar som do trailer' : 'Silenciar trailer'}
+                title={muted ? 'Ativar som' : 'Silenciar'}
               >
                 <Icon name={muted ? 'mute' : 'volume'} />
               </button>

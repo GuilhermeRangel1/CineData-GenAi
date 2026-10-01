@@ -29,6 +29,7 @@ describe('Destaque cinematográfico', () => {
     const target = {
       pauseVideo,
       playVideo,
+      seekTo: vi.fn(),
       mute,
       unMute,
       destroy,
@@ -88,6 +89,7 @@ describe('Destaque cinematográfico', () => {
     const target = {
       pauseVideo: vi.fn(),
       playVideo: vi.fn(),
+      seekTo: vi.fn(),
       mute: vi.fn(),
       unMute: vi.fn(),
       destroy,
