@@ -10,7 +10,6 @@ COPY backend/pyproject.toml ./pyproject.toml
 COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./alembic.ini
-COPY data/raw /app/data/raw
 
 RUN pip install --no-cache-dir .
 

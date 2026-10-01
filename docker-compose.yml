@@ -1,4 +1,24 @@
 services:
+  project-data-init:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    entrypoint: ["python", "-m", "app.db.prepare_project_data"]
+    environment:
+      PROJECT_DATA_DIRECTORY: /app/data
+      LEGACY_DATABASE_DIRECTORY: /legacy
+      GOLD_DATABASE_PATH: /workspace/cinerocket.db
+    volumes:
+      - ./data:/app/data
+      - cinedata-db:/legacy:ro
+      - type: bind
+        source: ./data/cinerocket.db
+        target: /workspace/cinerocket.db
+        read_only: true
+        bind:
+          create_host_path: false
+    restart: "no"
+
   backend:
     build:
       context: .
@@ -9,6 +29,7 @@ services:
     environment:
       ENVIRONMENT: docker
       DATABASE_URL: sqlite+aiosqlite:////app/data/rocketlab.db
+      GOLD_DATABASE_PATH: /workspace/cinerocket.db
       BACKEND_CORS_ORIGINS: '["http://localhost:5173", "http://localhost:8080"]'
       LOG_LEVEL: INFO
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-cinedata-demo-local-only-change-before-deploy}
@@ -17,7 +38,16 @@ services:
       INITIAL_ADMIN_NAME: admin
       INITIAL_ADMIN_PASSWORD: admin123
     volumes:
-      - cinedata-db:/app/data
+      - ./data:/app/data
+      - type: bind
+        source: ./data/cinerocket.db
+        target: /workspace/cinerocket.db
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      project-data-init:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -31,7 +61,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 15m
+      start_period: 45m
 
   frontend:
     build:
@@ -53,3 +83,4 @@ services:
 
 volumes:
   cinedata-db:
+    name: cinedata-analytics-fullstack_cinedata-db

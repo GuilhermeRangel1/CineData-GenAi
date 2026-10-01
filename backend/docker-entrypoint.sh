@@ -2,7 +2,9 @@
 set -eu
 
 alembic upgrade head
-python -m app.db.seed --database-url "${DATABASE_URL}" --skip-if-populated
+python -m app.db.gold_seed \
+  --database-url "${DATABASE_URL}" \
+  --gold-database "${GOLD_DATABASE_PATH:-/app/data/cinerocket.db}"
 
 if [ -n "${TMDB_API_TOKEN:-}" ]; then
   python -m app.db.enrich_home_trailers
