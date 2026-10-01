@@ -39,7 +39,8 @@ def test_adapter_normalizes_function_call_without_network() -> None:
                             function_call=SimpleNamespace(
                                 name="run_sql",
                                 args={"sql": "SELECT 1"},
-                            )
+                            ),
+                            thought_signature=b"signature",
                         )
                     ]
                 )
@@ -55,8 +56,22 @@ def test_adapter_normalizes_function_call_without_network() -> None:
         [],
     )
 
-    assert result == ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT 1"}))
-    assert client.models.kwargs["model"] == "gemini-2.5-flash"
+    assert result == ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT 1"}, b"signature"))
+    assert client.models.kwargs["model"] == "gemini-3.8-flash"
+
+    contents = model._contents(
+        [
+            {
+                "role": "assistant",
+                "tool_call": {
+                    "name": "run_sql",
+                    "arguments": {"sql": "SELECT 1"},
+                    "thought_signature": b"signature",
+                },
+            }
+        ]
+    )
+    assert contents[0].parts[0].thought_signature == b"signature"
 
 
 def test_adapter_normalizes_final_text_without_network() -> None:

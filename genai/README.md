@@ -35,5 +35,5 @@ python -m pytest
 ```
 
 O adaptador lê `GENAI_GEMINI_API_KEY` do `.env` e usa
-`GENAI_GEMINI_MODEL` ou `gemini-2.5-flash` por padrão. A suíte de testes injeta
+`GENAI_GEMINI_MODEL` ou `gemini-3.8-flash` por padrão. A suíte de testes injeta
 um cliente simulado; ela nunca consome a cota do provedor.

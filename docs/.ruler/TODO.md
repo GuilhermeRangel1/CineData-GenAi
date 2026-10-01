@@ -146,9 +146,15 @@ e sem ultrapassar os controles de uso. Esta etapa depende da conclusão e revis�
 do checkpoint da etapa 2.
 
 **Checkpoint atual da etapa 3:** o ciclo interno e o adaptador Gemini estão
-verificados; nenhuma chamada real foi feita. A validação manual, a integração
-com a rota HTTP e a cobertura das perguntas obrigatórias ainda estão pendentes.
-Pare e aguarde a revisão antes de consumir cota.
+verificados localmente. A primeira tentativa manual alcançou o provedor, mas o
+modelo `gemini-2.5-flash` foi recusado para usuários novos; o padrão foi
+atualizado para `gemini-3.8-flash`. A segunda tentativa recebeu `503
+UNAVAILABLE` por alta demanda temporária. Em uma nova tentativa, o modelo
+gerou a chamada de ferramenta, mas o segundo turno foi recusado porque a
+assinatura de pensamento não estava sendo reenviada; o adapter foi corrigido e
+há teste local cobrindo esse transporte. A validação manual após a correção, a
+integração com a rota HTTP e a cobertura das perguntas obrigatórias ainda estão
+pendentes. Pare e aguarde a revisão antes de consumir nova cota.
 
 ## 4. Interface e substituição do chatbot anterior
 

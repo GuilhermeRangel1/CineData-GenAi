@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     gold_database_path: Path = Path("../data/cinerocket.db")
     gold_timeout_seconds: float = 5.0
     gemini_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
 
     model_config = SettingsConfigDict(
         env_file=".env",

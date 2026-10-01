@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ModelTurn, ToolCall, ToolDefinition
 from app.errors import QueryExecutionError, SqlValidationError
+from app.gold_database import EXPECTED_TABLES
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
 
@@ -41,6 +42,8 @@ RUN_SQL_TOOL = ToolDefinition(
     },
 )
 
+_GOLD_TABLES_CONTEXT = ", ".join(sorted(EXPECTED_TABLES))
+
 
 class AgentService:
     """Executa no máximo um tool call e pede ao modelo uma resposta final."""
@@ -62,7 +65,9 @@ class AgentService:
                 "role": "system",
                 "content": (
                     "Responda em português. Para perguntas sobre o catálogo, "
-                    "use exatamente a ferramenta run_sql. Não invente números."
+                    "use exatamente a ferramenta run_sql. Não invente números. "
+                    "Use somente estes nomes exatos de tabelas Gold: "
+                    f"{_GOLD_TABLES_CONTEXT}. Não invente nomes de tabelas."
                 ),
             },
             {"role": "user", "content": normalized_question},
@@ -86,7 +91,11 @@ class AgentService:
             [
                 {
                     "role": "assistant",
-                    "tool_call": {"name": call.name, "arguments": call.arguments},
+                    "tool_call": {
+                        "name": call.name,
+                        "arguments": call.arguments,
+                        "thought_signature": call.thought_signature,
+                    },
                 },
                 {
                     "role": "tool",

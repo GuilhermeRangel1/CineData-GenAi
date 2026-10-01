@@ -14,7 +14,7 @@ from app.errors import ProviderConfigurationError
 class GeminiToolCallingModel:
     """Converte o contrato interno para a API de function calling do Gemini."""
 
-    def __init__(self, api_key: str | None, model: str = "gemini-2.5-flash", client: Any = None):
+    def __init__(self, api_key: str | None, model: str = "gemini-3.8-flash", client: Any = None):
         if not api_key and client is None:
             raise ProviderConfigurationError("A chave da Gemini API não foi configurada.")
         self.model = model
@@ -43,6 +43,7 @@ class GeminiToolCallingModel:
                         tool_call=ToolCall(
                             name=part.function_call.name,
                             arguments=dict(part.function_call.args or {}),
+                            thought_signature=part.thought_signature,
                         )
                     )
 
@@ -85,9 +86,12 @@ class GeminiToolCallingModel:
                     types.Content(
                         role="model",
                         parts=[
-                            types.Part.from_function_call(
-                                name=call["name"],
-                                args=call["arguments"],
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    name=call["name"],
+                                    args=call["arguments"],
+                                ),
+                                thought_signature=call.get("thought_signature"),
                             )
                         ],
                     )
