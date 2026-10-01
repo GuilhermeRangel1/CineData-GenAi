@@ -1,170 +1,127 @@
-# Tooling e convenções de implementação
+# Tooling e convenções — CineData GenAI
 
-## Estrutura esperada
+**Escopo vigente:** módulo GenAI e integração de interface estão pausados até
+revisão explícita do usuário. Não criar o serviço, dependências ou chamadas a
+modelo nesta fase.
+
+## Separação do módulo
+
+O plano canônico fica em [`TODO.md`](TODO.md). O produto GenAI deve ser
+implementado como bloco autônomo, preferencialmente em `genai/`, com API
+FastAPI, configuração, dependências, execução e testes próprios. Não importe
+rotas, modelos ou dependências do backend social/catálogo para implementar o
+agente.
 
 ```text
 .
-├── backend/       # FastAPI, SQLAlchemy, Alembic e testes Python
-├── frontend/      # Vite, React, TypeScript e testes da interface
-├── data/raw/      # CSVs originais, versionados sem alterações
-└── docs/.ruler/   # fonte central das instruções para agentes
+├── genai/                 # módulo FastAPI Text-to-SQL (novo foco)
+│   ├── app/               # API, agente, ferramenta SQL e acesso SQLite
+│   ├── tests/             # testes determinísticos sem chamadas externas
+│   └── pyproject.toml     # dependências isoladas do módulo
+├── backend/               # aplicação CineData existente; preservada
+├── frontend/              # design existente integrado ao serviço GenAI
+├── cinerocket.db          # Gold distribuído via Git LFS; somente leitura
+├── data/                  # SQLite operacional local, ignorado pelo Git
+└── docs/.ruler/            # decisões e plano de progresso
 ```
 
-Não mova os módulos existentes do backend sem necessidade técnica demonstrável.
+O Compose atual prepara os arquivos SQLite para a aplicação existente. O Gold
+é montado em modo somente leitura; o banco operacional persiste em `./data`.
 
-## Fluxo de trabalho por tarefa
+## Gold e regras analíticas
 
-- Antes de editar, leia o item correspondente no `TODO.md`, os contratos
-  envolvidos e a documentação diretamente relacionada ao requisito.
-- Trabalhe em uma unidade coerente por vez. Não marque um item como concluído
-  enquanto sua validação ainda estiver pendente.
-- É permitido criar novos arquivos quando isso melhorar a separação de
-  responsabilidades ou for necessário para atender ao requisito. O arquivo
-  novo deve respeitar a estrutura do projeto, não duplicar uma responsabilidade
-  existente e não contrariar o conteúdo-base deste Ruler.
-- Preserve os CSVs originais, contratos públicos, decisões arquiteturais e
-  limites de escopo existentes. Se uma mudança precisar contrariar uma dessas
-  decisões, registre a justificativa e consulte o usuário antes de prosseguir.
-- Antes de concluir qualquer alteração, revise o diff e execute as validações
-  aplicáveis à área modificada. Uma alteração só está pronta quando os gates
-  relevantes passam sem erros.
-- Não execute operações Git que alterem o histórico sem pedido explícito do
-  usuário. Por padrão, mantenha as alterações locais e informe o estado,
-  impactos, validações e próximo passo.
+- O serviço GenAI consulta diretamente `cinerocket.db` em SQLite read-only.
+  Não consulta o banco operacional do app e não depende da sincronização Gold
+  para responder às perguntas da atividade.
+- Caminho do arquivo configurável por ambiente; falhar com mensagem útil se
+  estiver ausente/inválido. Não alterar nem incluir o Gold na imagem.
+- O Gold é distribuído via Git LFS. Clones precisam obter o objeto LFS; se o
+  serviço receber apenas o arquivo pointer, a inicialização deve explicar como
+  buscar o objeto em vez de iniciar silenciosamente sem dados.
+- O banco operacional fica em `./data/rocketlab.db`, fora do Git. Na primeira
+  subida, o serviço de preparação copia com SQLite backup API o banco do volume
+  legado, se existir; mantém intacto o volume original.
+- Inspecionar o esquema real antes de escrever SQL, documentar somente as
+  colunas/relações necessárias e confirmar amostras e cardinalidades.
+- Receita usa a coluna de receita do Gold. Lucro é receita menos orçamento
+  quando ambos existem. Margem é lucro dividido pela receita somente quando
+  receita > 0. O relatório explicita exclusões por dados ausentes.
+- “Últimos cinco anos” usa janela móvel ancorada na data de execução e data de
+  lançamento; informar o período aplicado.
+- Divergência entre notas usa diferença absoluta somente com escalas
+  comprovadamente comparáveis. Se não forem, normalizar com regra explícita e
+  validada ou não comparar.
+- Agregar fatos por filme antes de combinar dimensões/bridges multivaloradas;
+  usar filme distinto nas contagens; desempatar com ordenação estável.
+- Usar schema e população reais para separar avaliações de usuários de notas
+  externas. A fórmula final deve seguir as perguntas da atividade e ficar no
+  TODO/documentação junto de seus filtros e limites.
 
-## Validação obrigatória
+## API, provedor e segurança
 
-Toda mudança deve ter uma validação proporcional ao risco. Para código novo ou
-alterado, isso inclui testes automatizados do comportamento e dos casos de
-erro relevantes, sempre que possível. Para alterações de banco, use um SQLite
-temporário, aplique as migrações a partir de um banco vazio e valide rollback e
-integridade referencial. Para contratos ou documentação de API, confirme os
-status HTTP e o formato público das respostas.
+- API FastAPI separada com contrato pequeno de pergunta/resposta/erro; sem
+  autenticação, memória ou persistência de conversa no escopo obrigatório.
+- Framework de agente e provedor/modelo precisam suportar tool calling e devem
+  poder ser trocados sem reescrever a ferramenta SQL.
+- Chave e modelo vêm de configuração local/ambiente. Nunca enviar chave ao
+  frontend, registrar segredo em logs, ou incluí-lo em erros, README ou Git.
+- Modelo só pede a ferramenta tipada; acesso ao arquivo e execução SQL passam
+  exclusivamente pelo executor controlado.
+- Permitir uma consulta de leitura por chamada, tabelas Gold em allowlist,
+  parser/validação compatível com SQLite e conexão `mode=ro`. Recusar DML, DDL,
+  múltiplas instruções, `ATTACH`/`DETACH`, extensões e acesso externo.
+- Definir limite de tempo e linhas após avaliar as consultas obrigatórias.
+  Erros de validação não executam SQL; respostas factuais vêm apenas do
+  resultado executado. Não expor caminho privado ou traceback ao cliente.
 
-Gates mínimos disponíveis no projeto:
+## Testes e cota diária
 
-```powershell
-# Backend, executados a partir de backend/
-python -m ruff format --check .
-python -m ruff check .
-python -m pytest
+- Testes unitários, agregações e fluxo de agente usam SQLite temporário,
+  consultas de referência e respostas do provedor simuladas. A suíte normal
+  deve fazer **zero chamadas externas**.
+- Testar SELECT permitido e bloqueios de escrita, DDL, múltiplas instruções,
+  tabelas fora da allowlist, SQL inválido, banco ausente/inválido, timeout,
+  limite de linhas e resultado vazio.
+- Testar agregações com nulos, joins 1:N, duplicações potenciais, empate e
+  escalas/populações de notas, comparando com SQL de referência independente.
+- A cota informada é até 50 chamadas diárias no plano gratuito do provedor;
+  tool calling pode gastar mais de uma chamada por pergunta. Recomenda-se teto
+  operacional de 5 chamadas reais por dia durante desenvolvimento, chamadas
+  manuais sem retry em loop e anotação do consumo observado. O teto pode ser
+  reduzido se o painel do provedor mostrar limite inferior.
+- Não rodar avaliações em lote com o modelo real. Uma rodada curta de smoke
+  com perguntas representativas só ocorre depois dos testes locais e do
+  orçamento diário ser conferido.
 
-# Frontend, executados a partir de frontend/
-npm run lint
-npm run build
-```
+## Execução do banco operacional
 
-Quando um comando ainda não existir no projeto, não o invente como se tivesse
-passado: registre a limitação e use a verificação equivalente disponível.
-Após os gates, confirme com `git diff --check` que não há erro de whitespace ou
-alteração acidental fora do escopo.
+- Compose monta `./cinerocket.db` em `/workspace/cinerocket.db` somente para
+  leitura e liga `./data` a `/app/data`. A preparação dos dados acontece antes
+  da API; um volume Docker legado é preservado e copiado somente quando o banco
+  ainda não existe em `./data`.
 
-## Arquitetura da aplicação
+## Frontend e aplicação existente
 
-- Routers cuidam de parsing HTTP, status e dependências; não concentram regras
-  de negócio ou consultas complexas.
-- Serviços coordenam validação de domínio, conversões de nota, transações e
-  regras que envolvam mais de uma entidade.
-- Acesso a dados deve permanecer testável e não deve vazar detalhes SQLAlchemy
-  para componentes React ou contratos de API.
-- Use uma representação de erro consistente para toda a API e nunca retorne
-  exceções, SQL ou caminhos locais ao cliente.
-- Mantenha interfaces e tipos de contrato como fonte de verdade entre frontend
-  e backend; não replique estruturas sem necessidade.
+- Construir primeiro e validar a API GenAI. Depois integrar o frontend ao
+  endpoint FastAPI por HTTP; nunca fazer chamada ao modelo diretamente do
+  navegador.
+- Reaproveitar o design existente para entrada de pergunta, estado de execução,
+  resposta, erro e tabelas/valores retornados. O layout é uma camada de
+  apresentação, não parte do agente.
+- Substituir/remover o chatbot Gemini somente quando o novo fluxo estiver
+  integrado. Preservar o restante do frontend e as funcionalidades antigas.
+- Manter a sincronização e os testes da aplicação full-stack separados do
+  ciclo de desenvolvimento e dos critérios de conclusão do módulo GenAI.
 
-## Backend
+## Documentação e fluxo de trabalho
 
-- Use as dependências e configurações declaradas em `backend/pyproject.toml`.
-- Mantenha endpoints de negócio sob `/api/v1` e preserve `GET /health`.
-- Use schemas Pydantic distintos dos modelos ORM para entrada e saída da API.
-- Use `AsyncSession` e consultas SQLAlchemy 2; evite SQL textual sem necessidade.
-- Faça `commit` e `rollback` em limites transacionais claros.
-- Paginação deve ter parâmetros validados, ordem determinística e metadados
-  suficientes para a interface navegar entre páginas.
-- Busca textual deve ser segura, case-insensitive quando suportado e combinável
-  com a paginação.
-- Retorne códigos HTTP coerentes: 201 para criação, 204 para exclusão bem-sucedida,
-  404 para recurso ausente e 422 para entrada inválida.
-- Evite consultas N+1 ao carregar gêneros, pessoas, desempenho e avaliações.
-- Dê ordem explícita a toda coleção exposta pela API.
-- Faça logs estruturados de falhas e operações de carga, sem registrar segredos,
-  comentários completos ou dados além do necessário para diagnóstico.
-- Restrinja CORS às origens configuradas para cada ambiente; não use coringa em
-  produção.
-
-Comandos de verificação do backend devem partir de `backend/`:
-
-```bash
-python -m pytest
-python -m ruff check .
-alembic upgrade head
-```
-
-## Frontend
-
-- Crie o frontend em `frontend/` com Vite, React e TypeScript.
-- Use componentes funcionais e TypeScript estrito; não introduza `any` sem uma
-  justificativa localizada.
-- Centralize o cliente HTTP e os tipos de contrato da API.
-- Separe páginas, componentes reutilizáveis e acesso a dados.
-- Implemente, no mínimo, catálogo, pesquisa, paginação, detalhes, formulário de
-  filme, edição, exclusão e criação de avaliação.
-- Confirme ações destrutivas e preserve mensagens de erro úteis ao usuário.
-- Mantenha a interface utilizável em telas móveis e desktop.
-- Adicione dependências somente quando reduzirem complexidade real. Não adicione
-  bibliotecas apenas para substituir recursos simples da plataforma.
-
-Comandos mínimos esperados do frontend, executados em `frontend/`:
-
-```bash
-npm run lint
-npm run test
-npm run build
-```
-
-Se o template não fornecer `test`, adicione uma configuração de testes antes de
-declarar a interface concluída.
-
-## Banco e carga dos CSVs
-
-- O Alembic é a única autoridade para criar ou alterar tabelas.
-- A carga deve usar os CSVs de `data/raw/dimensions/` e `data/raw/facts/`.
-- Carregue dimensões antes de tabelas de associação, fatos e avaliações.
-- Valide cabeçalhos e referências antes de gravar; falhe com mensagem clara em
-  vez de ignorar linhas silenciosamente.
-- Faça a carga em lotes para não manter todo o conjunto em memória.
-- Produza um resumo com quantidades inseridas, atualizadas, ignoradas e inválidas.
-- A execução repetida deve produzir o mesmo estado final.
-- Não carregue CSVs inteiros em memória quando puder processá-los em lotes.
-- Mantenha métricas de carga verificáveis: linhas lidas, inseridas, atualizadas,
-  ignoradas e rejeitadas.
-
-## Testes
-
-- Backend: teste validação, CRUD, busca, paginação, avaliações, média, conversão
-  de escalas, integridade referencial e idempotência da carga.
-- Frontend: teste os fluxos principais e os estados de carregamento, vazio e erro.
-- Use banco temporário isolado nos testes; nunca dependa de `rocketlab.db` local.
-- Para correções de defeitos, escreva um teste que falhe antes da correção sempre
-  que isso for viável.
-- Toda alteração de migração deve ser testada a partir de um banco vazio.
-- Todo endpoint que altera dados deve ter testes de sucesso, validação, ausência
-  de recurso e rollback quando houver falha relevante.
-- O frontend deve validar contratos em compile-time e testar os estados de
-  carregamento, vazio, erro e sucesso dos fluxos principais.
-
-## Disciplina de mudanças
-
-- Faça alterações pequenas e coerentes com o requisito em andamento.
-- Não edite o README antecipadamente. Atualize-o quando os comandos e fluxos
-  descritos puderem ser executados e verificados.
-- Preserve mudanças do usuário que não façam parte da tarefa atual.
-- Não crie funcionalidades opcionais enquanto houver requisito obrigatório
-  incompleto.
-- Revise impacto em contratos, migrações, testes e documentação antes de aceitar
-  uma alteração de domínio.
-- Não execute `git add`, `git commit`, `git push`, criação de branch, rebase,
-  reset, abertura de pull request ou alteração de remoto sem pedido explícito
-  do usuário. Mantenha as mudanças locais por padrão e dê assistência sobre o
-  estado do desenvolvimento, impactos, verificações e próximos passos sem
-  transformar a conversa em um relatório de operações Git.
+- README deve explicar setup isolado do serviço GenAI, caminho do Gold,
+  configuração segura, execução, perguntas suportadas, limites e integração
+  visual somente quando os comandos estiverem implementados e verificados.
+- Atualizar este tooling e o TODO canônico quando uma decisão arquitetural
+  mudar; evitar listas detalhadas duplicadas.
+- Rodar testes pertinentes ao código alterado e `git diff --check`; distinguir
+  comandos executados de comandos apenas documentados.
+- Não marcar tarefa como concluída antes de seu critério de saída. Preservar
+  mudanças existentes. Não criar commits, publicar ou alterar remotos sem
+  solicitação explícita.

@@ -1,274 +1,155 @@
-# CineData - plano de execução
+# TODO — CineData GenAI
 
-Este checklist prioriza os requisitos obrigatórios da atividade. Só inicie a
-próxima etapa quando o critério de saída da etapa atual estiver atendido.
+Plano de referência da atividade. A implementação do módulo GenAI está pausada
+até definirmos o escopo e a estrutura. Nesta fase, não há serviço GenAI nem
+integração de interface; mantenha os itens abaixo pendentes.
 
-## 1. Base de desenvolvimento e contratos
+## Direção acordada
 
-- [x] Confirmar a estrutura final: `backend/`, `frontend/` e `data/raw/`.
-- [x] Criar o frontend com Vite, React e TypeScript em `frontend/`.
-- [x] Criar `.env.example` com configurações não sensíveis e alinhar o README
-      aos comandos realmente executáveis no Windows e no CI.
-- [x] Definir contratos Pydantic e TypeScript para filme, gênero, pessoa,
-      avaliação, paginação e respostas de erro.
-- [x] Definir a convenção de API sob `/api/v1`, incluindo filtros, paginação,
-      ordenação estável e códigos HTTP.
-- [x] Criar uma camada de serviços para regras de negócio e manter routers, ORM
-      e componentes React em responsabilidades separadas.
+- O agente será um módulo Python com API própria em FastAPI, separado do backend
+  social/catálogo existente. A pasta e o serviço devem ter dependências,
+  configuração, testes e ciclo de execução próprios.
+- O módulo consultará a camada Gold SQLite em modo somente leitura. O arquivo
+  `cinerocket.db` será distribuído via Git LFS para estar disponível no clone;
+  nunca copiá-lo para a imagem Docker.
+- Não implementar o módulo GenAI nem alterar o chatbot existente até que o
+  escopo seja revisado e autorizado novamente.
+- Critério operacional desejado: depois do clone/preparo inicial, um único
+  `docker compose up --build` inicia frontend, aplicação existente e serviço
+  GenAI; dados persistentes ficam em diretório do projeto ignorado pelo Git,
+  sem depender de volume Docker opaco.
+- O Gold real é distribuído via Git LFS. Instalação/checkout LFS faz parte do
+  preparo do clone; o Compose valida o arquivo antes de inicializar a API. Nunca
+  substituir o Gold por dados fake.
+- Provedor, framework, credenciais, limites de chamadas e desenho da API não
+  estão decididos. Revisar esses pontos antes de iniciar qualquer implementação.
+- Construir em ordem: entendimento e regras -> ferramenta SQL segura -> agente
+  com tool calling -> cobertura das perguntas obrigatórias -> integração visual
+  -> documentação/entrega. Extras só entram depois do critério obrigatório.
+- Desenvolvimento e testes rotineiros devem ser locais, determinísticos e sem
+  chamadas ao provedor. A cota informada é de até 50 chamadas por dia: chamadas
+  reais ficam limitadas a uma rodada manual curta, com orçamento recomendado de
+  no máximo 5 por dia de desenvolvimento e nunca em loop/retry automático.
 
-**Critério de saída:** backend e frontend iniciam localmente; health check,
-lint e typecheck iniciais funcionam; os contratos não expõem entidades ORM.
+## 1. Base de dados e semântica das métricas
 
-## 2. Banco, migrações e carga inicial
+- [ ] Confirmar `cinerocket.db` como Gold local e inspecionar sua integridade.
+- [ ] Inventariar colunas, chaves, tipos, nulos e cardinalidades necessários
+      para as perguntas da atividade; manter um mapa curto do esquema Gold.
+- [ ] Fixar as regras analíticas antes de gerar SQL: receita é o valor de
+      receita do filme; lucro = receita - orçamento quando ambos são conhecidos;
+      margem = lucro / receita somente com receita maior que zero.
+- [ ] Excluir valores ausentes das métricas que dependem deles e informar a
+      população usada; zero não deve ser tratado como valor ausente sem evidência.
+- [ ] Para “últimos cinco anos”, usar janela móvel de cinco anos a partir da
+      data atual, baseada na data de lançamento válida, e declarar o intervalo.
+- [ ] Para divergência entre notas, usar diferença absoluta apenas após
+      confirmar que as fontes têm escalas comparáveis; não comparar escalas
+      incompatíveis sem normalização explícita e validada.
+- [ ] Usar filmes distintos em contagens de participação; em empates, ordenar
+      por nome/título de forma estável e expor o empate quando relevante.
+- [ ] Validar joins 1:N e bridges agregando fatos no nível do filme antes de
+      somar receita/lucro por gênero, pessoa ou produtora.
+- [ ] Distinguir avaliações de usuários das notas externas conforme a tabela e
+      as relações reais do Gold; não inferir origem só pelo nome da coluna.
+- [ ] Conferir as regras com SQL de referência e amostras do Gold; ajustar as
+      decisões acima se o esquema ou o enunciado exigir outro significado.
 
-- [x] Conferir a compatibilidade entre modelos SQLAlchemy, migração inicial e
-      os 10 CSVs versionados.
-- [x] Criar uma rotina ou comando de carga documentado, que leia os CSVs sem
-      modificá-los e respeite a ordem de chaves estrangeiras.
-- [x] Implementar carga em lotes, validação de cabeçalhos e referências, resumo
-      de registros processados e falha clara para dados inválidos.
-- [x] Garantir idempotência: duas execuções da carga resultam no mesmo estado
-      final, sem duplicação.
-- [x] Usar transações com rollback em falhas e manter o Alembic como única
-      autoridade para criação/evolução de tabelas.
-- [x] Preparar banco SQLite temporário e isolado para testes de integração.
+**Critério de saída:** esquema e relações documentados; cada métrica obrigatória
+tem fórmula, população, filtros de nulos, período e desempate definidos; consultas
+de referência retornam resultados conferidos no Gold sem duplicação.
 
-**Critério de saída:** um clone limpo executa migrações e importa todos os
-CSVs; a segunda carga não altera contagens ou cria duplicados.
+## 2. Módulo backend GenAI
 
-## 3. Backend: catálogo e gestão de filmes
+- [ ] Criar bloco isolado em `genai/` com FastAPI própria,
+      dependências/configuração próprias e limites claros em relação ao backend
+      atual. O módulo não deve importar modelos, rotas ou estado social do app.
+- [ ] Definir contrato HTTP pequeno para pergunta, estado/erro, resposta,
+      metadados úteis e resultado tabular; não exigir autenticação ou memória no
+      escopo mínimo sem necessidade do enunciado.
+- [ ] Implementar conexão ao Gold por caminho configurável, SQLite `mode=ro`,
+      timeout e tratamento claro de base ausente/inválida.
+- [ ] Implementar ferramenta SQL tipada: permitir uma consulta, somente leitura,
+      somente tabelas Gold necessárias, limite de linhas e tempo; bloquear escrita,
+      DDL, múltiplas instruções, `ATTACH`/`DETACH` e acesso externo.
+- [ ] Validar SQL com parser adequado a SQLite e reforçar a proteção na própria
+      conexão somente leitura; validação recusada nunca chega a ser executada.
+- [ ] Implementar testes determinísticos com SQLite temporário para permissões,
+      limites, erros e consultas; sem depender de rede nem chave de provedor.
 
-- [x] Implementar criação de filme com título, diretor, ano, gênero e sinopse,
-      preservando os relacionamentos do modelo existente.
-- [x] Implementar catálogo paginado, com ordem determinística e metadados de
-      página suficientes para a interface.
-- [x] Implementar busca textual por título, combinável com a paginação.
-- [x] Implementar consulta de detalhes com gêneros, pessoas, desempenho,
-      avaliações e média.
-- [x] Implementar atualização parcial e remoção individual, retornando 404 para
-      recurso inexistente.
-- [x] Prevenir consultas N+1 e validar limites de paginação, textos e datas.
-- [x] Padronizar respostas de erro, logs úteis sem dados sensíveis e rollback
-      em qualquer falha de escrita.
+**Critério de saída:** pendente de revisão do escopo; não iniciar esta etapa até
+autorização explícita do usuário.
 
-**Critério de saída:** CRUD, busca, paginação e detalhes possuem testes de API
-para sucesso, validação, recurso inexistente e falha transacional relevante.
+## 3. Agente e perguntas obrigatórias
 
-## 4. Backend: avaliações e média
+- [ ] Escolher framework e provedor/modelo compatíveis com tool calling,
+      configuráveis por ambiente; manter o serviço SQL desacoplado do provedor.
+- [ ] Proteger a chave em configuração local ignorada pelo Git; nunca expor no
+      frontend, logs, exceções públicas ou respostas.
+- [ ] Implementar o caminho pergunta -> tool call -> validação -> consulta ->
+      interpretação dos dados retornados -> resposta em português.
+- [ ] Responder apenas com dados retornados pela consulta; indicar filtros,
+      período, unidade e limitações; pedir esclarecimento quando a pergunta não
+      determinar uma métrica essencial.
+- [ ] Cobrir as perguntas financeiras: top 10 por receita; lucro médio por
+      gênero; maiores margens com receita/orçamento válidos.
+- [ ] Cobrir popularidade e notas: top 5 populares; divergência TMDB/IMDb;
+      média IMDb por ano de lançamento.
+- [ ] Cobrir elenco/equipe: ator com mais filmes na janela de cinco anos;
+      diretores com maior média e mínimo de cinco filmes; dupla ator-diretor com
+      maior número de filmes em comum.
+- [ ] Cobrir gênero/produtora: filmes por gênero; maior lucro total por
+      produtora; maior margem média por gênero.
+- [ ] Cobrir reviews: filmes mais avaliados por usuários; maior divergência entre
+      média dos usuários e nota IMDb, respeitando escala e população disponíveis.
+- [ ] Criar avaliações locais com perguntas e resultados esperados derivados do
+      Gold; comparar números com SQL de referência, não igualdade textual de SQL.
+- [ ] Testar ciclo do agente com respostas/tool calls simulados. Reservar
+      chamadas reais para uma validação manual pequena: meta máxima de 5 por dia,
+      sem retentativas automáticas, anotando o consumo observado.
 
-- [x] Implementar a criação e listagem do histórico de avaliações por filme.
-- [x] Receber, validar e apresentar notas na escala de 0 a 10.
-- [x] Manter a escala de 0 a 10 de forma consistente entre API, banco e CSVs,
-      sem alterar os arquivos brutos.
-- [x] Calcular ou atualizar a média de avaliações com consistência após cada
-      inserção, sem divergência entre detalhes e catálogo.
-- [x] Validar nota, autor e resenha, e manter a integridade referencial ao
-      excluir filmes.
+**Critério de saída:** pendente de revisão do escopo; não iniciar esta etapa até
+autorização explícita do usuário.
 
-**Critério de saída:** testes cobrem limites de nota na escala de 0 a 10,
-histórico, média e comportamento após exclusão de filme.
+## 4. Interface e substituição do chatbot anterior
 
-## 5. Frontend: fluxos obrigatórios
+- [ ] Reutilizar o design visual existente para
+      apresentar entrada de pergunta, carregamento, resposta, erro e resultados.
+- [ ] Integrar o frontend ao serviço GenAI por contrato HTTP explícito, sem
+      colocar chave ou chamada direta ao provedor no navegador.
+- [ ] Remover a rota/integração Gemini do backend e substituir seu fluxo da
+      interface pelo GenAI; manter a apresentação visual reutilizável e demais
+      funcionalidades existentes.
+- [ ] Validar manualmente um fluxo de pergunta até a apresentação da resposta.
 
-- [x] Criar catálogo e consulta de detalhes em janela acessível, integrados à API.
-- [x] Criar a interface de gestão de filmes.
-- [x] Implementar busca, paginação e estados de carregamento, vazio e erro no
-      catálogo.
-- [x] Implementar formulário de criação e edição com validação clara antes de
-      enviar à API.
-- [x] Implementar exclusão com confirmação e feedback de sucesso ou falha.
-- [x] Exibir detalhes completos, média de 0 a 10 e histórico de avaliações.
-- [x] Implementar formulário para nova avaliação, com entrada decimal de 0 a 10
-      e resenha.
-- [x] Permitir editar a própria avaliação de um filme sem criar duplicidade e
-      recalcular a média pública corretamente.
-- [x] Permitir apagar a própria avaliação e recalcular a média pública
-      corretamente.
-- [x] Garantir navegação por teclado, rótulos de formulário, contraste e uso
-      adequado em telas móveis e desktop.
+**Critério de saída:** pendente de revisão do escopo; manter o chatbot atual e
+a interface existente até nova decisão.
 
-**Critério de saída:** todos os requisitos obrigatórios podem ser realizados
-pela interface usando a API real, inclusive em estados sem dados e com erro.
+## 5. Entrega, operação e pendências da migração anterior
 
-**Checkpoint visual:** identidade CineData, destaque editorial de
-O Castelo Animado com trailer oficial incorporado e imagem alternativa,
-fileiras por gênero, catálogo paginado e detalhes. Os fluxos de cadastro,
-edição, exclusão e avaliação estão implementados, com validação, confirmação,
-feedback e atualização das consultas. Vitest cobre o fluxo completo e falhas;
-cadastro, edição e avaliação também foram exercitados no navegador com API real
-e banco isolado.
+- [ ] Executar `docker compose up --build` e confirmar frontend, aplicação
+      existente, API GenAI e dados persistentes em diretório do projeto. A
+      configuração está escrita, mas aguarda validação com Docker ativo.
+- [ ] Versionar o Gold real via Git LFS, conferir objeto LFS remoto e documentar
+      o checkout completo do arquivo em clones novos.
+- [ ] Definir configuração do modelo: chave externa em arquivo local ignorado
+      pelo Git ou modelo local iniciado pelo Compose.
+- [ ] Atualizar README e tooling para instalação, configuração segura, execução
+      independente do módulo, integração visual e exemplos verificados.
+- [ ] Confirmar que Gold, segredos, bancos locais e arquivos `.env` não entram
+      no Git; executar verificações pertinentes e `git diff --check`.
+- [ ] Validar migração em cópia descartável do banco operacional e Gold;
+      comparar chaves e valores Gold no operacional e exercitar CRUD/reviews.
+      Esta verificação pertence à aplicação preservada e não bloqueia o início do
+      módulo GenAI.
+- [ ] Publicar no GitHub somente com autorização explícita.
 
-## 6. Qualidade, robustez e entrega
+**Critério de saída:** a stack atual de banco e aplicação inicia em clone limpo;
+qualquer critério GenAI fica pendente até a revisão do escopo.
 
-- [x] Disponibilizar execução reproduzível com Docker Compose, incluindo frontend,
-      backend, migrações, seed idempotente, health checks e persistência SQLite.
-- [x] Aumentar a cobertura dos fluxos críticos no backend e no frontend,
-      priorizando regras de negócio, falhas e regressões.
-- [x] Executar lint, typecheck, testes, build do frontend e migrações em uma
-      sequência reproduzível.
-- [x] Revisar CORS para aceitar somente as origens locais necessárias e nunca
-      retornar detalhes internos em mensagens de erro.
-- [x] Revisar desempenho das rotas de catálogo e detalhes com o volume dos CSVs.
-- [x] Documentar arquitetura, comandos de instalação, carga de dados, execução,
-      testes e limitações no README apenas após validá-los.
-- [x] Revisar o diff final, confirmar que `.env`, bancos locais, dependências e
-      builds não estão versionados, e separar commits por assunto.
+## Depois dos requisitos obrigatórios
 
-**Critério de saída:** os comandos documentados funcionam em clone limpo e a
-aplicação atende todos os requisitos obrigatórios de ponta a ponta.
-
-## Próximas extensões planejadas
-
-### 7. Contas locais e autorização
-
-- [x] Criar tabela de usuários sem alterar os dados existentes do catálogo.
-- [x] Armazenar senha somente como hash seguro, nunca em texto puro.
-- [x] Criar endpoints de cadastro e login local por e-mail e senha.
-- [x] Emitir JWT próprio da aplicação após o login.
-- [x] Criar os perfis `user` e `admin`.
-- [x] Manter catálogo e detalhes públicos sem autenticação.
-- [x] Criar telas de cadastro, login e encerramento de sessão no frontend.
-- [x] Exigir autenticação para criar avaliações.
-- [x] Restringir gestão de filmes ao administrador.
-- [x] Vincular novas avaliações ao usuário e preservar avaliações importadas.
-
-**Critério de saída:** cadastro e login emitem uma sessão local segura; catálogo
-permanece público; avaliações exigem usuário autenticado; e a gestão de filmes
-aceita somente administradores, com testes cobrindo autenticação e autorização.
-
-### 8. Avaliações, listas e perfis
-
-- [x] Exibir a média geral e a quantidade de avaliações por filme.
-- [x] Criar a lista virtual obrigatória de filmes avaliados por cada usuário.
-- [x] Permitir listas personalizadas com nome e filmes do catálogo.
-- [x] Implementar a lista "assistir depois".
-- [x] Definir visibilidade das listas públicas e privadas.
-- [x] Criar perfis públicos com avaliações, listas públicas e quantidade de
-      amigos.
-- [x] Adicionar trailer opcional ao detalhe do filme quando houver uma fonte
-      válida, sem alterar os CSVs originais.
-- [x] Criar no frontend a área de listas do usuário autenticado.
-- [x] Permitir no frontend criar, editar e excluir listas personalizadas.
-- [x] Permitir no frontend adicionar e remover filmes das listas.
-- [x] Exibir no frontend a lista virtual de filmes avaliados.
-
-**Critério de saída:** a API permite que o usuário autenticado crie e gerencie
-listas, atualize seu perfil com avatar e consulte perfis públicos; o frontend
-oferece esses fluxos sem depender de requisições manuais e permite salvar um
-filme do catálogo na lista escolhida; detalhes exibem trailer do YouTube quando
-configurado; migrações, testes, lint e build passam sem alterar os CSVs
-originais.
-
-### 9. Comunidades
-
-- [x] Restringir gestão de comunidades ao administrador.
-- [x] Permitir que o administrador crie, edite e exclua comunidades.
-- [x] Permitir que usuários entrem e saiam de comunidades.
-- [x] Criar publicações e comentários relacionados a filmes do catálogo.
-- [x] Permitir mencionar um filme usando `movie_id` e exibir seus dados no post.
-- [x] Adicionar reações simples às publicações.
-- [x] Usar requisições HTTP/polling inicialmente; avaliar WebSockets apenas se
-      a experiência exigir atualização em tempo real.
-- [x] Exibir quatro comunidades mais vistas e revelar mais quatro com "Ver mais",
-      registrando aberturas da conversa para ordenar a descoberta.
-- [x] Abrir chat em janela flutuante a partir do card, com mensagens cronológicas,
-      avatar, nome clicável para o perfil público, menções de filmes e reações.
-- [x] Atualizar mensagens a cada cinco segundos sem tirar o usuário da leitura
-      de mensagens antigas; preservar o texto quando o envio falhar.
-
-**Critério de saída:** administrador gerencia comunidades; usuários entram,
-saem e interagem com publicações, comentários, menções de filmes e reações;
-descoberta destaca as mais vistas e o chat permite consultar o perfil público
-dos autores; permissões, visibilidade dos dados relacionados e fluxos principais
-possuem testes de API e interface.
-
-### 10. Amizades
-
-- [x] Criar solicitações de amizade com estados pendente, aceita e bloqueada.
-- [x] Permitir consultar amigos e quantidade de amigos no perfil.
-- [x] Respeitar a visibilidade definida para listas e avaliações.
-- [x] Criar no frontend a área de amizades e contatos do usuário.
-- [x] Permitir pesquisar usuários e enviar solicitações de amizade pelo frontend.
-- [x] Permitir aceitar, bloquear e remover amizades pelo frontend.
-- [x] Exibir solicitações pendentes e amigos atuais na conta do usuário.
-
-**Critério de saída:** a API permite que o usuário autenticado envie, aceite,
-bloqueie e remova amizades; o frontend oferece esses fluxos em uma área de
-amizades; o perfil público informa a quantidade correta de amigos; e listas ou
-avaliações privadas não aparecem nas consultas públicas, com testes cobrindo
-transições de solicitação, autorização, visibilidade e os fluxos de interface.
-
-### 11. Mapa de gostos e descoberta personalizada
-
-- [x] Definir o modelo de similaridade dos filmes com vetores de gêneros,
-      direção, elenco, ano, sinopse e métricas disponíveis.
-- [x] Implementar recomendações KNN com pesos configuráveis e conexões
-      direcionadas entre filmes avaliados e sugestões próximas.
-- [x] Criar endpoint que retorne somente o subgrafo necessário para o usuário,
-      limitando nós e arestas para preservar legibilidade.
-- [x] Exibir filmes avaliados como nós principais e recomendações não avaliadas
-      como nós escuros, colorindo os filmes conforme o gênero dominante.
-- [x] Permitir clicar em qualquer nó para abrir seus detalhes e pesquisar um
-      filme ou avaliação dentro da malha.
-- [x] Permitir atualizar manualmente a malha sem sobrecarregar a interface com
-      controles que não acrescentem valor à descoberta.
-- [x] Substituir as sugestões da rodada anterior ao atualizar, preservando os
-      filmes avaliados e informando quando não houver alternativas compatíveis.
-- [x] Destacar conexões pela cor do filme de origem, com nós compactos,
-      interação por foco/seleção e movimento suave respeitando movimento reduzido.
-- [x] Atualizar o grafo após uma nova avaliação, transformando a recomendação
-      em filme avaliado e recalculando suas conexões.
-- [x] Exibir uma explicação para cada conexão, como gênero, direção ou elenco
-      compartilhado.
-- [x] Construir a página seguindo a mesma estrutura, responsividade,
-      acessibilidade e hierarquia visual das demais áreas do CineData.
-- [x] Aplicar identidade visual roxa própria para o mapa de gostos, mantendo
-      os padrões de espaçamento, cards, modais, estados de carregamento, vazio e
-      erro já usados no restante da aplicação.
-
-**Critério de saída:** o usuário visualiza seus filmes avaliados, recebe
-recomendações explicáveis, pode explorar, pesquisar e atualizar a malha ao
-avaliar novos filmes, com uma interface roxa
-consistente com as demais páginas e testes cobrindo o cálculo, a autorização e
-os estados principais.
-
-### 12. Recursos opcionais
-
-- [x] Implementar filtros avançados além de título, gênero, ordenação,
-      paginação e em português.
-- [x] Integrar fonte externa para dados ou trailers de filmes.
-- [x] Refinar o destaque editorial: manter a imagem durante o carregamento do
-      trailer, reiniciar a prévia ao voltar à home e oferecer controles próprios
-      de reprodução e som.
-- [x] Manter cache de consultas de leitura no frontend.
-- [x] Disponibilizar execução local via Docker Compose.
-- [x] Colocar dashboards analíticos para admin
-
-**Critério de saída:** cada recurso opcional marcado como concluído possui fluxo
-utilizável, documentação e validação proporcional ao seu impacto, sem regredir
-os requisitos obrigatórios ou expor dados sensíveis.
-
-### 13. Revisão final de escopo e entrega
-
-- [x] Otimizar o mapa de gostos no banco antes de carregar candidatos, evitando
-      materializar o catálogo completo e suas relações a cada atualização.
-- [x] Medir novamente o tempo e o consumo de memória do mapa usando o catálogo
-      completo, mantendo o limite visual, as explicações e a qualidade das
-      recomendações.
-- [x] Alinhar o README, `docs/api-v1.md` e `docs/frontend.md` ao produto atual,
-      incluindo contas, listas, amizades, comunidades, analytics, TMDB, trailer
-      e mapa de gostos.
-- [x] Atualizar na documentação a contagem real de testes, a data da validação
-      e o comportamento atual da entrada de notas decimais.
-- [x] Garantir no banco que cada conta tenha no máximo uma avaliação por filme
-      mesmo em envios simultâneos, e distinguir no contrato a criação da edição.
-- [x] Executar um smoke test com Docker Compose em banco/volume limpos,
-      cobrindo health check, seed, sessão de demonstração e carregamento do
-      frontend.
-- [x] Fazer a revisão final do diff, dos arquivos sensíveis e dos comandos
-      documentados antes do commit de encerramento.
-
-**Critério de saída:** o mapa mantém desempenho aceitável com o catálogo real,
-as documentações refletem as funcionalidades entregues e avaliações permanecem
-consistentes sob concorrência, e um clone limpo sobe pelo Docker com os fluxos
-principais verificáveis.
+Avaliar como opcionais, por valor e prazo: gráficos, memória, cache, fallback,
+busca semântica para perguntas descritivas, avaliação ampliada e Databricks. Cada
+extra precisa de justificativa, limite e verificação própria; nenhum deles
+bloqueia a entrega obrigatória.
