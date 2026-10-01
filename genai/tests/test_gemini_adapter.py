@@ -57,7 +57,7 @@ def test_adapter_normalizes_function_call_without_network() -> None:
     )
 
     assert result == ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT 1"}, b"signature"))
-    assert client.models.kwargs["model"] == "gemini-3.8-flash"
+    assert client.models.kwargs["model"] == "gemini-3.5-flash-lite"
 
     contents = model._contents(
         [

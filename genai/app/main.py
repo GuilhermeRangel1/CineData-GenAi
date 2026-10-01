@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from app.api import router
+from app.api import router, v1_router
 from app.config import get_settings
 
 
@@ -12,6 +12,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(title=settings.service_name, version="0.1.0")
     application.include_router(router)
+    application.include_router(v1_router, prefix=settings.api_prefix)
     return application
 
 

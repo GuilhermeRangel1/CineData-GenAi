@@ -152,9 +152,13 @@ atualizado para `gemini-3.8-flash`. A segunda tentativa recebeu `503
 UNAVAILABLE` por alta demanda temporária. Em uma nova tentativa, o modelo
 gerou a chamada de ferramenta, mas o segundo turno foi recusado porque a
 assinatura de pensamento não estava sendo reenviada; o adapter foi corrigido e
-há teste local cobrindo esse transporte. A validação manual após a correção, a
-integração com a rota HTTP e a cobertura das perguntas obrigatórias ainda estão
-pendentes. Pare e aguarde a revisão antes de consumir nova cota.
+há teste local cobrindo esse transporte. A tentativa manual após a correção não
+alcançou o modelo e recebeu novamente `503 UNAVAILABLE` por alta demanda. A
+validação manual com `gemini-3.5-flash-lite` concluiu o ciclo completo: uma
+chamada `run_sql`, execução read-only e resposta final com 95.645 filmes. O
+Lite foi adotado como padrão temporário. A integração com a rota HTTP está em
+implementação; a cobertura das perguntas obrigatórias ainda está pendente.
+Pare e aguarde a revisão antes de consumir nova cota.
 
 ## 4. Interface e substituição do chatbot anterior
 

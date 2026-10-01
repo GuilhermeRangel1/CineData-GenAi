@@ -6,10 +6,10 @@ em linguagem natural consultando, em tempo real e somente para leitura, a camada
 Gold do catálogo de filmes por meio de Text-to-SQL.
 
 A etapa inicial da atividade GenAI está em andamento: a integridade e o esquema
-da camada Gold estão sendo documentados, e as regras das métricas ainda serão
-definidas e validadas. O módulo/API GenAI, agente, integração com provedor e
-integração com a interface ainda não foram implementados. A aplicação CineData
-existente e sua interface permanecem preservadas durante esta etapa.
+da camada Gold estão documentados, e as regras das métricas ainda serão
+definidas e validadas. O módulo/API GenAI já possui agente, consulta Gold
+read-only, integração configurável com provedor e rota HTTP de perguntas. A
+integração com a interface CineData permanece para uma etapa posterior.
 
 ![Página inicial do CineData com destaque para Spider-Man: Across the Spider-Verse](docs/images/home.png)
 
@@ -93,9 +93,10 @@ como configurar o caminho.
 
 ## Segurança e limites
 
-Quando o módulo GenAI for planejado e autorizado, as regras de leitura do Gold,
-credenciais e limites de chamadas deverão ser definidos antes de implementar
-consultas a modelos externos.
+O módulo GenAI mantém a chave do provedor apenas no ambiente do backend, valida
+as consultas antes da execução e abre o Gold em modo read-only. As chamadas
+reais ao provedor são reservadas para validações manuais controladas, enquanto
+os testes automatizados usam clientes simulados.
 
 ## Prazo da atividade
 
