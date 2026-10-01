@@ -1,10 +1,10 @@
 # Tooling e convenções — CineData GenAI
 
-**Escopo vigente:** o quarto bloco da etapa 2 está concluído. A conexão
-read-only e a ferramenta SQL de leitura estão implementadas e testadas. O
-próximo bloco pertence à etapa 3; não implemente agente, provedor/modelo,
-chamadas externas ou integração de interface antes de o usuário revisar e
-commitar este checkpoint.
+**Escopo vigente:** o segundo bloco da etapa 3 está concluído. O contrato
+interno, a orquestração simulada e o adaptador Gemini estão testados. O próximo
+bloco deve tratar somente de uma validação manual curta; não faça avaliação em
+lote nem integre a interface antes de o usuário revisar e commitar este
+checkpoint.
 
 ## Separação do módulo
 

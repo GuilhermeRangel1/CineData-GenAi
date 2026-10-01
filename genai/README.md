@@ -1,8 +1,9 @@
 # Módulo GenAI
 
-Módulo FastAPI isolado do CineData. Neste checkpoint ele contém somente o
-esqueleto executável e o health check. O acesso ao Gold, a ferramenta SQL, o
-agente e a integração com provedor serão adicionados em blocos posteriores.
+Módulo FastAPI isolado do CineData. Ele contém o esqueleto executável, acesso
+read-only ao Gold, ferramenta SQL protegida, a orquestração interna do agente e
+um adaptador configurável para o Gemini. A rota de perguntas e a validação real
+do provedor serão adicionadas em blocos posteriores.
 
 ## Execução local
 
@@ -32,3 +33,7 @@ Os testes não iniciam servidor nem fazem chamadas de rede:
 ```powershell
 python -m pytest
 ```
+
+O adaptador lê `GENAI_GEMINI_API_KEY` do `.env` e usa
+`GENAI_GEMINI_MODEL` ou `gemini-2.5-flash` por padrão. A suíte de testes injeta
+um cliente simulado; ela nunca consome a cota do provedor.

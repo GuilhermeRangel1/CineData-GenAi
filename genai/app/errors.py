@@ -23,3 +23,7 @@ class QueryTimeoutError(RuntimeError):
 
 class QueryExecutionError(RuntimeError):
     """A consulta foi permitida, mas falhou durante a execução."""
+
+
+class ProviderConfigurationError(RuntimeError):
+    """O adaptador de modelo não está configurado para executar."""

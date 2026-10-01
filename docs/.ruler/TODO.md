@@ -100,12 +100,25 @@ conexão read-only, o parser, os limites e os testes da ferramenta SQL
 verificados; pare e aguarde o usuário revisar e fazer o commit antes de iniciar
 a etapa 3.
 
-## 3. Agente e perguntas obrigatórias
+## 3. Agente e perguntas obrigatórias — segundo bloco concluído
 
-- [ ] Escolher framework e provedor/modelo compatíveis com tool calling,
-      configuráveis por ambiente; manter o serviço SQL desacoplado do provedor.
-- [ ] Proteger a chave em configuração local ignorada pelo Git; nunca expor no
+O primeiro bloco desta etapa fixa a fronteira do agente sem escolher um
+provedor. O adaptador real e as chamadas externas continuam pendentes.
+
+- [x] Definir contrato interno de tool calling e implementar a orquestração
+      provider-neutral com no máximo uma chamada `run_sql`; usar modelo simulado
+      nos testes e manter a ferramenta SQL desacoplada do provedor. Consulte
+      [`../genai/agent-contract.md`](../genai/agent-contract.md).
+
+- [x] Escolher o SDK oficial `google-genai` e o Gemini `gemini-2.5-flash` como
+      configuração inicial compatível com function calling; manter o serviço SQL
+      desacoplado do provedor. O modelo continua configurável por ambiente.
+- [x] Proteger a chave em configuração local ignorada pelo Git; usar
+      `GENAI_GEMINI_API_KEY` como segredo de ambiente e nunca expor a chave no
       frontend, logs, exceções públicas ou respostas.
+- [x] Criar o adaptador Gemini e normalizar texto/pedido de ferramenta para o
+      contrato interno; os testes usam cliente simulado e não fazem chamadas
+      externas.
 - [ ] Implementar o caminho pergunta -> tool call -> validação -> consulta ->
       interpretação dos dados retornados -> resposta em português.
 - [ ] Responder apenas com dados retornados pela consulta; indicar filtros,
@@ -131,6 +144,11 @@ a etapa 3.
 **Critério de saída:** agente cobre as perguntas obrigatórias, com SQL validado
 e sem ultrapassar os controles de uso. Esta etapa depende da conclusão e revisão
 do checkpoint da etapa 2.
+
+**Checkpoint atual da etapa 3:** o ciclo interno e o adaptador Gemini estão
+verificados; nenhuma chamada real foi feita. A validação manual, a integração
+com a rota HTTP e a cobertura das perguntas obrigatórias ainda estão pendentes.
+Pare e aguarde a revisão antes de consumir cota.
 
 ## 4. Interface e substituição do chatbot anterior
 

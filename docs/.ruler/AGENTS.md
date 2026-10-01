@@ -1,9 +1,10 @@
 # CineData GenAI - instruções do projeto
 
-**Escopo vigente:** o quarto bloco da etapa 2 do plano GenAI está concluído.
-A conexão e a ferramenta SQL de leitura estão protegidas e testadas. O próximo
-bloco pertence à etapa 3 e deve tratar somente da escolha/integração do agente
-e do provedor, após um novo checkpoint revisado pelo usuário.
+**Escopo vigente:** o segundo bloco da etapa 3 do plano GenAI está concluído.
+O próximo bloco deve tratar somente de uma validação manual curta do adaptador
+Gemini e do fluxo de uma pergunta representativa. Não integre frontend, faça
+avaliação em lote ou ultrapasse o orçamento de chamadas antes de um novo
+checkpoint revisado pelo usuário.
 
 ## Processo obrigatório de trabalho em checkpoints
 
