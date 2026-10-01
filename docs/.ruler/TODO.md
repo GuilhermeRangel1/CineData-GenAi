@@ -1,8 +1,10 @@
 # TODO — CineData GenAI
 
-Plano de referência da atividade. A implementação do módulo GenAI está pausada
-até definirmos o escopo e a estrutura. Nesta fase, não há serviço GenAI nem
-integração de interface; mantenha os itens abaixo pendentes.
+Plano de execução da atividade. A etapa 1 está em andamento em blocos pequenos,
+com checkpoints revisáveis para commit. O bloco inicial de integridade e
+inventário do Gold está concluído; as definições e validações das métricas
+continuam pendentes dentro da própria etapa 1. Não avance para a etapa 2 antes
+de concluir essa etapa e combinar o próximo checkpoint com o usuário.
 
 ## Direção acordada
 
@@ -12,8 +14,9 @@ integração de interface; mantenha os itens abaixo pendentes.
 - O módulo consultará a camada Gold SQLite em modo somente leitura. O arquivo
   `cinerocket.db` será distribuído via Git LFS para estar disponível no clone;
   nunca copiá-lo para a imagem Docker.
-- Não implementar o módulo GenAI nem alterar o chatbot existente até que o
-  escopo seja revisado e autorizado novamente.
+- Até a conclusão da etapa 1, não implementar serviço/API GenAI, agente,
+  provedor/modelo, chamadas externas nem integração de interface. Preserve o
+  chatbot e as funcionalidades existentes durante esta etapa.
 - Critério operacional desejado: depois do clone/preparo inicial, um único
   `docker compose up --build` inicia frontend, aplicação existente e serviço
   GenAI; dados persistentes ficam em diretório do projeto ignorado pelo Git,
@@ -33,9 +36,12 @@ integração de interface; mantenha os itens abaixo pendentes.
 
 ## 1. Base de dados e semântica das métricas
 
-- [ ] Confirmar `cinerocket.db` como Gold local e inspecionar sua integridade.
-- [ ] Inventariar colunas, chaves, tipos, nulos e cardinalidades necessários
-      para as perguntas da atividade; manter um mapa curto do esquema Gold.
+- [x] Confirmar `data/cinerocket.db` como Gold local e inspecionar sua
+      integridade (`integrity_check = ok`; `foreign_key_check` sem violações).
+- [x] Inventariar colunas, chaves, tipos, nulos e cardinalidades necessários
+      para as perguntas da atividade; registrar o mapa em
+      [`../genai/gold-schema.md`](../genai/gold-schema.md). A validação das
+      fórmulas e consultas continua pendente nos itens abaixo.
 - [ ] Fixar as regras analíticas antes de gerar SQL: receita é o valor de
       receita do filme; lucro = receita - orçamento quando ambos são conhecidos;
       margem = lucro / receita somente com receita maior que zero.
@@ -59,7 +65,10 @@ integração de interface; mantenha os itens abaixo pendentes.
 tem fórmula, população, filtros de nulos, período e desempate definidos; consultas
 de referência retornam resultados conferidos no Gold sem duplicação.
 
-## 2. Módulo backend GenAI
+## 2. Módulo backend GenAI — ainda não iniciar
+
+**Entrada:** somente após completar os critérios de saída da etapa 1 e revisar
+com o usuário um checkpoint contendo as regras e consultas de referência.
 
 - [ ] Criar bloco isolado em `genai/` com FastAPI própria,
       dependências/configuração próprias e limites claros em relação ao backend
@@ -77,8 +86,9 @@ de referência retornam resultados conferidos no Gold sem duplicação.
 - [ ] Implementar testes determinísticos com SQLite temporário para permissões,
       limites, erros e consultas; sem depender de rede nem chave de provedor.
 
-**Critério de saída:** pendente de revisão do escopo; não iniciar esta etapa até
-autorização explícita do usuário.
+**Critério de saída:** API isolada, contrato e ferramenta de leitura Gold
+implementados e verificados localmente. Esta etapa só começa após a saída da
+etapa 1 e o checkpoint acordado com o usuário.
 
 ## 3. Agente e perguntas obrigatórias
 
@@ -108,8 +118,9 @@ autorização explícita do usuário.
       chamadas reais para uma validação manual pequena: meta máxima de 5 por dia,
       sem retentativas automáticas, anotando o consumo observado.
 
-**Critério de saída:** pendente de revisão do escopo; não iniciar esta etapa até
-autorização explícita do usuário.
+**Critério de saída:** agente cobre as perguntas obrigatórias, com SQL validado
+e sem ultrapassar os controles de uso. Esta etapa depende da conclusão e revisão
+do checkpoint da etapa 2.
 
 ## 4. Interface e substituição do chatbot anterior
 
@@ -122,14 +133,16 @@ autorização explícita do usuário.
       funcionalidades existentes.
 - [ ] Validar manualmente um fluxo de pergunta até a apresentação da resposta.
 
-**Critério de saída:** pendente de revisão do escopo; manter o chatbot atual e
-a interface existente até nova decisão.
+**Critério de saída:** interface permite visualizar pergunta, resposta, estado,
+consulta de forma apropriada e resultados tabulares, com o design atual
+preservado. Só iniciar após revisar o checkpoint da etapa 3.
 
 ## 5. Entrega, operação e pendências da migração anterior
 
 - [ ] Executar `docker compose up --build` e confirmar frontend, aplicação
-      existente, API GenAI e dados persistentes em diretório do projeto. A
-      configuração está escrita, mas aguarda validação com Docker ativo.
+      existente e dados persistentes em diretório do projeto. A configuração
+      está escrita, mas aguarda validação com Docker ativo. Integrar a API GenAI
+      só depois da etapa 4.
 - [ ] Versionar o Gold real via Git LFS, conferir objeto LFS remoto e documentar
       o checkout completo do arquivo em clones novos.
 - [ ] Definir configuração do modelo: chave externa em arquivo local ignorado
@@ -144,8 +157,9 @@ a interface existente até nova decisão.
       módulo GenAI.
 - [ ] Publicar no GitHub somente com autorização explícita.
 
-**Critério de saída:** a stack atual de banco e aplicação inicia em clone limpo;
-qualquer critério GenAI fica pendente até a revisão do escopo.
+**Critério de saída:** a stack prevista inicia em clone limpo e os critérios
+obrigatórios das etapas anteriores estão verificados. A entrega completa
+continua pendente enquanto as etapas GenAI não forem concluídas.
 
 ## Depois dos requisitos obrigatórios
 

@@ -1,8 +1,10 @@
 # CineData GenAI - instruções do projeto
 
-**Escopo vigente:** não implementar o módulo GenAI nem alterar o chatbot ou
-frontend por causa dele até que o usuário revise e autorize esse trabalho. A
-prioridade atual é a configuração Docker e os bancos da aplicação existente.
+**Escopo vigente:** a etapa 1 do plano GenAI está autorizada e em andamento.
+Trabalhe somente na base Gold e na semântica das métricas desta etapa. Não
+implemente API/módulo GenAI, agente, provedor/modelo, chamadas externas ou
+integração de interface antes de concluir a etapa 1 e estabelecer um checkpoint
+com o usuário.
 
 ## Objetivo
 

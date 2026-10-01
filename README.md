@@ -5,9 +5,11 @@ Projeto da atividade **GenAI - CineData Analytics**, do Visagio Rocket Lab
 em linguagem natural consultando, em tempo real e somente para leitura, a camada
 Gold do catálogo de filmes por meio de Text-to-SQL.
 
-O escopo da atividade GenAI ainda está em planejamento. O módulo, o serviço e a
-integração com a interface não foram implementados. A aplicação CineData
-existente e sua interface permanecem o foco desta etapa.
+A etapa inicial da atividade GenAI está em andamento: a integridade e o esquema
+da camada Gold estão sendo documentados, e as regras das métricas ainda serão
+definidas e validadas. O módulo/API GenAI, agente, integração com provedor e
+integração com a interface ainda não foram implementados. A aplicação CineData
+existente e sua interface permanecem preservadas durante esta etapa.
 
 ![Página inicial do CineData com destaque para Spider-Man: Across the Spider-Verse](docs/images/home.png)
 

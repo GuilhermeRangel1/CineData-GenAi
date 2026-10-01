@@ -1,8 +1,9 @@
 # Tooling e convenções — CineData GenAI
 
-**Escopo vigente:** módulo GenAI e integração de interface estão pausados até
-revisão explícita do usuário. Não criar o serviço, dependências ou chamadas a
-modelo nesta fase.
+**Escopo vigente:** a etapa 1 do plano está autorizada. Nesta etapa, inspecione
+a base Gold e documente/valide a semântica das métricas. Não crie serviço,
+dependências do agente, chamadas a modelo ou integração de interface antes de
+concluir a etapa 1 e registrar um checkpoint com o usuário.
 
 ## Separação do módulo
 
