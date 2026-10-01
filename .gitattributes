@@ -1,1 +1,2 @@
 backend/docker-entrypoint.sh text eol=lf
+/data/cinerocket.db filter=lfs diff=lfs merge=lfs -text

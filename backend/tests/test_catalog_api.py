@@ -376,7 +376,9 @@ async def test_catalog_endpoint_can_return_only_records_with_a_trailer(
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert [filme["id"] for filme in response.json()["itens"]] == ["movie-1"]
+    payload = response.json()
+    assert [filme["id"] for filme in payload["itens"]] == ["movie-1"]
+    assert payload["meta"]["total_itens"] == 1
 
 
 async def test_trailer_endpoint_returns_the_saved_youtube_link(

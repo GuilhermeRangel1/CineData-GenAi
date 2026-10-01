@@ -39,7 +39,7 @@ def test_review_contract_defaults_to_public_visibility_and_rejects_invalid_value
 def test_catalog_query_contract_defines_stable_default_order() -> None:
     consulta = ConsultaCatalogo()
 
-    assert consulta.ordenar_por == "titulo"
+    assert consulta.ordenar_por == "relevancia"
     assert consulta.direcao == "asc"
 
 

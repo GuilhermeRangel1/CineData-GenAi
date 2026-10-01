@@ -109,6 +109,7 @@ class DimMovie(Base):
     data_lancamento: Mapped[date | None] = mapped_column(Date, default=None)
     ano_lancamento: Mapped[int | None] = mapped_column(Integer, index=True, default=None)
     duracao_minutos: Mapped[int | None] = mapped_column(Integer, default=None)
+    idioma_original: Mapped[str | None] = mapped_column(String(10), default=None)
     status_filme: Mapped[str | None] = mapped_column(String(50), default=None)
     sinopse: Mapped[str | None] = mapped_column(String(4000), default=None)
     url_poster: Mapped[str | None] = mapped_column(String(2048), default=None)

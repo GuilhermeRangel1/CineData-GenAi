@@ -55,6 +55,7 @@ export function Catalog({
           order === 'recent' ? 'ano_lancamento' : order === 'title' ? 'titulo' : 'relevancia',
         direcao: order === 'title' ? 'asc' : 'desc',
       })
+      params.set('priorizar_capa', 'true')
       if (query) params.set('busca', query)
       if (genre) params.set('genero', genre)
       for (const [key, value] of Object.entries(advanced)) {

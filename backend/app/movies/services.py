@@ -154,10 +154,12 @@ class CatalogoFilmesService:
                     and_(DimReview.nota_media_usuarios >= consulta.nota_minima)
                 )
             )
+        if consulta.somente_com_trailer:
+            statement = statement.where(DimMovie.url_trailer.is_not(None))
 
         # As relações do catálogo são únicas por chave no schema; não há linhas
         # duplicadas a eliminar. Evitar DISTINCT mantém o filtro por gênero
-        # indexável mesmo com a base completa dos CSVs.
+        # indexável mesmo com o catálogo Gold completo.
         total = await self._session.scalar(
             select(func.count()).select_from(statement.order_by(None).subquery())
         )
@@ -201,8 +203,6 @@ class CatalogoFilmesService:
             )
         if consulta.priorizar_trailer:
             ordenacao.insert(0, DimMovie.url_trailer.is_(None).asc())
-        if consulta.somente_com_trailer:
-            statement = statement.where(DimMovie.url_trailer.is_not(None))
         offset = (consulta.pagina - 1) * consulta.tamanho_pagina
         result = await self._session.scalars(
             statement.order_by(*ordenacao).offset(offset).limit(consulta.tamanho_pagina)

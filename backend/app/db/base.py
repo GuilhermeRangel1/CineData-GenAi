@@ -1,5 +1,7 @@
-from sqlalchemy import MetaData
-from sqlalchemy.orm import DeclarativeBase
+from datetime import datetime
+
+from sqlalchemy import DateTime, MetaData, String, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -14,3 +16,15 @@ class Base(DeclarativeBase):
     """Classe declarativa comum a todos os modelos ORM."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+class GoldDatabaseSync(Base):
+    """Registra qual arquivo Gold foi aplicado ao banco operacional."""
+
+    __tablename__ = "gold_database_sync"
+
+    dataset_name: Mapped[str] = mapped_column(String(80), primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(), nullable=False, server_default=func.now()
+    )
