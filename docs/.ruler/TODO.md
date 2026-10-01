@@ -1,10 +1,9 @@
 # TODO — CineData GenAI
 
-Plano de execução da atividade. A etapa 1 está em andamento em blocos pequenos,
-com checkpoints revisáveis para commit. O bloco inicial de integridade e
-inventário do Gold está concluído; as definições e validações das métricas
-continuam pendentes dentro da própria etapa 1. Não avance para a etapa 2 antes
-de concluir essa etapa e combinar o próximo checkpoint com o usuário.
+Plano de execução da atividade. A etapa 1 está sendo feita em blocos pequenos,
+com checkpoints revisáveis para commit. Integridade, inventário, regras das
+métricas e consultas de referência já foram trabalhados; faça a revisão do
+checkpoint atual antes de iniciar qualquer tarefa da etapa 2.
 
 ## Direção acordada
 
@@ -42,28 +41,31 @@ de concluir essa etapa e combinar o próximo checkpoint com o usuário.
       para as perguntas da atividade; registrar o mapa em
       [`../genai/gold-schema.md`](../genai/gold-schema.md). A validação das
       fórmulas e consultas continua pendente nos itens abaixo.
-- [ ] Fixar as regras analíticas antes de gerar SQL: receita é o valor de
+- [x] Fixar as regras analíticas antes de gerar SQL: receita é o valor de
       receita do filme; lucro = receita - orçamento quando ambos são conhecidos;
       margem = lucro / receita somente com receita maior que zero.
-- [ ] Excluir valores ausentes das métricas que dependem deles e informar a
+- [x] Excluir valores ausentes das métricas que dependem deles e informar a
       população usada; zero não deve ser tratado como valor ausente sem evidência.
-- [ ] Para “últimos cinco anos”, usar janela móvel de cinco anos a partir da
+- [x] Para “últimos cinco anos”, usar janela móvel de cinco anos a partir da
       data atual, baseada na data de lançamento válida, e declarar o intervalo.
-- [ ] Para divergência entre notas, usar diferença absoluta apenas após
+- [x] Para divergência entre notas, usar diferença absoluta apenas após
       confirmar que as fontes têm escalas comparáveis; não comparar escalas
       incompatíveis sem normalização explícita e validada.
-- [ ] Usar filmes distintos em contagens de participação; em empates, ordenar
+- [x] Usar filmes distintos em contagens de participação; em empates, ordenar
       por nome/título de forma estável e expor o empate quando relevante.
-- [ ] Validar joins 1:N e bridges agregando fatos no nível do filme antes de
+- [x] Validar joins 1:N e bridges agregando fatos no nível do filme antes de
       somar receita/lucro por gênero, pessoa ou produtora.
-- [ ] Distinguir avaliações de usuários das notas externas conforme a tabela e
+- [x] Distinguir avaliações de usuários das notas externas conforme a tabela e
       as relações reais do Gold; não inferir origem só pelo nome da coluna.
-- [ ] Conferir as regras com SQL de referência e amostras do Gold; ajustar as
+- [x] Conferir as regras com SQL de referência e amostras do Gold; ajustar as
       decisões acima se o esquema ou o enunciado exigir outro significado.
 
-**Critério de saída:** esquema e relações documentados; cada métrica obrigatória
-tem fórmula, população, filtros de nulos, período e desempate definidos; consultas
-de referência retornam resultados conferidos no Gold sem duplicação.
+**Critério de saída atendido neste checkpoint:** esquema e relações documentados;
+cada métrica obrigatória tem fórmula, população, filtros de nulos, período
+aplicável e desempate definidos; as 14 consultas de referência retornaram
+resultados no Gold. Consulte [`../genai/metric-rules.md`](../genai/metric-rules.md)
+e [`../genai/reference-queries.sql`](../genai/reference-queries.sql). Rever as
+decisões documentadas antes de iniciar a etapa 2.
 
 ## 2. Módulo backend GenAI — ainda não iniciar
 
