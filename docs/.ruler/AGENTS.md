@@ -1,10 +1,23 @@
 # CineData GenAI - instruções do projeto
 
-**Escopo vigente:** a etapa 1 do plano GenAI está autorizada e em andamento.
-Trabalhe somente na base Gold e na semântica das métricas desta etapa. Não
-implemente API/módulo GenAI, agente, provedor/modelo, chamadas externas ou
-integração de interface antes de concluir a etapa 1 e estabelecer um checkpoint
-com o usuário.
+**Escopo vigente:** o segundo bloco da etapa 2 do plano GenAI está concluído.
+O próximo bloco autorizado deve tratar somente da conexão read-only ao Gold.
+Não implemente executor SQL, agente, provedor/modelo, chamadas externas ou
+integração de interface antes de um novo checkpoint revisado pelo usuário.
+
+## Processo obrigatório de trabalho em checkpoints
+
+- Divida cada etapa em blocos pequenos, independentes e revisáveis, com um
+  resultado claro por bloco.
+- Antes de começar um bloco, informe seu objetivo e limite. Implemente somente
+  esse bloco e pare ao concluir; não avance para o próximo bloco na mesma rodada.
+- Ao parar, apresente o que mudou, os arquivos envolvidos e as verificações
+  feitas, e aguarde o usuário revisar e fazer o commit antes de continuar.
+- O usuário é quem faz os commits. Não faça commits nem agrupe vários blocos num
+  único conjunto de trabalho sem pedido explícito.
+- Não trate a autorização para uma etapa inteira como autorização para executar
+  todos os seus blocos. Continue apenas após o usuário confirmar o checkpoint e
+  indicar que quer seguir.
 
 ## Objetivo
 

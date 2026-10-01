@@ -1,9 +1,9 @@
 # Tooling e convenções — CineData GenAI
 
-**Escopo vigente:** a etapa 1 do plano está autorizada. Nesta etapa, inspecione
-a base Gold e documente/valide a semântica das métricas. Não crie serviço,
-dependências do agente, chamadas a modelo ou integração de interface antes de
-concluir a etapa 1 e registrar um checkpoint com o usuário.
+**Escopo vigente:** o segundo bloco da etapa 2 está concluído. O próximo bloco
+deve tratar somente da conexão read-only ao Gold. Não implemente executor SQL,
+agente, provedor/modelo, chamadas externas ou integração de interface antes de
+o usuário revisar e commitar este checkpoint.
 
 ## Separação do módulo
 

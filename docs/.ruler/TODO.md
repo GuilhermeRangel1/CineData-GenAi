@@ -67,17 +67,21 @@ resultados no Gold. Consulte [`../genai/metric-rules.md`](../genai/metric-rules.
 e [`../genai/reference-queries.sql`](../genai/reference-queries.sql). Rever as
 decisões documentadas antes de iniciar a etapa 2.
 
-## 2. Módulo backend GenAI — ainda não iniciar
+## 2. Módulo backend GenAI — segundo bloco concluído
 
 **Entrada:** somente após completar os critérios de saída da etapa 1 e revisar
 com o usuário um checkpoint contendo as regras e consultas de referência.
 
-- [ ] Criar bloco isolado em `genai/` com FastAPI própria,
+- [x] Criar bloco isolado em `genai/` com FastAPI própria,
       dependências/configuração próprias e limites claros em relação ao backend
-      atual. O módulo não deve importar modelos, rotas ou estado social do app.
-- [ ] Definir contrato HTTP pequeno para pergunta, estado/erro, resposta,
+      atual. O esqueleto executável, configuração, health check e testes locais
+      estão em `genai/`; o módulo não importa modelos, rotas ou estado social do
+      app.
+- [x] Definir contrato HTTP pequeno para pergunta, estado/erro, resposta,
       metadados úteis e resultado tabular; não exigir autenticação ou memória no
-      escopo mínimo sem necessidade do enunciado.
+      escopo mínimo sem necessidade do enunciado. O contrato está em
+      [`../genai/api-contract.md`](../genai/api-contract.md); endpoints ainda não
+      foram implementados.
 - [ ] Implementar conexão ao Gold por caminho configurável, SQLite `mode=ro`,
       timeout e tratamento claro de base ausente/inválida.
 - [ ] Implementar ferramenta SQL tipada: permitir uma consulta, somente leitura,
@@ -88,9 +92,10 @@ com o usuário um checkpoint contendo as regras e consultas de referência.
 - [ ] Implementar testes determinísticos com SQLite temporário para permissões,
       limites, erros e consultas; sem depender de rede nem chave de provedor.
 
-**Critério de saída:** API isolada, contrato e ferramenta de leitura Gold
-implementados e verificados localmente. Esta etapa só começa após a saída da
-etapa 1 e o checkpoint acordado com o usuário.
+**Critério de saída da etapa:** API isolada, contrato e ferramenta de leitura
+Gold implementados e verificados localmente. O segundo bloco termina com o
+esqueleto executável e o health check verificado; pare e aguarde o usuário
+revisar e fazer o commit antes de implementar a conexão com o Gold.
 
 ## 3. Agente e perguntas obrigatórias
 
