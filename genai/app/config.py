@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     max_question_length: int = 1000
     gold_database_path: Path = Path("../data/cinerocket.db")
     gold_timeout_seconds: float = 5.0
+    gold_complex_timeout_seconds: float = 15.0
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
 

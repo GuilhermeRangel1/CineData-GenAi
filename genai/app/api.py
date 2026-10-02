@@ -56,6 +56,7 @@ def get_agent_service() -> AgentService:
     executor = GoldQueryExecutor(
         database,
         timeout_seconds=settings.gold_timeout_seconds,
+        complex_timeout_seconds=settings.gold_complex_timeout_seconds,
     )
     return AgentService(model, executor)
 

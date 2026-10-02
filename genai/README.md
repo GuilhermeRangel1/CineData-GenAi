@@ -31,6 +31,8 @@ As consultas passam por `sqlglot` antes da execução. O executor aceita uma
 única instrução `SELECT`, restringe as tabelas Gold, aplica limite de linhas e
 tempo e mantém uma autorização SQLite read-only como segunda barreira. DML,
 DDL, múltiplas instruções, acesso externo e funções de arquivo são rejeitados.
+Consultas de relações pessoa-filme recebem orçamento de 15 segundos; as demais
+permanecem limitadas a 5 segundos.
 
 Os testes não iniciam servidor nem fazem chamadas de rede:
 
@@ -41,3 +43,7 @@ python -m pytest
 O adaptador lê `GENAI_GEMINI_API_KEY` do `.env` e usa
 `GENAI_GEMINI_MODEL` ou `gemini-3.5-flash-lite` por padrão. A suíte de testes injeta
 um cliente simulado; ela nunca consome a cota do provedor.
+
+As perguntas obrigatórias estão catalogadas em
+[`docs/genai/evaluation-cases.md`](../docs/genai/evaluation-cases.md), com os
+identificadores Q01–Q14 e as colunas esperadas para as avaliações locais.

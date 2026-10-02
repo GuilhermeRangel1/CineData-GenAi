@@ -36,18 +36,29 @@ class QueryResult:
 class GoldQueryExecutor:
     """Executa apenas consultas previamente aprovadas pelo guard."""
 
-    def __init__(self, database: GoldDatabase, max_rows: int = 100, timeout_seconds: float = 5.0):
+    def __init__(
+        self,
+        database: GoldDatabase,
+        max_rows: int = 100,
+        timeout_seconds: float = 5.0,
+        complex_timeout_seconds: float | None = None,
+        progress_steps: int = 100_000,
+    ):
         self.database = database
         self.max_rows = max_rows
         self.timeout_seconds = timeout_seconds
+        self.complex_timeout_seconds = complex_timeout_seconds or timeout_seconds
+        self.progress_steps = progress_steps
 
     def execute(self, query: ValidatedQuery) -> QueryResult:
         """Executa uma consulta com autorização SQLite e limites operacionais."""
 
         with self.database.connect() as connection:
             connection.set_authorizer(self._authorize)
-            deadline = time.monotonic() + self.timeout_seconds
-            connection.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1_000)
+            deadline = time.monotonic() + self._timeout_for(query)
+            connection.set_progress_handler(
+                lambda: int(time.monotonic() >= deadline), self.progress_steps
+            )
             try:
                 cursor = connection.execute(query.sql)
                 values = cursor.fetchmany(self.max_rows + 1)
@@ -64,6 +75,17 @@ class GoldQueryExecutor:
         truncated = len(values) > self.max_rows
         rows = tuple(dict(zip(columns, row, strict=True)) for row in values[: self.max_rows])
         return QueryResult(columns=columns, rows=rows, truncated=truncated)
+
+    def _timeout_for(self, query: ValidatedQuery) -> float:
+        """Reserva mais tempo para agregações sobre relações pessoa-filme."""
+
+        sql = query.sql.upper()
+        is_people_relationship = "BRIDGE_MOVIE_PERSON" in sql and (
+            "TIPO_PESSOA" in sql or "DATA_LANCAMENTO" in sql
+        )
+        if is_people_relationship:
+            return max(self.timeout_seconds, self.complex_timeout_seconds)
+        return self.timeout_seconds
 
     def _authorize(self, action: int, arg1: str | None, arg2: str | None, *_args: Any) -> int:
         if action in _DENIED_ACTIONS:

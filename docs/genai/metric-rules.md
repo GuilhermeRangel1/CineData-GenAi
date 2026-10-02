@@ -10,9 +10,10 @@ fornecida pela fonte.
 ## Regras comuns
 
 - **Unidade:** uma linha analítica representa um filme (`sk_movie_id`).
-  Bridges podem associar um filme a vários gêneros, pessoas ou produtoras; use
-  pares distintos de associação e nunca some fatos depois de um join que
-  multiplique filmes sem declarar essa atribuição.
+  Bridges podem associar um filme a vários gêneros, pessoas ou produtoras; as
+  chaves das bridges garantem uma associação única por par de chaves. Ainda
+  assim, use pares distintos quando combinar relações e nunca some fatos depois
+  de um join que multiplique filmes sem declarar essa atribuição.
 - **Dinheiro:** usar as colunas BRL para todas as métricas financeiras, com
   `receita_brl` e `orcamento_brl`. O arquivo contém campos USD também, mas não
   se misturam moedas na mesma resposta. Não converter valores nem somar os dois
@@ -91,9 +92,9 @@ fornecida pela fonte.
   máximo observado de aproximadamente 0,005. Usar o resumo é suficiente para as
   perguntas agregadas e evita recalcular todas as avaliações textuais.
 - As 14 consultas Q01–Q14 em `reference-queries.sql` foram executadas contra o
-  Gold em conexão SQLite somente leitura; todas retornaram resultados. A
-  consulta de coocorrência ator-diretor é a mais custosa (cerca de 30 segundos
-  nesta máquina) e merece uma otimização específica antes de ser usada em
-  respostas interativas.
+  Gold em conexão SQLite somente leitura; todas retornaram resultados. Q07 e
+  Q09 usam CTEs materializadas para evitar recomputação das relações de pessoas;
+  a execução completa do ciclo local passou em cerca de 32 segundos, com
+  orçamento estendido apenas para essas relações.
 - As regras e SQL devem ser executadas novamente na etapa de validação após
   qualquer troca de arquivo Gold. Este documento não autoriza escritas na base.
