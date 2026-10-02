@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Hero } from './Hero'
 import { loadYouTube } from '../lib/youtube'
@@ -44,7 +43,7 @@ describe('Destaque cinematográfico', () => {
     load.mockResolvedValue({ Player } as unknown as Awaited<ReturnType<typeof loadYouTube>>)
 
     render(<Hero onExplore={vi.fn()} />)
-    expect(screen.getByText('PRÉVIA EM IMAGEM')).toBeInTheDocument()
+    expect(document.querySelector('.hero-still')).toBeInTheDocument()
     expect(document.querySelector('.hero-video')).not.toHaveClass('is-ready')
 
     await act(async () => {
@@ -63,7 +62,7 @@ describe('Destaque cinematográfico', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(4200) })
     expect(document.querySelector('.hero-video')).toHaveClass('is-ready')
     expect(mute).toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar som do vídeo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar som do trailer' }))
     expect(unMute).toHaveBeenCalled()
   })
 
@@ -125,14 +124,55 @@ describe('Destaque cinematográfico', () => {
     expect(load).toHaveBeenCalledTimes(2)
   })
 
-  it('abre o trailer completo somente quando a pessoa solicita', async () => {
-    render(<Hero onExplore={vi.fn()} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Assistir trailer' }))
+  it('mantém o cartaz durante a pausa e reinicia o trailer quando ele termina', async () => {
+    vi.useFakeTimers()
+    const playVideo = vi.fn()
+    const seekTo = vi.fn()
+    const destroy = vi.fn()
+    type Options = ConstructorParameters<Awaited<ReturnType<typeof loadYouTube>>['Player']>[1]
+    let options!: Options
+    const target = {
+      pauseVideo: vi.fn(),
+      playVideo,
+      seekTo,
+      mute: vi.fn(),
+      unMute: vi.fn(),
+      destroy,
+      getIframe: () => document.createElement('iframe'),
+    }
+    class Player {
+      constructor(_element: HTMLElement, passed: Options) {
+        options = passed
+        return target
+      }
+    }
+    load.mockResolvedValue({ Player } as unknown as Awaited<ReturnType<typeof loadYouTube>>)
 
-    expect(screen.getByRole('dialog')).toHaveAccessibleName('Trailer de Spider-Man: Across the Spider-Verse')
-    expect(screen.getByTitle('Assistir ao trailer oficial de Spider-Man: Across the Spider-Verse')).toHaveAttribute(
-      'src',
-      expect.stringContaining('autoplay=1'),
-    )
+    render(<Hero onExplore={vi.fn()} />)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(450)
+      await Promise.resolve()
+    })
+    act(() => {
+      options.events.onReady({ target })
+      options.events.onStateChange({ target, data: 1 })
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(4200) })
+    expect(document.querySelector('.hero-video')).toHaveClass('is-ready')
+
+    act(() => options.events.onStateChange({ target, data: 0 }))
+    expect(document.querySelector('.hero-video')).not.toHaveClass('is-ready')
+    expect(document.querySelector('.hero-still')).toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2200) })
+    expect(seekTo).toHaveBeenCalledWith(0, true)
+    expect(playVideo).toHaveBeenCalledTimes(2)
+    expect(document.querySelector('.hero-video')).not.toHaveClass('is-ready')
+
+    act(() => options.events.onStateChange({ target, data: 1 }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(649) })
+    expect(document.querySelector('.hero-video')).not.toHaveClass('is-ready')
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(document.querySelector('.hero-video')).toHaveClass('is-ready')
   })
 })
