@@ -28,22 +28,43 @@ class AgentClarification(AgentError):
     """A pergunta exige esclarecimento antes de consultar o Gold."""
 
 
+class AgentUnsupported(AgentError):
+    """A plataforma não documenta a funcionalidade pedida."""
+
+
 logger = logging.getLogger(__name__)
 
 _PLATFORM_ACTION = re.compile(
     r"\b(?:como|onde)\s+(?:(?:eu\s+)?(?:posso|faco)\s+(?:para\s+)?)?"
-    r"(?:usar|encontrar|buscar|filtrar|criar|crio|salvar|avaliar|avalio|"
-    r"acessar|entrar|participar|adicionar|adiciono|abrir|editar|gerenciar|funciona)\b"
+    r"(?:usar|encontrar|encontro|buscar|busco|filtrar|filtro|pesquisar|pesquiso|"
+    r"procurar|procuro|criar|crio|salvar|avaliar|avalio|"
+    r"acessar|acesso|entrar|participar|participo|adicionar|adiciono|pedir|enviar|"
+    r"mandar|ativar|desativar|recuperar|publicar|comentar|reagir|postar|"
+    r"abrir|editar|gerenciar|funciona|sair)\b"
 )
 _PLATFORM_FEATURE = re.compile(
     r"\b(?:cinedata|site|plataforma|minhas? listas?|amigos?|amizades?|"
     r"comunidades?|mapa de gostos|conta|perfil|filtros?|catalogo|filmes?|"
-    r"generos?|pessoa|produtora|duracao|avaliacoes?)\b"
+    r"generos?|pessoa|produtora|duracao|avaliacoes?|mensagens?|notificacoes?)\b"
+)
+_PLATFORM_PRODUCT_QUESTION = re.compile(
+    r"(?:\b(?:cinedata|site|plataforma)\b.{0,45}"
+    r"\b(?:tem|possui|permite|oferece|disponibiliza|existe|funciona|da para|consigo)\b|"
+    r"\b(?:tem|possui|permite|oferece|disponibiliza|existe|funciona|da para|consigo)\b"
+    r".{0,45}\b(?:cinedata|site|plataforma)\b)"
+)
+_PLATFORM_GENERAL_QUESTION = re.compile(
+    r"\b(?:o que posso fazer|quais? funcoes?|quais? recursos?)\b.{0,50}\b"
+    r"(?:cinedata|site|plataforma)\b"
+)
+_PLATFORM_SOCIAL_FEATURE = re.compile(
+    r"\b(?:lista|listas|amigo|amigos|amizade|amizades|comunidade|comunidades|"
+    r"mapa de gostos|conta|perfil)\b"
 )
 _ANALYTICAL_INTENT = re.compile(
     r"\b(?:quantos?|quantas?|quantidade|receita|lucro|popularidade|top\s*\d*|"
     r"maior(?:es)?\s+(?:nota|margem|lucro|receita)|nota\s+(?:m[eé]dia|imdb|tmdb)|"
-    r"diverg[eê]ncia|margem(?:\s+m[eé]dia)?|m[eé]dia\s+de|filmes\s+(?:mais|por))\b|"
+    r"diverg[eê]ncia|margem(?:\s+m[eé]dia)?|m[eé]dia\s+de)\b|"
     r"\bator(?:es)?\b.{0,35}\b(?:mais|maior|numero)\b|"
     r"\b(?:mais|maior|numero)\b.{0,35}\bator(?:es)?\b",
     re.IGNORECASE,
@@ -64,11 +85,16 @@ def _question_sources(question: str) -> tuple[bool, bool]:
     normalized = _normalize_for_routing(question)
     platform = bool(
         (_PLATFORM_ACTION.search(normalized) and _PLATFORM_FEATURE.search(normalized))
-        or re.search(r"\b(?:o que|quais? funcoes?)\b.{0,50}\bcinedata\b", normalized)
+        or _PLATFORM_GENERAL_QUESTION.search(normalized)
         or re.search(r"\bcomo funciona\b.{0,40}\b(?:cinedata|site|plataforma)\b", normalized)
         or re.search(
             r"\b(?:cinedata|site|plataforma)\b.{0,40}\b(?:ajuda|usar|funciona)\b",
             normalized,
+        )
+        or _PLATFORM_PRODUCT_QUESTION.search(normalized)
+        or (
+            _PLATFORM_SOCIAL_FEATURE.search(normalized)
+            and not _ANALYTICAL_INTENT.search(normalized)
         )
     )
     analytical = bool(_ANALYTICAL_INTENT.search(normalized))
@@ -81,7 +107,7 @@ def _platform_guide_path() -> Path:
     return Path(__file__).resolve().parents[2] / "docs" / "platform-guide.md"
 
 
-def _platform_guide_answer(question: str) -> str:
+def _platform_guide_answer(question: str) -> str | None:
     """Returns relevant, verbatim guide sections without generating new claims."""
 
     guide_path = _platform_guide_path()
@@ -105,6 +131,7 @@ def _platform_guide_answer(question: str) -> str:
             "**Comunidades:**", ("comunidade", "conversa", "publicar", "comentar", "reagir")
         ),
         "mapa": ("**Mapa de gostos:**", ("mapa", "gosto", "sugest", "conexao")),
+        "conta": ("Entre ou crie uma conta", ("conta", "perfil", "entrar", "cadastro", "login")),
     }
     selected: list[str] = []
     if any(word in normalized for word in topics["filmes"][1]):
@@ -119,9 +146,63 @@ def _platform_guide_answer(question: str) -> str:
                 if end < 0:
                     end = guide.find("\n\nEntre ou crie", start)
                 selected.append(guide[start:end if end >= 0 else len(guide)].strip())
+    if any(word in normalized for word in topics["conta"][1]):
+        start = guide.find(topics["conta"][0])
+        if start >= 0:
+            end = guide.find("Algumas ferramentas de gestão", start)
+            selected.append(guide[start:end if end >= 0 else len(guide)].strip())
     if not selected:
-        selected.append(guide.split("## Onde conferir", 1)[0].strip())
-    return "\n\n".join(dict.fromkeys(selected))
+        if _PLATFORM_GENERAL_QUESTION.search(normalized):
+            selected.append(guide.split("## Onde conferir", 1)[0].strip())
+        else:
+            return None
+
+    answer = "\n\n".join(dict.fromkeys(selected))
+    needs_account = any(
+        word in normalized
+        for word in (
+            "lista", "amigo", "amizade", "comunidade", "mapa", "gosto", "avaliar",
+            "avaliacao", "conta", "perfil", "salvar", "participar",
+        )
+    )
+    if needs_account and "Entre ou crie uma conta" not in answer:
+        access_note = (
+            "Entre ou crie uma conta para usar listas, avaliar filmes, gerenciar amizades, "
+            "participar de conversas e abrir o mapa de gostos."
+        )
+        answer += f"\n\n{access_note}"
+    needs_admin = bool(
+        re.search(
+            r"\b(?:adicionar|cadastrar|importar)\b.{0,35}"
+            r"\bfilme\b.{0,25}\b(?:catalogo|site|cinedata)\b",
+            normalized,
+        )
+        or re.search(r"\b(?:editar|excluir)\s+(?:o\s+)?filme\b", normalized)
+        or re.search(
+            r"\b(?:criar|editar|excluir)\s+(?:uma\s+)?comunidades?\b", normalized
+        )
+        or re.search(r"\bmoderar\b.{0,30}\b(?:comunidade|publicacao|comentario)\b", normalized)
+    )
+    if needs_admin:
+        answer += (
+            "\n\nAções de gestão do catálogo e das comunidades exigem perfil de administrador."
+        )
+    return answer
+
+
+def _is_vague_platform_question(question: str) -> bool:
+    """Identifies platform questions that name a feature without asking an action."""
+
+    normalized = _normalize_for_routing(question)
+    return bool(
+        _PLATFORM_SOCIAL_FEATURE.search(normalized)
+        and not re.search(
+            r"\b(?:como|onde|quando|quem|qual|quais|posso|consigo|tem|existe|"
+            r"criar|buscar|encontrar|filtrar|salvar|avaliar|entrar|participar|"
+            r"adicionar|editar|excluir|usar|funciona|permite|oferece)\b",
+            normalized,
+        )
+    )
 
 
 class ToolCallingModel(Protocol):
@@ -619,8 +700,20 @@ class AgentService:
         platform_intent, analytical_intent = _question_sources(normalized_question)
         mixed_intent = platform_intent and analytical_intent
         if platform_intent and not analytical_intent:
+            if _is_vague_platform_question(normalized_question):
+                raise AgentClarification(
+                    "Qual recurso ou ação do CineData você quer conhecer? "
+                    "Posso explicar o catálogo, as listas, os amigos, as comunidades "
+                    "ou o mapa de gostos."
+                )
+            platform_answer = _platform_guide_answer(normalized_question)
+            if platform_answer is None:
+                raise AgentUnsupported(
+                    "Não encontrei essa funcionalidade no guia atual do CineData. "
+                    "Você pode dizer qual área ou ação da plataforma quer conhecer?"
+                )
             return AgentResponse(
-                answer=_platform_guide_answer(normalized_question),
+                answer=platform_answer,
                 rows=(),
                 truncated=False,
                 tool_calls=0,
@@ -763,6 +856,10 @@ class AgentService:
 
         if mixed_intent:
             platform_answer = _platform_guide_answer(normalized_question)
+            if platform_answer is None:
+                platform_answer = (
+                    "Não encontrei essa funcionalidade no guia atual do CineData."
+                )
             analytical_answer = (
                 "A consulta Gold não encontrou resultados; a tabela está vazia."
                 if row_count == 0

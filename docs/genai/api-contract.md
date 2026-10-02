@@ -109,6 +109,11 @@ essencial. A API não deve executar uma consulta especulativa para preencher a
 lacuna. O modelo pode sinalizar esse estado com `CLARIFY:`; a rota devolve o
 envelope acima sem chamar `run_sql`.
 
+Perguntas vagas sobre recursos da plataforma também recebem `ambiguous_question`
+sem consulta SQL. Uma função não documentada retorna `unsupported_question`,
+explicando que ela não consta no guia atual e pedindo à pessoa que indique a
+área ou ação desejada.
+
 ## Erros
 
 Todos os erros seguem o mesmo envelope:

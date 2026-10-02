@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.agent import AgentClarification, AgentError, AgentService
+from app.agent import AgentClarification, AgentError, AgentService, AgentUnsupported
 from app.agent_models import ModelTurn, ToolCall
 from app.gold_database import EXPECTED_TABLES, GoldDatabase
 from app.sql_executor import GoldQueryExecutor
@@ -215,8 +215,50 @@ def test_platform_question_uses_guide_without_model_or_sql(tmp_path) -> None:
     assert response.source == "platform"
     assert response.rows == ()
     assert response.tool_calls == 0
-    assert "Filtros avançados" in response.answer
+    assert "Filtros" in response.answer and "avançados" in response.answer
     assert "gênero" in response.answer
+    assert model.calls == []
+
+
+def test_platform_answer_explains_account_and_admin_requirements(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel([])
+    service = AgentService(model, GoldQueryExecutor(GoldDatabase(database_path)))
+
+    list_answer = service.answer("Como faço para criar uma lista no CineData?")
+    account_answer = service.answer("Como faço para entrar na minha conta do CineData?")
+    admin_answer = service.answer("Como adicionar um filme ao catálogo do CineData?")
+
+    assert "Entre ou crie uma conta" in list_answer.answer
+    assert "Entre ou crie uma conta" in account_answer.answer
+    assert "perfil de administrador" in admin_answer.answer
+    assert model.calls == []
+
+
+def test_unknown_platform_feature_is_not_invented(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel([])
+
+    with pytest.raises(AgentUnsupported, match="Não encontrei essa funcionalidade"):
+        AgentService(
+            model, GoldQueryExecutor(GoldDatabase(database_path))
+        ).answer("O CineData permite enviar mensagens privadas?")
+
+    assert model.calls == []
+
+
+def test_vague_platform_feature_requests_detail_without_sql(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel([])
+
+    with pytest.raises(AgentClarification, match="Qual recurso ou ação"):
+        AgentService(
+            model, GoldQueryExecutor(GoldDatabase(database_path))
+        ).answer("Amigos?")
+
     assert model.calls == []
 
 

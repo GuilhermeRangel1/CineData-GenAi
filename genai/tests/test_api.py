@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from app.agent import AgentClarification
+from app.agent import AgentClarification, AgentUnsupported
 from app.agent_models import AgentResponse
 from app.api import get_agent_service
 from app.errors import QueryTimeoutError
@@ -130,6 +130,27 @@ def test_question_returns_clarification_envelope(client: TestClient) -> None:
             "details": None,
         },
     }
+
+
+def test_question_returns_unsupported_platform_envelope(client: TestClient) -> None:
+    class UnsupportedAgent:
+        def answer(self, question: str) -> AgentResponse:
+            raise AgentUnsupported(
+                "Não encontrei essa funcionalidade no guia atual do CineData. "
+                "Você pode dizer qual área ou ação da plataforma quer conhecer?"
+            )
+
+    app.dependency_overrides[get_agent_service] = lambda: UnsupportedAgent()
+    try:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "O CineData permite mensagens privadas?"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "unsupported_question"
 
 
 def test_question_returns_query_timeout_envelope(client: TestClient) -> None:

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
-from app.agent import AgentClarification, AgentError, AgentService
+from app.agent import AgentClarification, AgentError, AgentService, AgentUnsupported
 from app.config import get_settings
 from app.errors import GoldDatabaseError, ProviderConfigurationError, QueryTimeoutError
 from app.gemini_adapter import GeminiToolCallingModel
@@ -117,6 +117,18 @@ def answer_question(
                 "status": "clarification",
                 "error": {
                     "code": "ambiguous_question",
+                    "message": str(exc),
+                    "details": None,
+                },
+            },
+        )
+    except AgentUnsupported as exc:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "error",
+                "error": {
+                    "code": "unsupported_question",
                     "message": str(exc),
                     "details": None,
                 },

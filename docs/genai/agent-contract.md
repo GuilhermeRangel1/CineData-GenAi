@@ -21,7 +21,9 @@ chamadas externas.
    `ambiguous_question`.
 9. Perguntas sobre como usar o CineData são respondidas pelo guia versionado da
    plataforma sem executar SQL. Perguntas mistas preservam a orientação do guia
-   separada dos resultados analíticos retornados pelo Gold.
+   separada dos resultados analíticos retornados pelo Gold. Pedidos vagos
+   recebem esclarecimento e funcionalidades não documentadas são identificadas
+   como não encontradas no guia, sem gerar SQL.
 
 O modelo não recebe acesso direto ao arquivo, à conexão SQLite ou a outras
 ferramentas. O orquestrador também não aceita uma resposta factual sem que a

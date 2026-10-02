@@ -114,11 +114,17 @@ versionados correspondem ao estado entregue.
       gerar SQL analítico nem inventar funções. Separar esse caminho das
       perguntas sobre dados dos filmes; pedidos mistos identificam separadamente
       o guia da plataforma e os resultados Gold. O contrato registra a origem.
-- [ ] Explicar requisitos de acesso quando relevantes, como entrar na conta
+- [x] Explicar requisitos de acesso quando relevantes, como entrar na conta
       para usar recursos pessoais. Se a funcionalidade não existir ou a pergunta
-      estiver vaga, dizer isso com clareza e pedir o detalhe necessário.
-- [ ] Cobrir o roteamento e o conteúdo do guia com verificações locais sem
-      provedor; conferir manualmente uma pergunta de cada tipo.
+      estiver vaga, dizer isso com clareza e pedir o detalhe necessário. As
+      respostas da plataforma incluem o requisito pertinente; funções não
+      documentadas são indicadas como tal e pedidos vagos recebem esclarecimento.
+- [x] Cobrir o roteamento e o conteúdo do guia com verificações locais sem
+      provedor; conferir manualmente uma pergunta de cada tipo. Os cinco fluxos
+      (plataforma, analítico, misto, vago e não documentado) passaram no container
+      isolado sem rede; plataforma também foi consultada sem modelo, e os casos
+      analítico e misto foram enviados uma vez ao Gemini. A suíte pytest foi
+      adicionada, mas não executada neste host porque pytest não está instalado.
 
 **Critério de saída:** a pessoa consegue perguntar o que pode fazer no site e
 como encontrar filmes, listas, amigos ou comunidades; o chatbot responde com
