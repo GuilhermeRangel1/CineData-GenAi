@@ -32,7 +32,7 @@ import type {
 import { obterTokenSessao } from '../auth/session'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
-const genAiApiBaseUrl = import.meta.env.VITE_GENAI_API_BASE_URL ?? 'http://localhost:8001/api/v1'
+const genAiApiBaseUrl = import.meta.env.VITE_GENAI_API_BASE_URL ?? '/genai/api/v1'
 const CACHE_TTL_MS = 60_000
 
 type CacheEntry = { expiraEm: number; valor: unknown }
@@ -80,13 +80,22 @@ async function requisitar<T>(caminho: string, init?: RequestInit): Promise<T> {
 }
 
 async function requisitarGenAi<T>(caminho: string, init?: RequestInit): Promise<T> {
-  const resposta = await fetch(`${genAiApiBaseUrl}${caminho}`, {
-    ...init,
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init?.headers,
-    },
-  })
+  let resposta: Response
+  try {
+    resposta = await fetch(`${genAiApiBaseUrl}${caminho}`, {
+      ...init,
+      headers: {
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init?.headers,
+      },
+    })
+  } catch {
+    throw new ErroDaApi(
+      'Não consegui conectar ao chatbot. Verifique se o serviço está disponível e tente novamente.',
+      0,
+      'network_error',
+    )
+  }
 
   if (!resposta.ok) throw await obterErroDaResposta(resposta)
   return resposta.json() as Promise<T>

@@ -16,10 +16,10 @@ npm run dev
 ```
 
 O Vite fica em `http://localhost:5173`. O frontend espera o backend em
-`http://localhost:8000/api/v1` e o GenAI em `http://localhost:8001/api/v1`.
-Esses endereços podem ser configurados com `VITE_API_BASE_URL` e
-`VITE_GENAI_API_BASE_URL` no ambiente de build. O Compose já passa os valores
-corretos ao Dockerfile.
+`http://localhost:8000/api/v1`; por padrão, as chamadas do chatbot passam por
+`/genai/api/v1`. No Compose o Nginx encaminha essa rota ao GenAI e, no Vite, o
+proxy de desenvolvimento envia as chamadas a `http://localhost:8001`.
+`VITE_API_BASE_URL` e `VITE_GENAI_API_BASE_URL` podem alterar esses endereços.
 
 ## Chatbot
 
