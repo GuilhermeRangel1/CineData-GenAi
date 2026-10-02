@@ -28,6 +28,18 @@ DEFAULT_BATCH_SIZE = 10_000
 DEFAULT_GOLD_DATABASE = Path(__file__).resolve().parents[3] / "data" / "cinerocket.db"
 GOLD_IMPORT_VERSION = "2"
 
+# A revisão e855f43 acrescentou apenas índices ao arquivo Gold. O checksum
+# físico mudou, mas as dez tabelas importadas permaneceram iguais. Reconhecer
+# essa transição evita reimportar todo o catálogo em cada inicialização.
+INDEX_ONLY_GOLD_REVISIONS = {
+    (
+        "410f5beef6ab9fb34b9044d5dd191f56f3f0dc30a56e6432386ecef0d977b012",
+        581120000,
+        "d4148542670284ef9e87d686fe7124f7a9c3ae5d1a62d19ad45ee685208b4eb7",
+        722337792,
+    ),
+}
+
 
 def _synchronous_url(database_url: str) -> str:
     """Converte a URL async usada pela aplicação para a conexão síncrona da CLI."""
@@ -209,6 +221,13 @@ def _legacy_gold_fingerprint(path: Path) -> str:
     with path.open("rb") as source:
         while block := source.read(8 * 1024 * 1024):
             digest.update(block)
+    return digest.hexdigest()
+
+
+def _fingerprint_from_digest(source_digest: str) -> str:
+    digest = hashlib.sha256()
+    digest.update(f"gold-import-version:{GOLD_IMPORT_VERSION}\0".encode())
+    digest.update(bytes.fromhex(source_digest))
     return digest.hexdigest()
 
 
@@ -493,6 +512,18 @@ def seed_from_gold_database(
             ):
                 # Atualiza somente o formato do fingerprint na migração da lógica;
                 # não cria um backup/reimport desnecessário de 679 MB.
+                previous = fingerprint
+            elif (
+                previous_sync is not None
+                and previous_sync.source_digest is not None
+                and (
+                    previous_sync.source_digest,
+                    previous_sync.source_size_bytes,
+                    source_digest,
+                    source_size,
+                ) in INDEX_ONLY_GOLD_REVISIONS
+                and previous == _fingerprint_from_digest(previous_sync.source_digest)
+            ):
                 previous = fingerprint
             has_application_data = (
                 (force or previous != fingerprint)
