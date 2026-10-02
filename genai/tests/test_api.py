@@ -15,6 +15,20 @@ def test_health_returns_process_status(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_frontend_origin_is_allowed_for_question_preflight(client: TestClient) -> None:
+    response = client.options(
+        "/api/v1/questions",
+        headers={
+            "Origin": "http://localhost:8080",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:8080"
+
+
 def test_question_returns_agent_response(client: TestClient) -> None:
     class FakeAgent:
         def answer(self, question: str) -> AgentResponse:

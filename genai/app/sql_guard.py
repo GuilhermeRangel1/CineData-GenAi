@@ -1,5 +1,6 @@
 """Validação de SQL SQLite antes da execução no Gold."""
 
+import unicodedata
 from dataclasses import dataclass
 
 from sqlglot import exp, parse
@@ -7,6 +8,68 @@ from sqlglot.errors import ParseError
 
 from app.errors import SqlValidationError
 from app.gold_database import EXPECTED_TABLES
+
+_GOLD_COLUMNS = frozenset(
+    {
+        "sk_movie_id",
+        "id_filme",
+        "titulo",
+        "data_lancamento",
+        "ano_lancamento",
+        "duracao_minutos",
+        "idioma_original",
+        "status_filme",
+        "sinopse",
+        "url_poster",
+        "url_backdrop",
+        "orcamento_usd",
+        "receita_usd",
+        "lucro_usd",
+        "orcamento_brl",
+        "receita_brl",
+        "lucro_brl",
+        "popularidade",
+        "nota_tmdb",
+        "qtd_tmdb",
+        "nota_imdb",
+        "qtd_imdb",
+        "sk_genre_id",
+        "nome_genero",
+        "sk_person_id",
+        "nome_pessoa",
+        "tipo_pessoa",
+        "sk_company_id",
+        "nome_produtora",
+        "sk_review_id",
+        "qtd_avaliacoes_usuarios",
+        "nota_media_usuarios",
+        "id",
+        "sk_movie_review_id",
+        "name",
+        "rating",
+        "text",
+        "created_at",
+    }
+)
+
+
+def _without_accents(value: str) -> str:
+    """Retorna um identificador ASCII para tolerar acentos introduzidos pelo modelo."""
+
+    return "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value)
+        if not unicodedata.combining(character)
+    )
+
+
+def _normalize_gold_columns(expression: exp.Expression) -> None:
+    """Corrige apenas acentos em nomes de colunas Gold, sem tocar em literais."""
+
+    for column in expression.find_all(exp.Column):
+        normalized = _without_accents(column.name)
+        if normalized in _GOLD_COLUMNS and normalized != column.name:
+            column.set("this", exp.Identifier(this=normalized, quoted=False))
 
 
 @dataclass(frozen=True)
@@ -36,6 +99,8 @@ def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
     expression = statements[0]
     if not isinstance(expression, (exp.Select, exp.Union)):
         raise SqlValidationError("Somente consultas SELECT são permitidas.")
+
+    _normalize_gold_columns(expression)
 
     cte_names = {cte.alias_or_name for cte in expression.find_all(exp.CTE)}
     tables: set[str] = set()

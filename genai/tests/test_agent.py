@@ -53,6 +53,8 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     assert "somente números, nomes e conclusões sustentados" in model.calls[0][0][0]["content"]
     assert "População válida" in model.calls[0][0][0]["content"]
     assert "receita por filme" in model.calls[0][0][0]["content"]
+    assert "mais bem avaliado pelo IMDb" in model.calls[0][0][0]["content"]
+    assert "nunca como a quantidade qtd_imdb" in model.calls[0][0][0]["content"]
 
 
 def test_agent_attaches_case_metadata_and_validates_columns(tmp_path) -> None:

@@ -27,6 +27,15 @@ def test_validate_select_and_apply_default_limit() -> None:
     assert query.sql.endswith("LIMIT 2")
 
 
+def test_validate_normalizes_accents_only_in_gold_column_identifiers() -> None:
+    query = validate_sql(
+        "SELECT f.orçamento_brl FROM fact_movies_performance AS f",
+    )
+
+    assert "orcamento_brl" in query.sql
+    assert "orçamento_brl" not in query.sql
+
+
 @pytest.mark.parametrize(
     "sql",
     [

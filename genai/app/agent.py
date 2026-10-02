@@ -1,11 +1,12 @@
 """Orquestração do agente sem acoplar um provedor específico."""
 
 import json
+import logging
 from collections.abc import Sequence
 from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ModelTurn, ToolCall, ToolDefinition
-from app.errors import QueryExecutionError, SqlValidationError
+from app.errors import QueryExecutionError, QueryTimeoutError, SqlValidationError
 from app.evaluation_cases import MANDATORY_EVALUATIONS, find_evaluation_case
 from app.gold_database import EXPECTED_TABLES
 from app.sql_executor import GoldQueryExecutor
@@ -18,6 +19,9 @@ class AgentError(RuntimeError):
 
 class AgentClarification(AgentError):
     """A pergunta exige esclarecimento antes de consultar o Gold."""
+
+
+logger = logging.getLogger(__name__)
 
 
 class ToolCallingModel(Protocol):
@@ -48,6 +52,33 @@ RUN_SQL_TOOL = ToolDefinition(
 )
 
 _GOLD_TABLES_CONTEXT = ", ".join(sorted(EXPECTED_TABLES))
+_GOLD_SCHEMA_CONTEXT = "\n".join(
+    (
+        "dim_movies: sk_movie_id, id_filme, titulo, data_lancamento, ano_lancamento, "
+        "duracao_minutos, idioma_original, status_filme, sinopse, url_poster, url_backdrop",
+        "fact_movies_performance: sk_movie_id, orcamento_usd, receita_usd, lucro_usd, "
+        "orcamento_brl, receita_brl, lucro_brl, popularidade, nota_tmdb, qtd_tmdb, "
+        "nota_imdb, qtd_imdb",
+        "dim_genres: sk_genre_id, nome_genero",
+        "dim_people: sk_person_id, nome_pessoa, tipo_pessoa",
+        "dim_companies: sk_company_id, nome_produtora",
+        "dim_reviews: sk_review_id, sk_movie_id, qtd_avaliacoes_usuarios, nota_media_usuarios",
+        "movie_reviews: id, sk_movie_review_id, sk_movie_id, name, rating, text, created_at",
+        "bridge_movie_genre: sk_movie_id, sk_genre_id",
+        "bridge_movie_person: sk_movie_id, sk_person_id",
+        "bridge_movie_company: sk_movie_id, sk_company_id",
+    )
+)
+_GOLD_RELATIONSHIPS_CONTEXT = (
+    "Use estas chaves nos JOINs: fact_movies_performance.sk_movie_id = "
+    "dim_movies.sk_movie_id; bridge_movie_genre.sk_movie_id = dim_movies.sk_movie_id; "
+    "bridge_movie_genre.sk_genre_id = dim_genres.sk_genre_id; "
+    "bridge_movie_person.sk_movie_id = dim_movies.sk_movie_id; "
+    "bridge_movie_person.sk_person_id = dim_people.sk_person_id; "
+    "bridge_movie_company.sk_movie_id = dim_movies.sk_movie_id; "
+    "bridge_movie_company.sk_company_id = dim_companies.sk_company_id. "
+    "Todo JOIN deve declarar sua condição; nunca use JOIN sem ON ou USING."
+)
 
 
 def _format_evaluation_context(case) -> str:
@@ -88,6 +119,16 @@ _RESPONSE_POLICY = (
     "CLARIFY: seguido do esclarecimento necessário."
 )
 
+_NATURAL_LANGUAGE_RULES = (
+    " Regras de interpretação para perguntas livres: quando a pessoa disser "
+    "'mais bem avaliado pelo IMDb', 'melhor avaliado no IMDb' ou equivalente, "
+    "interprete isso como a maior nota_imdb, nunca como a quantidade qtd_imdb. "
+    "Nesse caso, filtre nota_imdb IS NOT NULL e qtd_imdb > 0; use qtd_imdb DESC, "
+    "titulo ASC e sk_movie_id ASC apenas como desempates. Só peça esclarecimento "
+    "quando a pergunta mencionar explicitamente quantidade de avaliações/votos ou "
+    "colocar nota e quantidade como alternativas."
+)
+
 _REQUIRED_RESPONSE_LABELS = (
     "Resposta:",
     "Métrica:",
@@ -122,7 +163,12 @@ class AgentService:
                     "use exatamente a ferramenta run_sql. Não invente números. "
                     "Use somente estes nomes exatos de tabelas Gold: "
                     f"{_GOLD_TABLES_CONTEXT}. Não invente nomes de tabelas."
+                    " Use somente as colunas reais abaixo; não traduza nomes de colunas "
+                    "nem invente aliases para colunas usadas nos JOINs:\n"
+                    f"{_GOLD_SCHEMA_CONTEXT}\n"
+                    f"{_GOLD_RELATIONSHIPS_CONTEXT}\n"
                     f"\n{_RESPONSE_POLICY}"
+                    f"\n{_NATURAL_LANGUAGE_RULES}"
                     "\nIdentifique a intenção entre os casos obrigatórios abaixo e use "
                     "aliases iguais às colunas esperadas quando fizer sentido:\n"
                     f"{_MANDATORY_QUESTIONS_CONTEXT}"
@@ -146,7 +192,8 @@ class AgentService:
         try:
             validated = validate_sql(query, max_rows=self.max_rows)
             result = self.executor.execute(validated)
-        except (SqlValidationError, QueryExecutionError) as exc:
+        except (SqlValidationError, QueryExecutionError, QueryTimeoutError) as exc:
+            logger.warning("Consulta GenAI rejeitada: %s | SQL: %s", exc, query)
             raise AgentError("A consulta solicitada não pôde ser executada.") from exc
 
         if evaluation_case and result.columns != evaluation_case.expected_columns:

@@ -80,10 +80,8 @@ class GoldQueryExecutor:
         """Reserva mais tempo para agregações sobre relações pessoa-filme."""
 
         sql = query.sql.upper()
-        is_people_relationship = "BRIDGE_MOVIE_PERSON" in sql and (
-            "TIPO_PESSOA" in sql or "DATA_LANCAMENTO" in sql
-        )
-        if is_people_relationship:
+        is_relationship_query = "BRIDGE_MOVIE_" in sql or "DIM_REVIEWS" in sql
+        if is_relationship_query:
             return max(self.timeout_seconds, self.complex_timeout_seconds)
         return self.timeout_seconds
 

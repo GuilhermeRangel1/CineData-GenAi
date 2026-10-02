@@ -1,5 +1,6 @@
 """Rotas públicas da aplicação GenAI."""
 
+import logging
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,7 @@ from app.sql_executor import GoldQueryExecutor
 
 router = APIRouter()
 v1_router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class QuestionRequest(BaseModel):
@@ -109,6 +111,7 @@ def answer_question(
             },
         )
     except AgentError as exc:
+        logger.warning("Pergunta GenAI rejeitada: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=502, detail="Não foi possível concluir a pergunta."
         ) from exc

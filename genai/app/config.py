@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     gold_database_path: Path = Path("../data/cinerocket.db")
     gold_timeout_seconds: float = 5.0
     gold_complex_timeout_seconds: float = 15.0
+    cors_origins: str = "http://localhost:8080,http://localhost:5173"
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
 

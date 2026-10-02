@@ -51,6 +51,11 @@ fornecida pela fonte.
   das avaliações de usuários. `movie_reviews` não contém identificador de
   usuário confiável; não contar pessoas únicas nem inferir evolução temporal a
   partir de `name`/`created_at`.
+- **Linguagem natural para IMDb:** “mais bem avaliado pelo IMDb” e expressões
+  equivalentes significam maior `nota_imdb`, considerando apenas registros com
+  `qtd_imdb > 0`. A quantidade de votos (`qtd_imdb`) só serve como desempate;
+  perguntas que dizem “mais avaliações” ou “mais votos” usam a quantidade como
+  métrica principal.
 
 ## Definição por pergunta
 
