@@ -88,11 +88,15 @@ services:
       - path: ./genai/.env
         required: false
     environment:
-      GENAI_GOLD_DATABASE_PATH: /workspace/cinerocket.db
+      GENAI_GOLD_DATABASE_PATH: /gold-cache/cinerocket.db
+      GENAI_GOLD_SOURCE_PATH: /workspace/cinerocket.db
+      GENAI_GOLD_FINGERPRINT_PATH: /workspace/cinerocket.db.sha256
       GENAI_GOLD_TIMEOUT_SECONDS: 5
       GENAI_GOLD_COMPLEX_TIMEOUT_SECONDS: 15
+      GENAI_GOLD_PAIR_QUERY_TIMEOUT_SECONDS: 45
       GENAI_CORS_ORIGINS: http://localhost:8080,http://localhost:5173
     volumes:
+      - genai-gold:/gold-cache
       - type: bind
         source: ./data/cinerocket.db
         target: /workspace/cinerocket.db
@@ -148,3 +152,4 @@ services:
 volumes:
   cinedata-db:
     name: cinedata-analytics-fullstack_cinedata-db
+  genai-gold:

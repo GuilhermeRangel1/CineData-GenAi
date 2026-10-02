@@ -33,7 +33,8 @@ As consultas passam por `sqlglot` antes da execução. O executor aceita uma
 tempo e mantém uma autorização SQLite read-only como segunda barreira. DML,
 DDL, múltiplas instruções, acesso externo e funções de arquivo são rejeitados.
 Consultas que atravessam tabelas de relação ou avaliações recebem orçamento de
-15 segundos; as demais permanecem limitadas a 5 segundos.
+15 segundos; a agregação de dupla ator-diretor recebe 45 segundos. As demais
+permanecem limitadas a 5 segundos.
 
 Os testes não iniciam servidor nem fazem chamadas de rede. Para configurações
 sem provedor, um cliente simulado mantém os testes determinísticos:
@@ -69,5 +70,7 @@ docker compose up
 ```
 
 O Compose constrói os serviços a partir do código e os inicia. O GenAI fica em
-`http://localhost:8001`; o frontend em `http://localhost:8080`. O Gold é montado
-no serviço em modo somente leitura.
+`http://localhost:8001`; o frontend em `http://localhost:8080`. O arquivo Gold
+do projeto é montado em modo somente leitura. Ao iniciar, o GenAI verifica seu
+SHA-256 e mantém uma cópia em um volume local do Docker para acelerar as
+consultas. Novas versões do Gold atualizam essa cópia automaticamente.
