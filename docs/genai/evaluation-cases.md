@@ -31,10 +31,16 @@ O catálogo está em `genai/app/evaluation_cases.py` e não faz chamadas ao
 provedor. A execução real deve continuar limitada a validações manuais pequenas;
 os testes automatizados usam modelos simulados.
 
+Todos os casos Q01–Q14 também registram o contrato semântico usado pelo agente: métrica,
+unidade, período, população válida e limitações. Essas orientações entram no
+contexto do modelo para que a resposta em português explique os filtros
+aplicados e não acrescente números que não vieram da ferramenta.
+
 O comparador em `genai/app/evaluation_runner.py` verifica quantidade de linhas
 e valores, com tolerância de R$ 0,01 para números. Se as colunas tiverem os
 mesmos nomes, a comparação usa esses nomes; caso o SQL equivalente use aliases
 distintos, os valores são comparados na ordem retornada. O script
 `genai/scripts/evaluate_agent_snapshot.py` reproduz o ciclo completo com o SQL
 de referência como modelo simulado, sem rede, para validar o executor e o
-comparador antes de qualquer teste manual com Gemini.
+comparador antes de qualquer teste manual com Gemini. Além dos valores, o
+script verifica as colunas obrigatórias de cada caso.

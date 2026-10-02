@@ -18,6 +18,22 @@ class EvaluationMismatch(ValueError):
     """Resultado do agente diferente da expectativa derivada do Gold."""
 
 
+def assert_expected_columns(
+    actual_rows: Sequence[Mapping[str, Any]], expected_columns: Sequence[str]
+) -> None:
+    """Garante que as linhas entregues ao agente preservam o contrato do caso."""
+
+    if not actual_rows:
+        return
+    actual_columns = tuple(actual_rows[0].keys())
+    missing = [column for column in expected_columns if column not in actual_columns]
+    if missing:
+        raise EvaluationMismatch(
+            f"Colunas obrigatórias ausentes: {', '.join(missing)}; "
+            f"recebidas: {', '.join(actual_columns)}"
+        )
+
+
 def load_reference_queries(path: Path) -> dict[str, str]:
     """Lê as consultas Q01–Q14 do arquivo SQL versionado."""
 

@@ -1,11 +1,12 @@
 """Rotas públicas da aplicação GenAI."""
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
-from app.agent import AgentError, AgentService
+from app.agent import AgentClarification, AgentError, AgentService
 from app.config import get_settings
 from app.errors import GoldDatabaseError, ProviderConfigurationError
 from app.gemini_adapter import GeminiToolCallingModel
@@ -32,13 +33,29 @@ class QuestionRequest(BaseModel):
         return normalized
 
 
-class QuestionResponse(BaseModel):
-    """Resposta pública com texto e evidência tabular limitada."""
+class QuestionMetadata(BaseModel):
+    """Metadados semânticos e operacionais da consulta executada."""
 
-    answer: str
-    rows: list[dict[str, Any]]
+    source: Literal["gold"] = "gold"
+    query_id: str | None = None
+    metric: str | None = None
+    unit: str | None = None
+    period: str | None = None
+    population: str | None = None
+    limitations: str | None = None
+    columns: list[str]
+    row_count: int
     truncated: bool
     tool_calls: int
+
+
+class QuestionResponse(BaseModel):
+    """Resposta pública com texto, evidência tabular e contexto da métrica."""
+
+    status: Literal["success"] = "success"
+    answer: str
+    rows: list[dict[str, Any]]
+    metadata: QuestionMetadata
 
 
 def get_agent_service() -> AgentService:
@@ -72,21 +89,44 @@ def health() -> dict[str, str]:
 def answer_question(
     payload: QuestionRequest,
     service: AgentService = Depends(get_agent_service),  # noqa: B008
-) -> QuestionResponse:
+) -> QuestionResponse | JSONResponse:
     """Responde uma pergunta usando o agente e a base Gold read-only."""
 
     try:
         response = service.answer(payload.question)
     except GoldDatabaseError as exc:
         raise HTTPException(status_code=503, detail="A base Gold não está disponível.") from exc
+    except AgentClarification as exc:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "clarification",
+                "error": {
+                    "code": "ambiguous_question",
+                    "message": str(exc),
+                    "details": None,
+                },
+            },
+        )
     except AgentError as exc:
         raise HTTPException(
             status_code=502, detail="Não foi possível concluir a pergunta."
         ) from exc
 
     return QuestionResponse(
+        status="success",
         answer=response.answer,
         rows=list(response.rows),
-        truncated=response.truncated,
-        tool_calls=response.tool_calls,
+        metadata=QuestionMetadata(
+            query_id=response.query_id,
+            metric=response.metric,
+            unit=response.unit,
+            period=response.period,
+            population=response.population,
+            limitations=response.limitations,
+            columns=list(response.columns),
+            row_count=len(response.rows),
+            truncated=response.truncated,
+            tool_calls=response.tool_calls,
+        ),
     )

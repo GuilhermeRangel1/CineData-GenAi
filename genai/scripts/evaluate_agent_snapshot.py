@@ -6,8 +6,12 @@ from pathlib import Path
 
 from app.agent import AgentService
 from app.agent_models import ModelTurn, ToolCall
-from app.evaluation_cases import MANDATORY_EVALUATIONS
-from app.evaluation_runner import compare_rows, load_reference_queries
+from app.evaluation_cases import MANDATORY_EVALUATIONS, EvaluationCase
+from app.evaluation_runner import (
+    assert_expected_columns,
+    compare_rows,
+    load_reference_queries,
+)
 from app.gold_database import GoldDatabase
 from app.sql_executor import GoldQueryExecutor
 
@@ -17,10 +21,19 @@ ROOT = Path(__file__).resolve().parents[2]
 class ReferenceModel:
     """Modelo simulado que devolve o SQL de referência de cada caso."""
 
-    def __init__(self, sql: str) -> None:
+    def __init__(self, sql: str, case: EvaluationCase) -> None:
         self.turns = [
             ModelTurn(tool_call=ToolCall("run_sql", {"sql": sql})),
-            ModelTurn(answer="Resultado validado localmente."),
+            ModelTurn(
+                answer=(
+                    "Resposta: Resultado validado localmente.\n"
+                    f"Métrica: {case.metric}\n"
+                    f"Unidade: {case.unit}\n"
+                    f"Período: {case.period}\n"
+                    f"População válida: {case.population}\n"
+                    f"Limitações: {case.limitations}"
+                )
+            ),
         ]
 
     def complete(self, messages, tools):
@@ -42,9 +55,10 @@ def main() -> None:
     started = time.perf_counter()
 
     for case in MANDATORY_EVALUATIONS:
-        response = AgentService(ReferenceModel(queries[case.query_id]), executor).answer(
+        response = AgentService(ReferenceModel(queries[case.query_id], case), executor).answer(
             case.question
         )
+        assert_expected_columns(response.rows, case.expected_columns)
         compare_rows(response.rows, snapshot["results"][case.query_id]["rows"])
         print(f"{case.query_id}: ok ({len(response.rows)} linhas)")
 

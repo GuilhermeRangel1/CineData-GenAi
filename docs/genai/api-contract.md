@@ -12,7 +12,9 @@ fica para blocos posteriores.
 - Endpoint operacional: `GET /health`.
 - Uma requisição representa uma pergunta independente; não há memória de
   conversa, autenticação ou persistência no escopo mínimo.
-- O resultado vem exclusivamente da camada Gold consultada pelo serviço.
+- O resultado vem exclusivamente da camada Gold consultada pelo serviço. A
+  implementação atual já devolve o envelope de sucesso e os metadados descritos
+  abaixo.
 
 ## Pergunta
 
@@ -43,11 +45,17 @@ Status HTTP `200`:
     {"title": "Exemplo", "revenue": 123456789.0}
   ],
   "metadata": {
-    "metric": "top_revenue",
+    "metric": "receita por filme",
     "source": "gold",
+    "query_id": "Q01",
+    "unit": "BRL",
     "row_count": 1,
     "truncated": false,
-    "period": null
+    "period": "todo o Gold disponível",
+    "population": "filmes com receita_brl não nula",
+    "limitations": "...",
+    "columns": ["sk_movie_id", "titulo", "receita_brl"],
+    "tool_calls": 1
   }
 }
 ```
@@ -61,12 +69,21 @@ Campos:
 - `metadata.metric`: identificador estável da métrica respondida, quando
   reconhecido.
 - `metadata.source`: sempre `gold` para respostas analíticas.
+- `metadata.query_id`: identificador Q01–Q14 quando a formulação obrigatória for
+  reconhecida.
+- `metadata.unit`: unidade ou escala da métrica, quando conhecida.
 - `metadata.row_count`: quantidade de linhas retornadas ao consumidor.
 - `metadata.truncated`: indica que um limite de segurança reduziu o resultado.
 - `metadata.period`: intervalo aplicado, em texto ISO ou `null` quando não se
   aplicar.
+- `metadata.population`: população válida usada no cálculo, quando conhecida.
+- `metadata.limitations`: limitações semânticas relevantes da métrica.
+- `metadata.columns`: colunas retornadas pela consulta validada.
+- `metadata.tool_calls`: quantidade de chamadas de ferramenta realizadas.
 
-O contrato não exige que o SQL gerado seja devolvido ao cliente. Se houver uma
+O contrato não exige que o SQL gerado seja devolvido ao cliente. Para perguntas
+Q01–Q14 reconhecidas, o agente valida as colunas esperadas antes de produzir a
+resposta final. Se houver uma
 necessidade de depuração, ela deverá ser tratada por logs seguros ou metadados
 explicitamente autorizados, sem expor segredos, caminhos privados ou traceback.
 
@@ -87,7 +104,8 @@ Status HTTP `422`:
 
 Esse estado é usado quando a pergunta não determina uma métrica ou filtro
 essencial. A API não deve executar uma consulta especulativa para preencher a
-lacuna.
+lacuna. O modelo pode sinalizar esse estado com `CLARIFY:`; a rota devolve o
+envelope acima sem chamar `run_sql`.
 
 ## Erros
 

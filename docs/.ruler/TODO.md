@@ -119,27 +119,29 @@ provedor. O adaptador real e as chamadas externas continuam pendentes.
 - [x] Criar o adaptador Gemini e normalizar texto/pedido de ferramenta para o
       contrato interno; os testes usam cliente simulado e não fazem chamadas
       externas.
-- [ ] Implementar o caminho pergunta -> tool call -> validação -> consulta ->
+- [x] Implementar o caminho pergunta -> tool call -> validação -> consulta ->
       interpretação dos dados retornados -> resposta em português.
-- [ ] Responder apenas com dados retornados pela consulta; indicar filtros,
+- [x] Responder apenas com dados retornados pela consulta; indicar filtros,
       período, unidade e limitações; pedir esclarecimento quando a pergunta não
-      determinar uma métrica essencial.
-- [ ] Cobrir as perguntas financeiras: top 10 por receita; lucro médio por
+      determinar uma métrica essencial. Q01–Q14 exigem os rótulos semânticos na
+      resposta final; perguntas ambíguas podem retornar `ambiguous_question` sem
+      executar `run_sql`.
+- [x] Cobrir as perguntas financeiras: top 10 por receita; lucro médio por
       gênero; maiores margens com receita/orçamento válidos.
-- [ ] Cobrir popularidade e notas: top 5 populares; divergência TMDB/IMDb;
+- [x] Cobrir popularidade e notas: top 5 populares; divergência TMDB/IMDb;
       média IMDb por ano de lançamento.
-- [ ] Cobrir elenco/equipe: ator com mais filmes na janela de cinco anos;
+- [x] Cobrir elenco/equipe: ator com mais filmes na janela de cinco anos;
       diretores com maior média e mínimo de cinco filmes; dupla ator-diretor com
       maior número de filmes em comum.
-- [ ] Cobrir gênero/produtora: filmes por gênero; maior lucro total por
+- [x] Cobrir gênero/produtora: filmes por gênero; maior lucro total por
       produtora; maior margem média por gênero.
-- [ ] Cobrir reviews: filmes mais avaliados por usuários; maior divergência entre
+- [x] Cobrir reviews: filmes mais avaliados por usuários; maior divergência entre
       média dos usuários e nota IMDb, respeitando escala e população disponíveis.
-- [ ] Criar avaliações locais com perguntas e resultados esperados derivados do
+- [x] Criar avaliações locais com perguntas e resultados esperados derivados do
       Gold; comparar números com SQL de referência, não igualdade textual de SQL.
 - [x] Catalogar as 14 perguntas obrigatórias com identificadores Q01–Q14 e
       colunas esperadas para orientar as avaliações locais.
-- [ ] Testar ciclo do agente com respostas/tool calls simulados. Reservar
+- [x] Testar ciclo do agente com respostas/tool calls simulados. Reservar
       chamadas reais para uma validação manual pequena: meta máxima de 5 por dia,
       sem retentativas automáticas, anotando o consumo observado.
 
@@ -165,6 +167,23 @@ passou a verificar o tempo a cada 100.000 instruções. A reprodução das 14
 avaliações passou em 31,8 segundos com limite comum de 5 segundos e orçamento
 de 15 segundos apenas para relações pessoa-filme. A integração com a interface
 ainda está pendente. Pare e aguarde a revisão antes de consumir nova cota.
+
+**Checkpoint em andamento:** Q01–Q14 receberam contratos semânticos locais com
+métrica, unidade, período, população válida e limitações. O contexto enviado ao
+agente orienta a resposta em português a usar exclusivamente os dados de
+`run_sql`, o avaliador verifica as colunas obrigatórias de cada caso e o agente
+rejeita respostas finais de casos conhecidos sem os campos semânticos mínimos.
+O endpoint também devolve um envelope de esclarecimento sem executar SQL quando
+o modelo sinaliza uma métrica essencial ausente. Ainda falta validar esse
+formato em chamadas reais do provedor.
+
+Progresso dos blocos semânticos locais:
+
+- [x] Q01–Q03 — receita, lucro médio e margem.
+- [x] Q04–Q06 — popularidade, divergência TMDB/IMDb e média IMDb por ano.
+- [x] Q07–Q09 — elenco e equipe.
+- [x] Q10–Q12 — gênero e produtora.
+- [x] Q13–Q14 — avaliações de usuários.
 
 ## 4. Interface e substituição do chatbot anterior
 

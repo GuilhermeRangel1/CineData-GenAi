@@ -14,10 +14,17 @@ chamadas externas.
 5. O resultado tabular volta ao modelo para uma resposta final em português.
 6. A resposta do serviço mantém as linhas retornadas e a indicação de
    truncamento.
+7. Para Q01–Q14, a resposta final precisa conter os rótulos `Resposta:`,
+   `Métrica:`, `Unidade:`, `Período:`, `População válida:` e `Limitações:`.
+8. Se faltar uma métrica ou período essencial, o modelo pode responder com
+   `CLARIFY:`; nesse caso o serviço não executa SQL e a API devolve
+   `ambiguous_question`.
 
 O modelo não recebe acesso direto ao arquivo, à conexão SQLite ou a outras
 ferramentas. O orquestrador também não aceita uma resposta factual sem que a
-consulta tenha sido executada.
+consulta tenha sido executada e, para os casos obrigatórios, sem o formato
+semântico mínimo. Os valores tabulares que fundamentam a resposta permanecem
+disponíveis em `rows` e as colunas validadas em `metadata.columns`.
 
 ## Porta do provedor
 

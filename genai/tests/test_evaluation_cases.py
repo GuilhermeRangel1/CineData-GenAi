@@ -2,7 +2,11 @@
 
 import pytest
 
-from app.evaluation_cases import MANDATORY_EVALUATIONS, get_evaluation_case
+from app.evaluation_cases import (
+    MANDATORY_EVALUATIONS,
+    find_evaluation_case,
+    get_evaluation_case,
+)
 
 
 def test_catalog_contains_all_reference_queries_once() -> None:
@@ -23,3 +27,25 @@ def test_case_has_question_and_expected_columns(case) -> None:
 def test_unknown_case_is_rejected() -> None:
     with pytest.raises(KeyError, match="desconhecido"):
         get_evaluation_case("Q99")
+
+
+def test_find_evaluation_case_normalizes_whitespace_and_case() -> None:
+    case = find_evaluation_case("  QUAIS SÃO OS 10 FILMES COM MAIOR RECEITA EM BRL?  ")
+
+    assert case is not None
+    assert case.query_id == "Q01"
+
+
+def test_find_evaluation_case_returns_none_for_free_question() -> None:
+    assert find_evaluation_case("Mostre uma análise livre do catálogo") is None
+
+
+@pytest.mark.parametrize("query_id", tuple(f"Q{number:02d}" for number in range(1, 15)))
+def test_first_metric_groups_have_semantic_response_contract(query_id: str) -> None:
+    case = get_evaluation_case(query_id)
+
+    assert case.metric
+    assert case.unit
+    assert case.period
+    assert case.population
+    assert case.limitations

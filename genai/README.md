@@ -47,3 +47,9 @@ um cliente simulado; ela nunca consome a cota do provedor.
 As perguntas obrigatórias estão catalogadas em
 [`docs/genai/evaluation-cases.md`](../docs/genai/evaluation-cases.md), com os
 identificadores Q01–Q14 e as colunas esperadas para as avaliações locais.
+Todos os casos Q01–Q14 carregam no contexto do agente a métrica, unidade,
+período, população válida e limitações que devem aparecer na resposta em
+português.
+Para esses casos, o agente rejeita uma resposta final sem os rótulos semânticos
+obrigatórios. Quando o modelo sinaliza `CLARIFY:`, a API retorna esclarecimento
+com status 422 sem executar uma consulta.

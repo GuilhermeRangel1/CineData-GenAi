@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ModelTurn, ToolCall, ToolDefinition
 from app.errors import QueryExecutionError, SqlValidationError
-from app.evaluation_cases import MANDATORY_EVALUATIONS
+from app.evaluation_cases import MANDATORY_EVALUATIONS, find_evaluation_case
 from app.gold_database import EXPECTED_TABLES
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
@@ -14,6 +14,10 @@ from app.sql_guard import validate_sql
 
 class AgentError(RuntimeError):
     """Falha controlada no ciclo de tool calling."""
+
+
+class AgentClarification(AgentError):
+    """A pergunta exige esclarecimento antes de consultar o Gold."""
 
 
 class ToolCallingModel(Protocol):
@@ -44,9 +48,53 @@ RUN_SQL_TOOL = ToolDefinition(
 )
 
 _GOLD_TABLES_CONTEXT = ", ".join(sorted(EXPECTED_TABLES))
+
+
+def _format_evaluation_context(case) -> str:
+    """Formata um caso obrigatório com seu contrato semântico disponível."""
+
+    context = (
+        f"{case.query_id}: {case.question} Colunas esperadas: {', '.join(case.expected_columns)}."
+    )
+    semantic_fields = (
+        ("Métrica", case.metric),
+        ("Unidade", case.unit),
+        ("Período", case.period),
+        ("População válida", case.population),
+        ("Limitações", case.limitations),
+    )
+    for label, value in semantic_fields:
+        if value:
+            context += f" {label}: {value}."
+    return context
+
+
 _MANDATORY_QUESTIONS_CONTEXT = "\n".join(
-    f"{case.query_id}: {case.question} Colunas esperadas: {', '.join(case.expected_columns)}."
-    for case in MANDATORY_EVALUATIONS
+    _format_evaluation_context(case) for case in MANDATORY_EVALUATIONS
+)
+
+_RESPONSE_POLICY = (
+    "Na resposta final, escreva em português e use somente números, nomes e "
+    "conclusões sustentados pelo resultado de run_sql. Explique qual métrica foi "
+    "calculada, sua unidade, o período e os filtros ou população válida. Declare "
+    "limitações relevantes, como valores nulos excluídos, empate ou associação "
+    "multigênero. Não invente linhas, valores, datas ou contagens que não estejam "
+    "no resultado da ferramenta. Se a pergunta não definir uma métrica, unidade "
+    "ou período essencial, peça esclarecimento em vez de escolher uma regra sem "
+    "informar o usuário."
+    " Use exatamente estes rótulos em linhas separadas: Resposta:, Métrica:, "
+    "Unidade:, Período:, População válida: e Limitações:. Se faltar uma métrica "
+    "essencial antes da consulta, não use run_sql e responda começando por "
+    "CLARIFY: seguido do esclarecimento necessário."
+)
+
+_REQUIRED_RESPONSE_LABELS = (
+    "Resposta:",
+    "Métrica:",
+    "Unidade:",
+    "Período:",
+    "População válida:",
+    "Limitações:",
 )
 
 
@@ -64,6 +112,7 @@ class AgentService:
         normalized_question = question.strip()
         if not normalized_question:
             raise AgentError("A pergunta não pode ser vazia.")
+        evaluation_case = find_evaluation_case(normalized_question)
 
         messages: list[dict[str, Any]] = [
             {
@@ -73,6 +122,7 @@ class AgentService:
                     "use exatamente a ferramenta run_sql. Não invente números. "
                     "Use somente estes nomes exatos de tabelas Gold: "
                     f"{_GOLD_TABLES_CONTEXT}. Não invente nomes de tabelas."
+                    f"\n{_RESPONSE_POLICY}"
                     "\nIdentifique a intenção entre os casos obrigatórios abaixo e use "
                     "aliases iguais às colunas esperadas quando fizer sentido:\n"
                     f"{_MANDATORY_QUESTIONS_CONTEXT}"
@@ -81,6 +131,10 @@ class AgentService:
             {"role": "user", "content": normalized_question},
         ]
         first_turn = self.model.complete(messages, (RUN_SQL_TOOL,))
+        if first_turn.tool_call is None:
+            clarification = self._extract_clarification(first_turn.answer)
+            if clarification:
+                raise AgentClarification(clarification)
         call = self._require_tool_call(first_turn)
         if call.name != RUN_SQL_TOOL.name:
             raise AgentError("O modelo solicitou uma ferramenta não permitida.")
@@ -94,6 +148,12 @@ class AgentService:
             result = self.executor.execute(validated)
         except (SqlValidationError, QueryExecutionError) as exc:
             raise AgentError("A consulta solicitada não pôde ser executada.") from exc
+
+        if evaluation_case and result.columns != evaluation_case.expected_columns:
+            raise AgentError(
+                f"A consulta da {evaluation_case.query_id} não retornou as colunas "
+                "obrigatórias da métrica."
+            )
 
         messages.extend(
             [
@@ -125,12 +185,22 @@ class AgentService:
             raise AgentError("O modelo solicitou mais de uma consulta nesta pergunta.")
         if not final_turn.answer or not final_turn.answer.strip():
             raise AgentError("O modelo não produziu uma resposta final.")
+        final_answer = final_turn.answer.strip()
+        if evaluation_case:
+            self._validate_final_answer(final_answer)
 
         return AgentResponse(
-            answer=final_turn.answer.strip(),
+            answer=final_answer,
             rows=result.rows,
             truncated=result.truncated,
             tool_calls=1,
+            columns=result.columns,
+            query_id=evaluation_case.query_id if evaluation_case else None,
+            metric=evaluation_case.metric if evaluation_case else None,
+            unit=evaluation_case.unit if evaluation_case else None,
+            period=evaluation_case.period if evaluation_case else None,
+            population=evaluation_case.population if evaluation_case else None,
+            limitations=evaluation_case.limitations if evaluation_case else None,
         )
 
     @staticmethod
@@ -138,3 +208,25 @@ class AgentService:
         if turn.tool_call is None:
             raise AgentError("O modelo não solicitou a ferramenta de consulta.")
         return turn.tool_call
+
+    @staticmethod
+    def _extract_clarification(answer: str | None) -> str | None:
+        """Obtém pedido explícito de esclarecimento emitido pelo modelo."""
+
+        if not answer:
+            return None
+        normalized = answer.strip()
+        if not normalized.casefold().startswith("clarify:"):
+            return None
+        message = normalized.split(":", 1)[1].strip()
+        return message or "Informe a métrica ou o período desejado."
+
+    @staticmethod
+    def _validate_final_answer(answer: str) -> None:
+        """Exige o formato semântico mínimo para perguntas obrigatórias."""
+
+        missing = [label for label in _REQUIRED_RESPONSE_LABELS if label not in answer]
+        if missing:
+            raise AgentError(
+                "A resposta final não informou os campos obrigatórios: " + ", ".join(missing)
+            )

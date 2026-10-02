@@ -38,8 +38,13 @@ class AgentResponse:
     rows: tuple[dict[str, Any], ...]
     truncated: bool
     tool_calls: int
+    columns: tuple[str, ...] = ()
+    query_id: str | None = None
     metric: str | None = None
+    unit: str | None = None
     period: str | None = None
+    population: str | None = None
+    limitations: str | None = None
 
 
 ToolName = Literal["run_sql"]

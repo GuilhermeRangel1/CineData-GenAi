@@ -6,9 +6,26 @@ from pathlib import Path
 import pytest
 
 from app.evaluation_cases import MANDATORY_EVALUATIONS
-from app.evaluation_runner import EvaluationMismatch, compare_rows, load_reference_queries
+from app.evaluation_runner import (
+    EvaluationMismatch,
+    assert_expected_columns,
+    compare_rows,
+    load_reference_queries,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_assert_expected_columns_accepts_case_contract() -> None:
+    assert_expected_columns(
+        ({"titulo": "A", "receita_brl": 10.0},),
+        ("titulo", "receita_brl"),
+    )
+
+
+def test_assert_expected_columns_reports_missing_columns() -> None:
+    with pytest.raises(EvaluationMismatch, match="receita_brl"):
+        assert_expected_columns(({"titulo": "A"},), ("titulo", "receita_brl"))
 
 
 def test_reference_queries_cover_all_cases() -> None:
