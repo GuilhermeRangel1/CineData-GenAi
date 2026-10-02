@@ -306,6 +306,7 @@ class CatalogoFilmesService:
         if len(termo) >= 3:
             frase = '"' + termo.replace('"', '""') + '"'
             tabela_base = tabela.removesuffix("_search")
+            parametro = f"termo_fts_{tabela}"
             return (
                 select(text(f"{tabela_base}.{coluna_id}"))
                 .select_from(
@@ -314,8 +315,8 @@ class CatalogoFilmesService:
                         f"ON {tabela_base}.rowid = {tabela}.rowid"
                     )
                 )
-                .where(text(f"{tabela} MATCH :termo_fts"))
-                .params(termo_fts=frase)
+                .where(text(f"{tabela} MATCH :{parametro}"))
+                .params(**{parametro: frase})
             )
 
         escaped = cls._escapar_like(termo.casefold())

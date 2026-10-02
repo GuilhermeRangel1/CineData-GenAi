@@ -6,6 +6,7 @@ import httpx
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -24,6 +25,49 @@ from app.movies.models import (
 )
 from app.users.dependencies import get_current_admin, get_current_user
 from app.users.models import User
+
+
+CATALOG_SEARCH_TABLES = (
+    ("dim_movies", "dim_movies_search", "titulo"),
+    ("dim_people", "dim_people_search", "nome_pessoa"),
+    ("dim_companies", "dim_companies_search", "nome_produtora"),
+)
+
+
+def _create_catalog_search_indexes(connection: Connection) -> None:
+    """Reproduz os índices FTS criados pela migração 0021 nos bancos de teste."""
+
+    for table_name, search_name, column_name in CATALOG_SEARCH_TABLES:
+        connection.exec_driver_sql(
+            f"""CREATE VIRTUAL TABLE {search_name} USING fts5(
+                {column_name},
+                content='{table_name}',
+                content_rowid='rowid',
+                tokenize='trigram',
+                columnsize=0
+            )"""
+        )
+        connection.exec_driver_sql(
+            f"""CREATE TRIGGER {search_name}_ai AFTER INSERT ON {table_name} BEGIN
+                INSERT INTO {search_name}(rowid, {column_name})
+                VALUES (new.rowid, new.{column_name});
+            END"""
+        )
+        connection.exec_driver_sql(
+            f"""CREATE TRIGGER {search_name}_ad AFTER DELETE ON {table_name} BEGIN
+                INSERT INTO {search_name}({search_name}, rowid, {column_name})
+                VALUES ('delete', old.rowid, old.{column_name});
+            END"""
+        )
+        connection.exec_driver_sql(
+            f"""CREATE TRIGGER {search_name}_au AFTER UPDATE OF {column_name}
+                ON {table_name} BEGIN
+                INSERT INTO {search_name}({search_name}, rowid, {column_name})
+                VALUES ('delete', old.rowid, old.{column_name});
+                INSERT INTO {search_name}(rowid, {column_name})
+                VALUES (new.rowid, new.{column_name});
+            END"""
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -59,6 +103,7 @@ async def catalog_session_factory() -> AsyncIterator[async_sessionmaker[AsyncSes
     )
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        await connection.run_sync(_create_catalog_search_indexes)
 
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with session_factory() as session:
