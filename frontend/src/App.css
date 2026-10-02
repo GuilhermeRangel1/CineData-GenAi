@@ -55,14 +55,19 @@
 }
 .main-nav {
   display: flex;
+  align-items: center;
   gap: 29px;
   font-size: 13px;
 }
 .main-nav a,
 .main-nav button {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 46px;
   color: #c7c7cc;
   text-decoration: none;
-  padding: 15px 0;
+  padding: 0;
 }
 .main-nav button {
   border: 0;
@@ -1258,9 +1263,6 @@ dialog::backdrop {
   }
 }
 @media (max-width: 380px) {
-  .main-nav a:first-child {
-    display: none;
-  }
   .hero h1 {
     font-size: 64px;
   }
@@ -1990,6 +1992,9 @@ fieldset:disabled {
   }
   .topbar .main-nav a,
   .topbar .main-nav button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     flex: 0 0 auto;
     white-space: nowrap;
   }

@@ -29,10 +29,12 @@ import type {
   MapaGostos,
   MensagemChatbot,
   RespostaChatbot,
+  RespostaGenAi,
 } from '../types/api'
 import { obterTokenSessao } from '../auth/session'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
+const genAiApiBaseUrl = import.meta.env.VITE_GENAI_API_BASE_URL ?? 'http://localhost:8001/api/v1'
 const CACHE_TTL_MS = 60_000
 
 type CacheEntry = { expiraEm: number; valor: unknown }
@@ -40,10 +42,25 @@ const cacheDeLeitura = new Map<string, CacheEntry>()
 
 export class ErroDaApi extends Error {
   readonly status: number
-  constructor(message: string, status: number) {
+  readonly codigo: string | null
+  constructor(message: string, status: number, codigo: string | null = null) {
     super(message)
     this.status = status
+    this.codigo = codigo
   }
+}
+
+type ErroApiPayload = Partial<ErroApi> & {
+  error?: { code?: string; message?: string }
+}
+
+async function obterErroDaResposta(resposta: Response): Promise<ErroDaApi> {
+  const erro = (await resposta.json().catch(() => null)) as ErroApiPayload | null
+  return new ErroDaApi(
+    erro?.error?.message ?? erro?.mensagem ?? 'Não foi possível concluir a operação.',
+    resposta.status,
+    erro?.error?.code ?? erro?.codigo ?? null,
+  )
 }
 
 async function requisitar<T>(caminho: string, init?: RequestInit): Promise<T> {
@@ -58,10 +75,22 @@ async function requisitar<T>(caminho: string, init?: RequestInit): Promise<T> {
   })
 
   if (!resposta.ok) {
-    const erro = (await resposta.json().catch(() => null)) as ErroApi | null
-    throw new ErroDaApi(erro?.mensagem ?? 'Não foi possível concluir a operação.', resposta.status)
+    throw await obterErroDaResposta(resposta)
   }
   if (resposta.status === 204) return undefined as T
+  return resposta.json() as Promise<T>
+}
+
+async function requisitarGenAi<T>(caminho: string, init?: RequestInit): Promise<T> {
+  const resposta = await fetch(`${genAiApiBaseUrl}${caminho}`, {
+    ...init,
+    headers: {
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
+  })
+
+  if (!resposta.ok) throw await obterErroDaResposta(resposta)
   return resposta.json() as Promise<T>
 }
 
@@ -152,6 +181,13 @@ export function conversarComAssistente(mensagens: MensagemChatbot[]): Promise<Re
   return requisitar<RespostaChatbot>('/assistente/mensagens', {
     method: 'POST',
     body: JSON.stringify({ mensagens }),
+  })
+}
+
+export function perguntarGenAi(pergunta: string): Promise<RespostaGenAi> {
+  return requisitarGenAi<RespostaGenAi>('/questions', {
+    method: 'POST',
+    body: JSON.stringify({ question: pergunta }),
   })
 }
 

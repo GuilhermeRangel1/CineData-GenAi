@@ -62,7 +62,7 @@ function App() {
   }
   return (
     <div className="app-shell">
-      <a className="skip-link" href={page === 'home' ? '#catalogo' : page === 'lists' ? '#minhas-listas' : page === 'friends' ? '#amigos' : page === 'analytics' ? '#analytics' : page === 'taste-map' ? '#mapa-de-gostos' : page === 'chatbot' ? '#assistente' : '#comunidades'}>
+      <a className="skip-link" href={page === 'home' ? '#catalogo' : page === 'lists' ? '#minhas-listas' : page === 'friends' ? '#amigos' : page === 'analytics' ? '#analytics' : page === 'taste-map' ? '#mapa-de-gostos' : page === 'chatbot' ? '#chatbot' : '#comunidades'}>
         Pular para o conteúdo
       </a>
       <header className={`topbar ${page !== 'home' ? 'topbar--solid' : ''} ${page === 'chatbot' ? 'topbar--chatbot' : ''}`}>
@@ -77,7 +77,7 @@ function App() {
           <button type="button" aria-current={page === 'lists' ? 'page' : undefined} onClick={showLists}>Minhas listas</button>
           <button type="button" aria-current={page === 'friends' ? 'page' : undefined} onClick={() => setPage('friends')}>Amigos</button>
           <button type="button" aria-current={page === 'communities' ? 'page' : undefined} onClick={() => setPage('communities')}>Comunidades</button>
-          <button type="button" aria-current={page === 'chatbot' ? 'page' : undefined} onClick={() => setPage('chatbot')}>Assistente</button>
+          <button type="button" aria-current={page === 'chatbot' ? 'page' : undefined} onClick={() => setPage('chatbot')}>Chatbot</button>
           {session && <button type="button" aria-current={page === 'taste-map' ? 'page' : undefined} onClick={() => setPage('taste-map')}>Mapa de gostos</button>}
           {session?.usuario.role === 'admin' && <button type="button" aria-current={page === 'analytics' ? 'page' : undefined} onClick={() => setPage('analytics')}>Analytics</button>}
         </nav>
@@ -172,11 +172,7 @@ function App() {
           onOpenMovie={setSelected}
         />
       ) : page === 'chatbot' ? (
-        <ChatbotHub
-          key={session?.usuario.id ?? 'guest'}
-          usuario={session?.usuario ?? null}
-          onLoginRequested={() => setAuthMode('login')}
-        />
+        <ChatbotHub />
       ) : page === 'analytics' ? (
         <AnalyticsDashboard onOpenMovie={setSelected} />
       ) : page === 'taste-map' ? (

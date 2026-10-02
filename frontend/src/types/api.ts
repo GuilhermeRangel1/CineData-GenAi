@@ -7,6 +7,36 @@ export interface ErroApi {
   mensagem: string
 }
 
+export interface MetadadosGenAi {
+  source: 'gold'
+  query_id: string | null
+  metric: string | null
+  unit: string | null
+  period: string | null
+  population: string | null
+  limitations: string | null
+  columns: string[]
+  row_count: number
+  truncated: boolean
+  tool_calls: number
+}
+
+export interface RespostaGenAi {
+  status: 'success'
+  answer: string
+  rows: Array<Record<string, unknown>>
+  metadata: MetadadosGenAi
+}
+
+export interface ErroGenAi {
+  status: 'clarification' | 'error'
+  error: {
+    code: string
+    message: string
+    details: unknown
+  }
+}
+
 export interface MensagemChatbot {
   role: 'user' | 'assistant'
   conteudo: string

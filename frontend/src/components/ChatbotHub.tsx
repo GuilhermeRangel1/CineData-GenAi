@@ -1,37 +1,24 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { conversarComAssistente } from '../api/client'
-import type { MensagemChatbot, UsuarioLeitura } from '../types/api'
+import { ErroDaApi, perguntarGenAi } from '../api/client'
+import type { MensagemChatbot, RespostaGenAi } from '../types/api'
+import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
 import './ChatbotHub.css'
 
 const SUGESTOES = [
-  'Me recomenda um filme',
-  'Quero algo parecido com Interestelar',
-  'Me ajuda com o CineData',
+  'Quais são os 10 filmes com maior receita em BRL?',
+  'Qual é o lucro médio em BRL por gênero?',
+  'Qual é a nota IMDb média por ano de lançamento?',
 ]
-
-function BaymaxHead({ className = '' }: { className?: string }) {
-  const gradientId = className.includes('hero') ? 'baymax-head-hero' : 'baymax-head-chat'
-  return (
-    <svg className={`chatbot-baymax-head ${className}`} viewBox="0 0 120 100" role="img" aria-label="Cabeça estilizada do assistente">
-      <defs>
-        <linearGradient id={gradientId} x1=".15" y1=".05" x2=".85" y2=".95">
-          <stop offset="0" stopColor="#fff" />
-          <stop offset=".48" stopColor="#f5faf9" />
-          <stop offset="1" stopColor="#b9d1d4" />
-        </linearGradient>
-      </defs>
-      <g transform="rotate(-11 60 50) skewX(-3)">
-        <path d="M15 48C15 22 33 9 61 9c28 0 45 15 45 40 0 25-18 42-47 42C31 91 15 75 15 48Z" fill={`url(#${gradientId})`} stroke="#d8e8e8" strokeWidth="1.5" />
-        <path d="M23 43c2-17 16-27 35-29" fill="none" stroke="#fff" strokeOpacity=".9" strokeWidth="4" strokeLinecap="round" />
-        <path d="M39 48c13 5 30 6 44 0" fill="none" stroke="#343e43" strokeWidth="2.1" strokeLinecap="round" />
-        <circle cx="39" cy="47.5" r="4.4" fill="#1f272b" />
-        <circle cx="84" cy="47.5" r="4.4" fill="#1f272b" />
-        <ellipse cx="28" cy="67" rx="7" ry="3" fill="#c8e9e7" opacity=".38" />
-        <ellipse cx="94" cy="67" rx="6" ry="2.5" fill="#a8d5d4" opacity=".3" />
-      </g>
-    </svg>
-  )
+const FALAS: Record<RobotMood, string> = {
+  idle: 'Tenho um universo de filmes para explorar com você.',
+  listening: 'Pode escrever. Estou de olho na sua pergunta!',
+  thinking: 'Um instante. Vou consultar os dados para você.',
+  happy: 'Prontinho! Olha o que encontrei para você.',
+  error: 'Vamos tentar de novo? Estou por aqui.',
+  waving: 'Oii! Que bom ter você por aqui.',
 }
+
+type MensagemAssistente = MensagemChatbot & { resposta?: RespostaGenAi }
 
 function SendIcon() {
   return (
@@ -41,42 +28,54 @@ function SendIcon() {
   )
 }
 
-export function ChatbotHub({ usuario, onLoginRequested }: {
-  usuario: UsuarioLeitura | null
-  onLoginRequested: () => void
-}) {
-  const [mensagens, setMensagens] = useState<MensagemChatbot[]>([])
+export function ChatbotHub() {
+  const [mensagens, setMensagens] = useState<MensagemAssistente[]>([])
   const [texto, setTexto] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
-  const fimDaConversa = useRef<HTMLDivElement>(null)
+  const [focado, setFocado] = useState(false)
+  const [gesto, setGesto] = useState<'happy' | 'waving' | null>(null)
+  const conversa = useRef<HTMLDivElement>(null)
+  const entrada = useRef<HTMLTextAreaElement>(null)
+  const estado: RobotMood = carregando ? 'thinking' : gesto ?? (erro ? 'error' : focado || texto ? 'listening' : 'idle')
 
   useEffect(() => {
-    fimDaConversa.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const painel = conversa.current
+    if (painel) painel.scrollTop = painel.scrollHeight
   }, [mensagens, carregando])
+
+  useEffect(() => {
+    if (!gesto) return
+    const timer = window.setTimeout(() => setGesto(null), 3200)
+    return () => window.clearTimeout(timer)
+  }, [gesto])
+
+  useEffect(() => {
+    if (!carregando && mensagens.length) entrada.current?.focus({ preventScroll: true })
+  }, [carregando, mensagens.length])
 
   async function enviar(mensagem = texto) {
     const conteudo = mensagem.trim()
     if (!conteudo || carregando) return
-    if (!usuario) {
-      onLoginRequested()
-      return
-    }
 
     const mensagemUsuario: MensagemChatbot = { role: 'user', conteudo }
     const historicoExibido = [...mensagens, mensagemUsuario]
-    const historicoDaRequisicao = historicoExibido.slice(-16)
-    while (historicoDaRequisicao[0]?.role === 'assistant') historicoDaRequisicao.shift()
     setMensagens(historicoExibido)
     setTexto('')
     setErro('')
+    setGesto(null)
     setCarregando(true)
 
     try {
-      const resposta = await conversarComAssistente(historicoDaRequisicao)
-      setMensagens((atuais) => [...atuais, { role: 'assistant', conteudo: resposta.mensagem }])
+      const resposta = await perguntarGenAi(conteudo)
+      setMensagens((atuais) => [...atuais, { role: 'assistant', conteudo: resposta.answer, resposta }])
+      setGesto('happy')
     } catch (falha) {
-      setErro(falha instanceof Error ? falha.message : 'Não consegui responder agora. Tente novamente.')
+      if (falha instanceof ErroDaApi && falha.codigo === 'ambiguous_question') {
+        setErro(`Preciso de um detalhe para continuar: ${falha.message}`)
+      } else {
+        setErro(falha instanceof Error ? falha.message : 'Não consegui responder agora. Tente novamente.')
+      }
     } finally {
       setCarregando(false)
     }
@@ -88,77 +87,129 @@ export function ChatbotHub({ usuario, onLoginRequested }: {
   }
 
   return (
-    <main className="chatbot-page" id="assistente">
+    <main className="chatbot-page chatbot-motion-on" id="chatbot">
       <header className="chatbot-header">
         <div className="chatbot-header-copy">
-            <p><span /> TODA BOA CONVERSA MERECE UM FILME</p>
-            <h1>CHATBOT</h1>
+          <p className="eyebrow chatbot-eyebrow"><span className="red-line" />BOAS CONVERSAS COMEÇAM COM CINEMA</p>
+          <h1>Chatbot</h1>
         </div>
-        <div className="chatbot-header-orbit" aria-hidden="true" />
-        <BaymaxHead className="chatbot-baymax-head--hero" />
       </header>
 
       <div className="chatbot-content">
-        <section className={`chatbot-chat-area ${mensagens.length ? 'has-messages' : ''}`} aria-label="Conversa com o assistente">
+        <section className={`chatbot-chat-area ${mensagens.length ? 'has-messages' : ''}`} aria-label="Conversa no chatbot">
+          <aside className="chatbot-companion" aria-label="Seu companheiro de cinema">
+          <div className="chatbot-companion-heading">{carregando && <span className={`chatbot-state chatbot-state--${estado}`}><i />CONSULTANDO</span>}</div>
+          <div className="chatbot-robot-scene">
+            <div className="chatbot-orbit chatbot-orbit--one" aria-hidden="true" />
+            <div className="chatbot-orbit chatbot-orbit--two" aria-hidden="true" />
+            <span className="chatbot-star chatbot-star--one" aria-hidden="true">+</span>
+            <span className="chatbot-star chatbot-star--two" aria-hidden="true">✦</span>
+            <span className="chatbot-star chatbot-star--three" aria-hidden="true">·</span>
+            <button className="chatbot-robot-button" type="button" aria-label="Acenar para o robô" onClick={() => setGesto('waving')} disabled={carregando || gesto === 'waving'}>
+              <ChatbotRobot mood={estado} />
+            </button>
+          </div>
+          <p className="sr-only" role="status">{FALAS[estado]}</p>
+          <div className="chatbot-companion-footer"><span aria-hidden="true">✦</span></div>
+          </aside>
+          <div className="chatbot-chat-column">
+          <div className="chatbot-conversation-heading"><div><span className="chatbot-mini-mark" aria-hidden="true">✦</span><h2>Conversa</h2></div></div>
           {mensagens.length === 0 ? (
             <div className="chatbot-welcome">
-              <span className="chatbot-online"><i /> ASSISTENTE DE CINEMA · GEMINI 3.8 FLASH</span>
-              <h2>Oi! O que vamos assistir?</h2>
-              <p>Peça uma recomendação ou converse sobre qualquer filme.</p>
+              <span className="chatbot-welcome-symbol" aria-hidden="true">✳</span>
+              <h3>O que vamos descobrir?</h3>
+              <div className="chatbot-suggestions" aria-label="Sugestões para começar">
+                {SUGESTOES.map((sugestao, index) => (
+                  <button key={sugestao} type="button" aria-label={sugestao} onClick={() => void enviar(sugestao)} disabled={carregando}>
+                    <span className="chatbot-suggestion-number">0{index + 1}</span><span>{sugestao}</span><span className="chatbot-suggestion-arrow" aria-hidden="true">↗</span>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="chatbot-messages" aria-live="polite" aria-relevant="additions text">
+            <div className="chatbot-messages" ref={conversa} role="log" aria-label="Histórico da conversa" aria-live="polite" aria-relevant="additions text">
               {mensagens.map((mensagem, indice) => (
                 <article key={`${indice}-${mensagem.role}`} className={`chatbot-message chatbot-message--${mensagem.role}`}>
-                  {mensagem.role === 'assistant' && <BaymaxHead className="chatbot-baymax-head--message" />}
-                  <p>{mensagem.conteudo}</p>
+                  {mensagem.role === 'assistant' && <span className="chatbot-message-avatar"><ChatbotRobot compact mood="happy" /></span>}
+                  {mensagem.resposta ? <ResultadoGenAi resposta={mensagem.resposta} /> : <p>{mensagem.conteudo}</p>}
                 </article>
               ))}
               {carregando && (
-                <article className="chatbot-message chatbot-message--assistant chatbot-message--loading" aria-label="Assistente está respondendo">
-                  <BaymaxHead className="chatbot-baymax-head--message" />
-                  <span><i /><i /><i /></span>
+                <article className="chatbot-message chatbot-message--assistant chatbot-message--loading" aria-label="Chatbot está respondendo">
+                  <span className="chatbot-message-avatar"><ChatbotRobot compact mood="thinking" /></span>
+                  <div className="chatbot-loading-bubble"><span className="chatbot-loading-dots" aria-hidden="true"><i /><i /><i /></span></div>
                 </article>
               )}
-              <div ref={fimDaConversa} />
-            </div>
-          )}
-
-          {!usuario && (
-            <div className="chatbot-login-prompt">
-              <span>Entre na sua conta para conversar com o assistente.</span>
-              <button type="button" onClick={onLoginRequested}>Entrar</button>
             </div>
           )}
 
           {erro && <p className="chatbot-error" role="alert">{erro}</p>}
 
           <form className="chatbot-composer" onSubmit={enviarFormulario}>
-            <input
+            <textarea
+              ref={entrada}
               aria-label="Escreva sua mensagem"
-              placeholder={usuario ? 'Escreva sua mensagem...' : 'Entre para enviar uma mensagem'}
+              placeholder="Pergunte sobre cinema…"
               value={texto}
               onChange={(event) => setTexto(event.target.value)}
+              onFocus={() => setFocado(true)}
+              onBlur={() => setFocado(false)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  void enviar()
+                }
+              }}
+              rows={2}
               maxLength={2000}
-              disabled={!usuario || carregando}
+              disabled={carregando}
             />
-            <button type="submit" aria-label="Enviar mensagem" disabled={!usuario || carregando || !texto.trim()}>
+            <button type="submit" aria-label="Enviar mensagem" disabled={carregando || !texto.trim()}>
               <SendIcon />
             </button>
           </form>
 
-          {mensagens.length === 0 && usuario && (
-            <div className="chatbot-suggestions" aria-label="Sugestões para começar">
-              {SUGESTOES.map((sugestao) => (
-                <button key={sugestao} type="button" onClick={() => void enviar(sugestao)} disabled={carregando}>
-                  {sugestao}
-                </button>
-              ))}
-            </div>
-          )}
-          <p className="chatbot-privacy-note">As mensagens são enviadas ao Gemini e não ficam salvas no CineData.</p>
+          <p className="chatbot-privacy-note">Perguntas independentes · Histórico temporário</p>
+          </div>
         </section>
       </div>
     </main>
   )
+}
+
+function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
+  const { metadata, rows } = resposta
+  return (
+    <div className="chatbot-result" aria-label="Evidências da resposta">
+      <dl className="chatbot-result-meta">
+        {metadata.metric && <div><dt>Métrica</dt><dd>{metadata.metric}</dd></div>}
+        {metadata.unit && <div><dt>Unidade</dt><dd>{metadata.unit}</dd></div>}
+        {metadata.period && <div><dt>Período</dt><dd>{metadata.period}</dd></div>}
+        {metadata.population && <div><dt>População</dt><dd>{metadata.population}</dd></div>}
+      </dl>
+      {rows.length > 0 && (
+        <div className="chatbot-result-table-wrap">
+          <table className="chatbot-result-table">
+            <thead><tr>{metadata.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={index}>
+                  {metadata.columns.map((column) => <td key={column}>{formatarValor(row[column])}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {rows.length === 0 && <p className="chatbot-result-note">Não encontrei resultados para esta consulta. Tente ajustar os filtros da pergunta.</p>}
+      {metadata.truncated && <p className="chatbot-result-note">A tabela foi limitada para manter a consulta segura.</p>}
+      {metadata.limitations && <p className="chatbot-result-note"><strong>Limitação:</strong> {metadata.limitations}</p>}
+    </div>
+  )
+}
+
+function formatarValor(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'number') return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value)
+  return String(value)
 }
