@@ -1,32 +1,38 @@
-# React + TypeScript + Vite
+# Frontend CineData
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interface React + TypeScript + Vite para o catálogo e os recursos sociais do
+CineData. O chatbot usa o mesmo visual do site e consulta o serviço GenAI por
+HTTP; não chama o provedor diretamente do navegador.
 
-Currently, two official plugins are available:
+## Execução local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Na raiz do projeto, inicie backend e GenAI com Docker Compose. Em outro
+terminal:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+O Vite fica em `http://localhost:5173`. O frontend espera o backend em
+`http://localhost:8000/api/v1` e o GenAI em `http://localhost:8001/api/v1`.
+Esses endereços podem ser configurados com `VITE_API_BASE_URL` e
+`VITE_GENAI_API_BASE_URL` no ambiente de build. O Compose já passa os valores
+corretos ao Dockerfile.
+
+## Chatbot
+
+O endpoint utilizado é `POST /api/v1/questions` do serviço GenAI. A chave do
+modelo é configurada no serviço, em `genai/.env`; ela não deve ser colocada em
+variáveis `VITE_*` nem enviada ao navegador. O chatbot mostra estados de
+carregamento, erro e esclarecimento, além da tabela de resultados e do contexto
+da métrica. Cada envio é uma pergunta independente; o histórico visual não é
+memória do agente.
+
+## Verificações locais
+
+```powershell
+npm test
+npm run build
+```

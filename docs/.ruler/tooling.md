@@ -1,129 +1,104 @@
 # Tooling e convenções — CineData GenAI
 
-**Escopo vigente:** o segundo bloco da etapa 3 está concluído. O contrato
-interno, a orquestração simulada e o adaptador Gemini estão testados. O próximo
-bloco deve tratar somente de uma validação manual curta; não faça avaliação em
-lote nem integre a interface antes de o usuário revisar e commitar este
-checkpoint.
+O plano de trabalho vigente está em [`TODO.md`](TODO.md). Este guia registra a
+arquitetura e os comandos usados para desenvolver e executar o CineData; não
+substitui os contratos analíticos em `genai/`.
 
-## Separação do módulo
-
-O plano canônico fica em [`TODO.md`](TODO.md). O produto GenAI deve ser
-implementado como bloco autônomo, preferencialmente em `genai/`, com API
-FastAPI, configuração, dependências, execução e testes próprios. Não importe
-rotas, modelos ou dependências do backend social/catálogo para implementar o
-agente.
+## Estrutura
 
 ```text
 .
-├── genai/                 # módulo FastAPI Text-to-SQL (novo foco)
-│   ├── app/               # API, agente, ferramenta SQL e acesso SQLite
-│   ├── tests/             # testes determinísticos sem chamadas externas
-│   └── pyproject.toml     # dependências isoladas do módulo
-├── backend/               # aplicação CineData existente; preservada
-├── frontend/              # design existente integrado ao serviço GenAI
-├── cinerocket.db          # Gold distribuído via Git LFS; somente leitura
-├── data/                  # SQLite operacional local, ignorado pelo Git
-└── docs/.ruler/            # decisões e plano de progresso
+├── backend/                 # API CineData, autenticação e recursos sociais
+├── frontend/                # React; chatbot consome a API GenAI por HTTP
+├── genai/                   # serviço FastAPI Text-to-SQL independente
+│   ├── app/                 # agente, provedor, API e executor SQL
+│   ├── tests/               # testes com cliente de modelo simulado
+│   ├── pyproject.toml       # dependências próprias
+│   └── .env.example         # modelo de configuração local
+├── data/cinerocket.db       # Gold via Git LFS; fonte somente leitura
+├── data/rocketlab.db        # persistência operacional local, ignorada pelo Git
+└── docker-compose.yml       # inicialização coordenada dos serviços
 ```
 
-O Compose atual prepara os arquivos SQLite para a aplicação existente. O Gold
-é montado em modo somente leitura; o banco operacional persiste em `./data`.
+O backend existente preserva catálogo e funcionalidades sociais. O serviço
+`genai` consulta o Gold diretamente e não depende do banco operacional. A chave
+do provedor fica em `genai/.env`; o frontend não recebe esse segredo.
 
-## Gold e regras analíticas
+## Clone e execução Compose
 
-- O serviço GenAI consulta diretamente `cinerocket.db` em SQLite read-only.
-  Não consulta o banco operacional do app e não depende da sincronização Gold
-  para responder às perguntas da atividade.
-- Caminho do arquivo configurável por ambiente; falhar com mensagem útil se
-  estiver ausente/inválido. Não alterar nem incluir o Gold na imagem.
-- O Gold é distribuído via Git LFS. Clones precisam obter o objeto LFS; se o
-  serviço receber apenas o arquivo pointer, a inicialização deve explicar como
-  buscar o objeto em vez de iniciar silenciosamente sem dados.
-- O banco operacional fica em `./data/rocketlab.db`, fora do Git. Na primeira
-  subida, o serviço de preparação copia com SQLite backup API o banco do volume
-  legado, se existir; mantém intacto o volume original.
-- Inspecionar o esquema real antes de escrever SQL, documentar somente as
-  colunas/relações necessárias e confirmar amostras e cardinalidades.
-- Receita usa a coluna de receita do Gold. Lucro é receita menos orçamento
-  quando ambos existem. Margem é lucro dividido pela receita somente quando
-  receita > 0. O relatório explicita exclusões por dados ausentes.
-- “Últimos cinco anos” usa janela móvel ancorada na data de execução e data de
-  lançamento; informar o período aplicado.
-- Divergência entre notas usa diferença absoluta somente com escalas
-  comprovadamente comparáveis. Se não forem, normalizar com regra explícita e
-  validada ou não comparar.
-- Agregar fatos por filme antes de combinar dimensões/bridges multivaloradas;
-  usar filme distinto nas contagens; desempatar com ordenação estável.
-- Usar schema e população reais para separar avaliações de usuários de notas
-  externas. A fórmula final deve seguir as perguntas da atividade e ficar no
-  TODO/documentação junto de seus filtros e limites.
+Git LFS precisa estar instalado para baixar o objeto Gold durante o clone. Para
+um checkout já criado sem o conteúdo LFS, execute `git lfs install` e
+`git lfs pull` na raiz. O inicializador valida o tamanho/manifesto e as tabelas
+Gold e falha com mensagem clara se recebeu somente o pointer LFS.
 
-## API, provedor e segurança
+Copie `genai/.env.example` para `genai/.env` e preencha
+`GENAI_GEMINI_API_KEY`. Esse segredo é opcional para iniciar os outros serviços;
+sem ele, o endpoint GenAI informa que o provedor não está configurado.
 
-- API FastAPI separada com contrato pequeno de pergunta/resposta/erro; sem
-  autenticação, memória ou persistência de conversa no escopo obrigatório.
-- Framework de agente e provedor/modelo precisam suportar tool calling e devem
-  poder ser trocados sem reescrever a ferramenta SQL.
-- Chave e modelo vêm de configuração local/ambiente. Nunca enviar chave ao
-  frontend, registrar segredo em logs, ou incluí-lo em erros, README ou Git.
-- Modelo só pede a ferramenta tipada; acesso ao arquivo e execução SQL passam
-  exclusivamente pelo executor controlado.
-- Permitir uma consulta de leitura por chamada, tabelas Gold em allowlist,
-  parser/validação compatível com SQLite e conexão `mode=ro`. Recusar DML, DDL,
-  múltiplas instruções, `ATTACH`/`DETACH`, extensões e acesso externo.
-- Definir limite de tempo e linhas após avaliar as consultas obrigatórias.
-  Erros de validação não executam SQL; respostas factuais vêm apenas do
-  resultado executado. Não expor caminho privado ou traceback ao cliente.
+Na raiz do projeto, use:
 
-## Testes e cota diária
+```powershell
+docker compose up
+```
 
-- Testes unitários, agregações e fluxo de agente usam SQLite temporário,
-  consultas de referência e respostas do provedor simuladas. A suíte normal
-  deve fazer **zero chamadas externas**.
-- Testar SELECT permitido e bloqueios de escrita, DDL, múltiplas instruções,
-  tabelas fora da allowlist, SQL inválido, banco ausente/inválido, timeout,
-  limite de linhas e resultado vazio.
-- Testar agregações com nulos, joins 1:N, duplicações potenciais, empate e
-  escalas/populações de notas, comparando com SQL de referência independente.
-- A cota informada é até 50 chamadas diárias no plano gratuito do provedor;
-  tool calling pode gastar mais de uma chamada por pergunta. Recomenda-se teto
-  operacional de 5 chamadas reais por dia durante desenvolvimento, chamadas
-  manuais sem retry em loop e anotação do consumo observado. O teto pode ser
-  reduzido se o painel do provedor mostrar limite inferior.
-- Não rodar avaliações em lote com o modelo real. Uma rodada curta de smoke
-  com perguntas representativas só ocorre depois dos testes locais e do
-  orçamento diário ser conferido.
+Cada serviço define `pull_policy: build`, então `up` constrói as imagens do
+checkout atual mesmo se já houver uma imagem local. O cache de camadas reduz os
+builds seguintes. `docker compose up --build` também funciona, mas não é
+necessário. Use `docker compose up -d` para executar em segundo plano e
+`docker compose down` para parar e remover os contêineres/rede. A persistência
+`./data` fica no projeto e não é removida por `down`.
 
-## Execução do banco operacional
+Endereços locais: frontend `http://localhost:8080`, backend
+`http://localhost:8000`, GenAI `http://localhost:8001`. O banco operacional
+local é `data/rocketlab.db`; o volume Docker legado é lido somente durante uma
+migração inicial, se esse arquivo ainda não existir.
 
-- Compose monta `./cinerocket.db` em `/workspace/cinerocket.db` somente para
-  leitura e liga `./data` a `/app/data`. A preparação dos dados acontece antes
-  da API; um volume Docker legado é preservado e copiado somente quando o banco
-  ainda não existe em `./data`.
+## Gold, consultas e segurança
 
-## Frontend e aplicação existente
+- O objeto Gold é `data/cinerocket.db`, controlado por Git LFS e montado como
+  somente leitura no backend e no GenAI. Não o copie para as imagens Docker.
+- O manifesto `data/cinerocket.db.sha256` contém SHA-256 e tamanho. Atualize-o
+  junto com qualquer versão intencionalmente nova do Gold.
+- O executor GenAI permite uma instrução `SELECT`, aplica allowlist de tabelas,
+  valida com parser e executa em SQLite `mode=ro`; também limita linhas e tempo.
+- As agregações e respostas seguem `genai/metric-rules.md`, o esquema em
+  `genai/gold-schema.md` e as consultas de referência em
+  `genai/reference-queries.sql`.
+- O endpoint de perguntas é `POST http://localhost:8001/api/v1/questions`.
+  O backend CineData não mantém mais a rota Gemini legada.
+- Nunca adicione `.env`, segredos ou `data/rocketlab.db` ao Git. `.env.example`
+  contém somente nomes/valores vazios ou padrões não secretos.
 
-- Construir primeiro e validar a API GenAI. Depois integrar o frontend ao
-  endpoint FastAPI por HTTP; nunca fazer chamada ao modelo diretamente do
-  navegador.
-- Reaproveitar o design existente para entrada de pergunta, estado de execução,
-  resposta, erro e tabelas/valores retornados. O layout é uma camada de
-  apresentação, não parte do agente.
-- Substituir/remover o chatbot Gemini somente quando o novo fluxo estiver
-  integrado. Preservar o restante do frontend e as funcionalidades antigas.
-- Manter a sincronização e os testes da aplicação full-stack separados do
-  ciclo de desenvolvimento e dos critérios de conclusão do módulo GenAI.
+## Testes e limites do provedor
 
-## Documentação e fluxo de trabalho
+Os testes locais não precisam de chave e não chamam o Gemini:
 
-- README deve explicar setup isolado do serviço GenAI, caminho do Gold,
-  configuração segura, execução, perguntas suportadas, limites e integração
-  visual somente quando os comandos estiverem implementados e verificados.
-- Atualizar este tooling e o TODO canônico quando uma decisão arquitetural
-  mudar; evitar listas detalhadas duplicadas.
-- Rodar testes pertinentes ao código alterado e `git diff --check`; distinguir
-  comandos executados de comandos apenas documentados.
-- Não marcar tarefa como concluída antes de seu critério de saída. Preservar
-  mudanças existentes. Não criar commits, publicar ou alterar remotos sem
-  solicitação explícita.
+```powershell
+cd frontend
+npm ci
+npm test
+npm run build
+```
+
+```powershell
+cd genai
+python -m pip install -e ".[dev]"
+python -m pytest
+```
+
+Execute cada sequência a partir da raiz do repositório (em terminais separados)
+ou retorne à raiz antes de iniciar a próxima. Para uma validação real, faça uma
+pergunta manual, sem retries automáticos. Tool calling pode usar mais de uma
+requisição por pergunta; planeje considerando o limite diário configurado no
+provedor e evite avaliações em lote com chamadas reais.
+
+## Convenções de mudança
+
+- Faça mudanças coesas e checkpoints revisáveis; não crie commits ou publique
+  alterações sem pedido explícito.
+- Mantenha agente e acesso ao Gold dentro de `genai/`; não acople o GenAI aos
+  modelos ou à sessão de banco do backend existente.
+- Preserve o layout do CineData, mantendo no frontend somente apresentação,
+  envio de pergunta e renderização dos metadados/resultados.
+- Atualize README/TODO quando execução, contratos ou decisões arquiteturais
+  mudarem; não marque critérios como concluídos sem verificação correspondente.

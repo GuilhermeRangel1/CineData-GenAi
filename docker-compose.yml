@@ -1,5 +1,6 @@
 services:
   project-data-init:
+    pull_policy: build
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -27,6 +28,7 @@ services:
     restart: "no"
 
   backend:
+    pull_policy: build
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -78,6 +80,7 @@ services:
       start_period: 45m
 
   genai:
+    pull_policy: build
     build:
       context: .
       dockerfile: genai/Dockerfile
@@ -89,7 +92,6 @@ services:
       GENAI_GOLD_TIMEOUT_SECONDS: 5
       GENAI_GOLD_COMPLEX_TIMEOUT_SECONDS: 15
       GENAI_CORS_ORIGINS: http://localhost:8080,http://localhost:5173
-      GENAI_GEMINI_MODEL: ${GENAI_GEMINI_MODEL:-gemini-3.5-flash-lite}
     volumes:
       - type: bind
         source: ./data/cinerocket.db
@@ -122,6 +124,7 @@ services:
       start_period: 30s
 
   frontend:
+    pull_policy: build
     build:
       context: ./frontend
       dockerfile: Dockerfile

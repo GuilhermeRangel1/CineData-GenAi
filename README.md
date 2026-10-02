@@ -1,105 +1,111 @@
 # CineData GenAI
 
-Projeto da atividade **GenAI - CineData Analytics**, do Visagio Rocket Lab
-2026.2. O objetivo é criar um agente em Python que responda perguntas de negócio
-em linguagem natural consultando, em tempo real e somente para leitura, a camada
-Gold do catálogo de filmes por meio de Text-to-SQL.
+O CineData reúne um catálogo de filmes com recursos sociais em React e FastAPI
+e um módulo GenAI independente para consultar a camada Gold em linguagem
+natural. O chatbot envia perguntas ao serviço GenAI; as consultas SQL são
+somente leitura e usam o Gold diretamente.
 
-A etapa inicial da atividade GenAI está em andamento: a integridade e o esquema
-da camada Gold estão documentados, e as regras das métricas ainda serão
-definidas e validadas. O módulo/API GenAI já possui agente, consulta Gold
-read-only, integração configurável com provedor e rota HTTP de perguntas. A
-integração com a interface CineData permanece para uma etapa posterior.
+## Requisitos
 
-![Página inicial do CineData com destaque para Spider-Man: Across the Spider-Verse](docs/images/home.png)
+- Docker Desktop com Docker Compose v2.
+- Git e Git LFS para obter o banco Gold versionado.
+- Chave Gemini configurada em `genai/.env` para usar o chatbot. Sem a chave, a
+  aplicação e o catálogo iniciam, mas perguntas GenAI retornam erro de
+  configuração do provedor.
 
-## Aplicação
+## Clonar e iniciar
 
-A aplicação existente reúne frontend React e backend FastAPI. O banco Gold é
-montado somente para leitura e o banco operacional fica persistido no diretório
-do projeto. Acompanhe o
-[plano da atividade](docs/.ruler/TODO.md).
-
-O Gold `data/cinerocket.db` fica junto dos dados do projeto e está configurado
-para distribuição pelo Git LFS. Instale o Git LFS antes de clonar; para um clone
-já feito, rode `git lfs install` e `git lfs pull`. O Compose valida o arquivo antes
-de iniciar; um pointer LFS sem o objeto real resulta em erro explicativo. O
-manifesto `data/cinerocket.db.sha256` acompanha o Gold para evitar reler o banco
-inteiro em cada inicialização. Se o dataset mudar, atualize hash e tamanho no
-manifesto junto com o objeto LFS. O
-sincronizador também aceita `GOLD_DATABASE_PATH` ou `--gold-database`. O esquema
-e suas limitações estão no guia de
-[banco de dados](docs/database.md). O backend importa as tabelas para o SQLite
-operacional sem sobrescrever contas, listas, avaliações ou comunidades. O Gold
-é montado somente para leitura. Ele contém `dim_movies`,
-`fact_movies_performance`, `dim_genres`, `dim_people`, `dim_companies`,
-`dim_reviews`, `movie_reviews`, `bridge_movie_genre`, `bridge_movie_person` e
-`bridge_movie_company`.
-
-## Perguntas que o agente deve cobrir
-
-- **Bilheteria e finanças:** maiores receitas, lucro médio por gênero e maiores
-  margens entre filmes com orçamento e receita informados.
-- **Popularidade e engajamento:** filmes mais populares, divergência entre
-  notas TMDB e IMDb, e nota IMDb média por ano.
-- **Elenco e equipe:** atores mais ativos nos últimos cinco anos, diretores com
-  maior média (mínimo de cinco filmes) e duplas ator-diretor mais frequentes.
-- **Gêneros e produtoras:** contagem por gênero, maior lucro total por produtora
-  e maior margem média por gênero.
-- **Avaliações de usuários:** filmes mais avaliados e maior diferença entre a
-  nota média de usuários e a nota IMDb.
-
-Receita, faturamento e bilheteria são termos equivalentes na atividade. Os
-exemplos são um ponto de partida; outras análises também são bem-vindas.
-
-## Aplicação existente e banco Gold
-
-O `docker-compose.yml` inicia a aplicação CineData existente. O backend
-sincroniza o catálogo Gold de forma transacional e preserva os registros de uso.
-O SQLite operacional fica em `./data/rocketlab.db`,
-dentro do projeto e fora do Git. Na primeira inicialização, um preparador copia
-o banco do volume Docker legado se ainda não houver cópia local; o volume
-original permanece intacto. O Gold usa Git LFS; não adicione ZIPs,
-segredos ou bancos operacionais ao Git.
-
-Com Docker Desktop instalado, execute na raiz:
+Instale Git LFS antes de clonar para que o arquivo Gold seja baixado junto do
+repositório. Depois, na raiz do projeto:
 
 ```powershell
-docker compose up --build
+git lfs install
+git clone <URL_DO_REPOSITORIO>
+cd CineData-GenAi
+git lfs pull
+Copy-Item genai/.env.example genai/.env
 ```
 
-Na inicialização, o preparador valida o Gold e preserva/migra o banco operacional
-para `./data`; depois o backend aplica migrações e importa o Gold montado em
-leitura. Em uma atualização futura, o fingerprint sincroniza o catálogo sem
-apagar contas, listas, comunidades ou avaliações de usuários. Uma migração de
-banco operacional já usado cria backup com sufixo `.pre-gold-<data>.db`. A
-primeira sincronização pode levar vários minutos.
+Edite `genai/.env` e preencha `GENAI_GEMINI_API_KEY`. Esse arquivo é local,
+ignorado pelo Git e não deve ser compartilhado. A chave nunca é enviada ao
+navegador. O modelo pode ser alterado por `GENAI_GEMINI_MODEL`.
 
-O frontend fica em `http://localhost:8080` e a API em
-`http://localhost:8000`.
-
-Para executar a migração Gold localmente sem Docker, após aplicar as migrações
-do backend, rode em `backend/`:
+Inicie todos os serviços com:
 
 ```powershell
-python -m app.db.gold_seed --database-url "sqlite+aiosqlite:///./rocketlab.db"
+docker compose up
 ```
 
-Sem `--gold-database`, o comando procura `data/cinerocket.db`.
-Use `--gold-database <caminho>` ou configure `GOLD_DATABASE_PATH` para outro
-local. O comando valida as tabelas esperadas, sincroniza em lotes e não altera
-o arquivo Gold original. Se o arquivo não for encontrado, exibe como obtê-lo e
-como configurar o caminho.
+O Compose constrói frontend, backend existente, inicializador de dados e
+serviço GenAI a partir do código antes de iniciar os contêineres. O build usa o
+cache do Docker quando possível. Não é necessário acrescentar `--build`. Na
+primeira execução, o backend aplica migrações e sincroniza o catálogo Gold; essa
+etapa pode levar alguns minutos.
 
-## Segurança e limites
+| Serviço | Endereço local |
+| --- | --- |
+| CineData | http://localhost:8080 |
+| API CineData | http://localhost:8000 |
+| API GenAI | http://localhost:8001 |
+| Saúde GenAI | http://localhost:8001/health |
 
-O módulo GenAI mantém a chave do provedor apenas no ambiente do backend, valida
-as consultas antes da execução e abre o Gold em modo read-only. As chamadas
-reais ao provedor são reservadas para validações manuais controladas, enquanto
-os testes automatizados usam clientes simulados.
+Para encerrar, use `Ctrl+C`; para iniciar em segundo plano, use
+`docker compose up -d`. Os dados locais persistem em `data/`.
 
-## Prazo da atividade
+## Bancos de dados
 
-Entrega até **segunda-feira, 5 de outubro de 2026, às 18:00**. O projeto e o
-README devem estar versionados no GitHub e incluir instruções para executar a
-aplicação.
+`data/cinerocket.db` é a camada Gold analítica de aproximadamente 581 MB,
+versionada via Git LFS e montada como somente leitura nos serviços. O manifesto
+`data/cinerocket.db.sha256` valida o tamanho do arquivo na inicialização. Se um
+clone tiver apenas um arquivo pointer LFS, rode `git lfs pull` antes do Compose.
+
+O banco operacional da aplicação fica em `data/rocketlab.db`, é criado pelo
+Compose e ignorado pelo Git. O backend sincroniza os dados Gold para ele e
+preserva contas, listas, avaliações e recursos sociais. Não coloque bancos
+operacionais, arquivos `.env` ou ZIPs de dados no repositório. Mais detalhes em
+[docs/database.md](docs/database.md).
+
+## Chatbot e perguntas analíticas
+
+O módulo em `genai/` é uma API FastAPI separada. Usa Gemini com tool calling e
+um executor SQL que abre o Gold SQLite em modo somente leitura, permite apenas
+consultas seguras às tabelas autorizadas e devolve resposta em português com
+metadados e evidências tabulares. A chave fica apenas no ambiente do serviço.
+
+O agente cobre as perguntas de finanças, popularidade e notas, elenco e equipe,
+gêneros e produtoras e avaliações de usuários. Regras, esquema e perguntas de
+referência estão em `genai/` e `docs/genai/`. O chatbot reutiliza a interface
+CineData e está acessível pelo botão “Chatbot”. Cada pergunta é independente;
+o histórico apresentado na tela não é enviado como memória ao modelo.
+
+## Testes de desenvolvimento
+
+As avaliações automatizadas não chamam o provedor e não gastam cota:
+Execute cada sequência em um terminal novo, sempre a partir da raiz do projeto.
+
+```powershell
+cd frontend
+npm ci
+npm test
+npm run build
+```
+
+```powershell
+cd genai
+python -m pip install -e ".[dev]"
+python -m pytest
+```
+
+Use chamadas reais ao modelo de forma controlada. Tool calling pode usar mais
+de uma requisição por pergunta; o limite informado para o plano gratuito é 50
+requisições diárias. Durante desenvolvimento, limite as verificações manuais a
+poucas chamadas e evite retries ou avaliações em lote com o modelo real.
+
+## Documentação
+
+- [Plano de execução](docs/.ruler/TODO.md)
+- [Tooling e convenções](docs/.ruler/tooling.md)
+- [Esquema e regras do Gold](genai/gold-schema.md)
+- [Regras de métricas](genai/metric-rules.md)
+- [Consultas de referência](genai/reference-queries.sql)
+- [Banco de dados e sincronização](docs/database.md)
