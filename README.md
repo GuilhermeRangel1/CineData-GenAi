@@ -77,7 +77,10 @@ O agente cobre as perguntas de finanças, popularidade e notas, elenco e equipe,
 gêneros e produtoras e avaliações de usuários. Regras, esquema e perguntas de
 referência estão em `genai/` e `docs/genai/`. O chatbot reutiliza a interface
 CineData e está acessível pelo botão “Chatbot”. Cada pergunta é independente;
-o histórico apresentado na tela não é enviado como memória ao modelo.
+o histórico apresentado na tela não é enviado como memória ao modelo. Perguntas
+sobre o uso do site recebem respostas em texto a partir do guia local, sem
+chamar o provedor. O botão **Ajuda** da conversa abre exemplos de perguntas
+sobre a plataforma e sobre os filmes.
 
 ## Testes de desenvolvimento
 

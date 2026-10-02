@@ -5,7 +5,8 @@ catálogo pode ser explorado sem entrar; recursos pessoais pedem uma conta.
 
 ## Encontrar filmes
 
-Na página inicial, pesquise pelo título, escolha um gênero ou abra **Filtros
+A aba **Início** reúne a busca e o catálogo de filmes. Pesquise pelo título,
+escolha um gênero ou abra **Filtros
 avançados** para filtrar por pessoa (elenco ou direção), produtora, intervalo de
 anos, duração e nota mínima. Os resultados podem ser ordenados por relevância,
 lançamento mais recente ou título. Selecione um filme para abrir os detalhes.
@@ -34,6 +35,24 @@ Entre ou crie uma conta pelos controles no topo do site para usar listas,
 avaliar filmes, gerenciar amizades, participar de conversas e abrir o mapa de
 gostos. Algumas ferramentas de gestão — como adicionar, editar ou excluir filmes
 e criar ou moderar comunidades — aparecem apenas para administradores.
+
+## Analytics
+
+A aba Analytics é um painel administrativo: o botão aparece apenas para contas
+com perfil de administrador. Ela reúne totais de filmes no catálogo, pessoas
+cadastradas, avaliações feitas pela comunidade, listas e comunidades. Também
+mostra a evolução de cadastros, avaliações, listas e publicações, os gêneros e
+filmes mais avaliados pela comunidade e as comunidades em alta. É possível
+selecionar 7, 30 ou 90 dias para os gráficos e rankings de atividade; os totais
+gerais do topo representam toda a plataforma.
+
+## Chatbot
+
+Na aba Chatbot, faça perguntas sobre os filmes e as métricas do catálogo ou
+peça ajuda para encontrar e usar as áreas do CineData. Perguntas sobre dados
+dos filmes podem mostrar uma tabela; orientações sobre o site aparecem em
+texto. Cada pergunta é independente: para mudar um filtro ou período, inclua-o
+na nova pergunta. Se quiser ideias, abra o botão **Ajuda** dentro da conversa.
 
 ## Onde conferir
 

@@ -106,10 +106,10 @@ versionados correspondem ao estado entregue.
 ## 6. Responder sobre o CineData (extra prioritário)
 
 - [x] Criar um guia curto e versionado das funcionalidades reais do site:
-      catálogo e detalhes dos filmes; busca e filtros por gênero, pessoa,
+      Início, catálogo e detalhes dos filmes; busca e filtros por gênero, pessoa,
       produtora, ano, duração e nota; listas, avaliações, amigos, comunidades,
-      mapa de gostos e áreas restritas por perfil. Conferido no frontend e nas
-      rotas; ver [`platform-guide.md`](../platform-guide.md).
+      mapa de gostos, Analytics, Chatbot e áreas restritas por perfil. Conferido
+      no frontend e nas rotas; ver [`platform-guide.md`](../platform-guide.md).
 - [x] Encaminhar perguntas sobre **como usar o CineData** para esse guia, sem
       gerar SQL analítico nem inventar funções. Separar esse caminho das
       perguntas sobre dados dos filmes; pedidos mistos identificam separadamente
@@ -132,10 +132,12 @@ informação verificada da plataforma, sem tentar gerar SQL para esse tema.
 
 ## 7. Botão Ajuda com perguntas sugeridas
 
-- [ ] Adicionar um botão **Ajuda** dentro do chat com exemplos curtos e
+- [x] Adicionar um botão **Ajuda** dentro do chat com exemplos curtos e
       clicáveis sobre catálogo, métricas e uso da plataforma.
-- [ ] Manter os exemplos sincronizados com as perguntas que o chatbot consegue
-      responder; abrir e fechar a ajuda não deve chamar o modelo.
+- [x] Manter os exemplos sincronizados com as perguntas que o chatbot consegue
+      responder; abrir e fechar a ajuda não chama o modelo. As perguntas sobre
+      o site foram conferidas pelo endpoint sem chamadas ao provedor; as duas
+      perguntas analíticas já estão no fluxo obrigatório do módulo.
 
 **Critério de saída:** a pessoa encontra uma sugestão e consegue enviá-la no
 chat; os exemplos não expõem tabelas, chaves ou detalhes de implementação.

@@ -47,15 +47,33 @@ _PLATFORM_FEATURE = re.compile(
     r"comunidades?|mapa de gostos|conta|perfil|filtros?|catalogo|filmes?|"
     r"generos?|pessoa|produtora|duracao|avaliacoes?|mensagens?|notificacoes?)\b"
 )
-_PLATFORM_PRODUCT_QUESTION = re.compile(
-    r"(?:\b(?:cinedata|site|plataforma)\b.{0,45}"
-    r"\b(?:tem|possui|permite|oferece|disponibiliza|existe|funciona|da para|consigo)\b|"
-    r"\b(?:tem|possui|permite|oferece|disponibiliza|existe|funciona|da para|consigo)\b"
-    r".{0,45}\b(?:cinedata|site|plataforma)\b)"
+_PLATFORM_NAME = re.compile(r"\b(?:cinedata|site|plataforma)\b")
+_PLATFORM_ANALYTICS = re.compile(r"\banalytics\b")
+_PLATFORM_ANALYTICS_AREA = re.compile(
+    r"\b(?:aba|pagina|tela|painel|secao|area)\s+(?:(?:de|do|da)\s+)?analytics\b"
+)
+_PLATFORM_UI_FEATURE = re.compile(
+    r"\b(?:inicio|pagina inicial|busca|pesquisa|chatbot|assistente|"
+    r"aba|pagina|tela|menu|botao|secao|area)\b"
+)
+_PLATFORM_NAVIGATION = re.compile(
+    r"\b(?:aba|pagina|tela|menu|botao|secao|area|navegar)\b"
+)
+_CHATBOT_HELP = re.compile(
+    r"\b(?:o que (?:voce|o chatbot|o bot) (?:faz|responde|sabe)|"
+    r"quais perguntas|o que (?:eu )?posso perguntar|como usar (?:voce|o chatbot)|"
+    r"me ajude|preciso de ajuda)\b"
 )
 _PLATFORM_GENERAL_QUESTION = re.compile(
-    r"\b(?:o que posso fazer|quais? funcoes?|quais? recursos?)\b.{0,50}\b"
-    r"(?:cinedata|site|plataforma)\b"
+    r"\b(?:o que (?:(?:eu|voce) )?(?:posso|pode) fazer|o que tem|"
+    r"quais? funcoes?|quais? recursos?|quais? funcionalidades?|"
+    r"qual (?:e )?a proposta|pra que serve|para que serve)\b"
+    r".{0,50}\b(?:cinedata|site|plataforma)\b"
+)
+_PLATFORM_OVERVIEW_QUESTION = re.compile(
+    r"\b(?:o que e|como funciona|(?:me )?(?:fala|fale|falar|conta|conte|"
+    r"contar|explica|explique)\s+(?:sobre|do|da))\s+"
+    r"(?:(?:o|a)\s+)?(?:cinedata|site|plataforma)\b"
 )
 _PLATFORM_SOCIAL_FEATURE = re.compile(
     r"\b(?:lista|listas|amigo|amigos|amizade|amizades|comunidade|comunidades|"
@@ -83,21 +101,29 @@ def _question_sources(question: str) -> tuple[bool, bool]:
     """Returns whether a question has platform and/or analytical intent."""
 
     normalized = _normalize_for_routing(question)
+    if _PLATFORM_ANALYTICS_AREA.search(normalized):
+        return True, False
+    analytical = bool(_ANALYTICAL_INTENT.search(normalized))
     platform = bool(
         (_PLATFORM_ACTION.search(normalized) and _PLATFORM_FEATURE.search(normalized))
         or _PLATFORM_GENERAL_QUESTION.search(normalized)
+        or _PLATFORM_OVERVIEW_QUESTION.search(normalized)
+        or _CHATBOT_HELP.search(normalized)
         or re.search(r"\bcomo funciona\b.{0,40}\b(?:cinedata|site|plataforma)\b", normalized)
         or re.search(
             r"\b(?:cinedata|site|plataforma)\b.{0,40}\b(?:ajuda|usar|funciona)\b",
             normalized,
         )
-        or _PLATFORM_PRODUCT_QUESTION.search(normalized)
         or (
-            _PLATFORM_SOCIAL_FEATURE.search(normalized)
-            and not _ANALYTICAL_INTENT.search(normalized)
+            not analytical
+            and (
+                _PLATFORM_NAME.search(normalized)
+                or _PLATFORM_SOCIAL_FEATURE.search(normalized)
+                or _PLATFORM_ANALYTICS.search(normalized)
+                or _PLATFORM_UI_FEATURE.search(normalized)
+            )
         )
     )
-    analytical = bool(_ANALYTICAL_INTENT.search(normalized))
     return platform, analytical
 
 
@@ -108,7 +134,7 @@ def _platform_guide_path() -> Path:
 
 
 def _platform_guide_answer(question: str) -> str | None:
-    """Returns relevant, verbatim guide sections without generating new claims."""
+    """Returns relevant guide content as readable chat text."""
 
     guide_path = _platform_guide_path()
     try:
@@ -117,12 +143,25 @@ def _platform_guide_answer(question: str) -> str | None:
         raise AgentError("O guia da plataforma não está disponível.") from exc
 
     normalized = _normalize_for_routing(question)
+    if _CHATBOT_HELP.search(normalized) or re.search(
+        r"\b(?:chatbot|assistente)\b", normalized
+    ):
+        chatbot_guide = guide.split("## Chatbot", 1)[1].split(
+            "## Onde conferir", 1
+        )[0].strip()
+        return re.sub(r"(?<!\n)\n(?!\n)\s*", " ", chatbot_guide).replace("**", "")
+    if _PLATFORM_ANALYTICS.search(normalized):
+        analytics_guide = guide.split("## Analytics", 1)[1].split(
+            "## Onde conferir", 1
+        )[0].strip()
+        return re.sub(r"(?<!\n)\n(?!\n)\s*", " ", analytics_guide)
     topics = {
         "filmes": (
             "## Encontrar filmes",
             (
                 "filme", "catalogo", "busca", "buscar", "encontrar", "genero",
-                "filtro", "nota", "trailer", "sinopse", "duracao", "produtora",
+                "filtro", "nota", "avaliar", "avaliacao", "trailer", "sinopse",
+                "duracao", "produtora",
             ),
         ),
         "listas": ("**Minhas listas:**", ("lista", "salvar", "adicionar", "assistir depois")),
@@ -134,9 +173,23 @@ def _platform_guide_answer(question: str) -> str | None:
         "conta": ("Entre ou crie uma conta", ("conta", "perfil", "entrar", "cadastro", "login")),
     }
     selected: list[str] = []
-    if any(word in normalized for word in topics["filmes"][1]):
-        catalog_guide = guide.split("## Recursos da conta", 1)[0]
-        selected.append(catalog_guide.split("## Onde conferir", 1)[0].strip())
+    if (
+        any(word in normalized for word in topics["filmes"][1])
+        or re.search(r"\b(?:inicio|pagina inicial|busca|pesquisa)\b", normalized)
+    ):
+        catalog_guide = guide.split("## Encontrar filmes", 1)[1].split(
+            "## Recursos da conta", 1
+        )[0]
+        catalog_sections = catalog_guide.strip().split("\n\n")
+        details_question = bool(
+            re.search(
+                r"\b(?:detalhes?|sinopse|trailer|elenco|direcao|roteiro|"
+                r"bilheteria|avaliar|avaliacao)\b",
+                normalized,
+            )
+        )
+        section_index = 1 if details_question and len(catalog_sections) > 1 else 0
+        selected.append(catalog_sections[section_index].strip())
     for key in ("listas", "amigos", "comunidades", "mapa"):
         marker, words = topics[key]
         if any(word in normalized for word in words):
@@ -152,12 +205,21 @@ def _platform_guide_answer(question: str) -> str | None:
             end = guide.find("Algumas ferramentas de gestão", start)
             selected.append(guide[start:end if end >= 0 else len(guide)].strip())
     if not selected:
-        if _PLATFORM_GENERAL_QUESTION.search(normalized):
-            selected.append(guide.split("## Onde conferir", 1)[0].strip())
-        else:
-            return None
+        if _PLATFORM_GENERAL_QUESTION.search(normalized) or _PLATFORM_OVERVIEW_QUESTION.search(normalized):
+            return (
+                "O CineData é um espaço para descobrir filmes e conversar sobre cinema. "
+                "Você pode pesquisar o catálogo e usar filtros para encontrar filmes. "
+                "Com uma conta, também pode avaliar filmes, criar listas, adicionar amigos, "
+                "participar de comunidades e explorar seu mapa de gostos. "
+                "O que você gostaria de conhecer primeiro?"
+            )
+        return None
 
     answer = "\n\n".join(dict.fromkeys(selected))
+    answer = re.sub(r"(?m)^#{1,6}\s*", "", answer)
+    answer = answer.replace("**", "")
+    answer = re.sub(r"(?m)^\s*-\s*", "", answer)
+    answer = re.sub(r"(?<!\n)\n(?!\n)\s*", " ", answer)
     needs_account = any(
         word in normalized
         for word in (
@@ -165,11 +227,19 @@ def _platform_guide_answer(question: str) -> str | None:
             "avaliacao", "conta", "perfil", "salvar", "participar",
         )
     )
-    if needs_account and "Entre ou crie uma conta" not in answer:
-        access_note = (
-            "Entre ou crie uma conta para usar listas, avaliar filmes, gerenciar amizades, "
-            "participar de conversas e abrir o mapa de gostos."
-        )
+    if (
+        needs_account
+        and "entre na sua conta" not in answer.casefold()
+        and "entre ou crie uma conta" not in answer.casefold()
+    ):
+        if "mapa de gostos" in normalized:
+            access_note = "Entre ou crie uma conta para acessar o mapa depois de avaliar filmes."
+        elif re.search(r"\b(?:listas?|salvar)\b", normalized):
+            access_note = "Entre ou crie uma conta para organizar suas listas."
+        elif re.search(r"\b(?:amigos?|amizades?)\b", normalized):
+            access_note = "Entre ou crie uma conta para enviar pedidos de amizade."
+        else:
+            access_note = "Entre ou crie uma conta para usar esse recurso."
         answer += f"\n\n{access_note}"
     needs_admin = bool(
         re.search(
@@ -191,15 +261,13 @@ def _platform_guide_answer(question: str) -> str | None:
 
 
 def _is_vague_platform_question(question: str) -> bool:
-    """Identifies platform questions that name a feature without asking an action."""
+    """Asks for detail only when the entire question is a bare feature name."""
 
-    normalized = _normalize_for_routing(question)
+    normalized = _normalize_for_routing(question).strip()
     return bool(
-        _PLATFORM_SOCIAL_FEATURE.search(normalized)
-        and not re.search(
-            r"\b(?:como|onde|quando|quem|qual|quais|posso|consigo|tem|existe|"
-            r"criar|buscar|encontrar|filtrar|salvar|avaliar|entrar|participar|"
-            r"adicionar|editar|excluir|usar|funciona|permite|oferece)\b",
+        re.fullmatch(
+            r"(?:amigos?|amizades?|comunidades?|listas?|minhas listas|"
+            r"mapa de gostos|conta|perfil)\s*[?!.]?",
             normalized,
         )
     )
@@ -708,6 +776,14 @@ class AgentService:
                 )
             platform_answer = _platform_guide_answer(normalized_question)
             if platform_answer is None:
+                if _PLATFORM_NAVIGATION.search(
+                    _normalize_for_routing(normalized_question)
+                ):
+                    raise AgentClarification(
+                        "Não reconheci essa área do CineData. Qual aba ou ação você quer conhecer? "
+                        "Posso explicar Início e busca, listas, amigos, comunidades, "
+                        "mapa de gostos, Analytics ou o próprio chatbot."
+                    )
                 raise AgentUnsupported(
                     "Não encontrei essa funcionalidade no guia atual do CineData. "
                     "Você pode dizer qual área ou ação da plataforma quer conhecer?"

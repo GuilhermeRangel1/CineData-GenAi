@@ -94,10 +94,10 @@ provedor e evite avaliações em lote com chamadas reais.
 
 ## Convenções de mudança
 
-- Para o próximo bloco de orientação da plataforma, conferir funcionalidades
-  no frontend e nas rotas do backend. Manter esse conteúdo versionado e
-  separado das métricas Gold; perguntas sobre uso do site não devem virar
-  consultas SQL. O botão Ajuda deve sugerir apenas perguntas suportadas.
+- O guia `docs/platform-guide.md` descreve as áreas conferidas no frontend e
+  nas rotas do backend. Mantenha perguntas sobre uso do site fora do fluxo SQL;
+  o botão Ajuda deve sugerir somente perguntas cobertas pelo guia ou pelas
+  métricas obrigatórias.
 - Faça mudanças coesas e checkpoints revisáveis; não crie commits ou publique
   alterações sem pedido explícito.
 - Mantenha agente e acesso ao Gold dentro de `genai/`; não acople o GenAI aos
