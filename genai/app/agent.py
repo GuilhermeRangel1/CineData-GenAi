@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ModelTurn, ToolCall, ToolDefinition
 from app.errors import QueryExecutionError, SqlValidationError
+from app.evaluation_cases import MANDATORY_EVALUATIONS
 from app.gold_database import EXPECTED_TABLES
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
@@ -43,6 +44,10 @@ RUN_SQL_TOOL = ToolDefinition(
 )
 
 _GOLD_TABLES_CONTEXT = ", ".join(sorted(EXPECTED_TABLES))
+_MANDATORY_QUESTIONS_CONTEXT = "\n".join(
+    f"{case.query_id}: {case.question} Colunas esperadas: {', '.join(case.expected_columns)}."
+    for case in MANDATORY_EVALUATIONS
+)
 
 
 class AgentService:
@@ -68,6 +73,9 @@ class AgentService:
                     "use exatamente a ferramenta run_sql. Não invente números. "
                     "Use somente estes nomes exatos de tabelas Gold: "
                     f"{_GOLD_TABLES_CONTEXT}. Não invente nomes de tabelas."
+                    "\nIdentifique a intenção entre os casos obrigatórios abaixo e use "
+                    "aliases iguais às colunas esperadas quando fizer sentido:\n"
+                    f"{_MANDATORY_QUESTIONS_CONTEXT}"
                 ),
             },
             {"role": "user", "content": normalized_question},

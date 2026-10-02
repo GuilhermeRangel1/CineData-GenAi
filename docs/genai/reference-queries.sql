@@ -64,15 +64,18 @@ GROUP BY m.ano_lancamento
 ORDER BY m.ano_lancamento;
 
 -- Q07: ator(es) com mais filmes na janela móvel; retorna todos os empatados.
-WITH actor_films AS (
+WITH recent_movies AS MATERIALIZED (
+    SELECT sk_movie_id
+    FROM dim_movies
+    WHERE data_lancamento >= date('now', '-5 years')
+      AND data_lancamento <= date('now')
+), actor_films AS (
     SELECT p.sk_person_id, p.nome_pessoa,
-           COUNT(DISTINCT m.sk_movie_id) AS total_filmes
-    FROM dim_people AS p
-    JOIN bridge_movie_person AS bp USING (sk_person_id)
-    JOIN dim_movies AS m USING (sk_movie_id)
+           COUNT(*) AS total_filmes
+    FROM recent_movies AS rm
+    JOIN bridge_movie_person AS bp USING (sk_movie_id)
+    JOIN dim_people AS p USING (sk_person_id)
     WHERE p.tipo_pessoa = 'Ator'
-      AND m.data_lancamento >= date('now', '-5 years')
-      AND m.data_lancamento <= date('now')
     GROUP BY p.sk_person_id, p.nome_pessoa
 ), ranked AS (
     SELECT *, DENSE_RANK() OVER (ORDER BY total_filmes DESC) AS posicao
@@ -106,26 +109,26 @@ FROM ranked WHERE posicao = 1
 ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id;
 
 -- Q09: dupla ator-diretor mais frequente por filmes distintos em comum.
-WITH actor_director_films AS (
-    SELECT DISTINCT a.actor_id, a.ator, d.director_id, d.diretor, a.sk_movie_id
-    FROM (
-        SELECT bp.sk_movie_id, p.sk_person_id AS actor_id,
-               p.nome_pessoa AS ator
-        FROM dim_people AS p
-        JOIN bridge_movie_person AS bp USING (sk_person_id)
-        WHERE p.tipo_pessoa = 'Ator'
-    ) AS a
-    JOIN (
-        SELECT bp.sk_movie_id, p.sk_person_id AS director_id,
-               p.nome_pessoa AS diretor
-        FROM dim_people AS p
-        JOIN bridge_movie_person AS bp USING (sk_person_id)
-        WHERE p.tipo_pessoa = 'Diretor'
-    ) AS d USING (sk_movie_id)
+WITH actor_links AS MATERIALIZED (
+    SELECT bp.sk_movie_id, p.sk_person_id AS actor_id,
+           p.nome_pessoa AS ator
+    FROM dim_people AS p
+    JOIN bridge_movie_person AS bp USING (sk_person_id)
+    WHERE p.tipo_pessoa = 'Ator'
+), director_links AS MATERIALIZED (
+    SELECT bp.sk_movie_id, p.sk_person_id AS director_id,
+           p.nome_pessoa AS diretor
+    FROM dim_people AS p
+    JOIN bridge_movie_person AS bp USING (sk_person_id)
+    WHERE p.tipo_pessoa = 'Diretor'
+), actor_director_films AS (
+    SELECT a.actor_id, a.ator, d.director_id, d.diretor, a.sk_movie_id
+    FROM actor_links AS a
+    JOIN director_links AS d USING (sk_movie_id)
     WHERE a.actor_id <> d.director_id
 ), pair_counts AS (
     SELECT actor_id, ator, director_id, diretor,
-           COUNT(DISTINCT sk_movie_id) AS filmes_em_comum
+           COUNT(*) AS filmes_em_comum
     FROM actor_director_films
     GROUP BY actor_id, ator, director_id, diretor
 ), ranked AS (

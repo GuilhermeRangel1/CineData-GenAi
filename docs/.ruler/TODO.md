@@ -137,6 +137,8 @@ provedor. O adaptador real e as chamadas externas continuam pendentes.
       média dos usuários e nota IMDb, respeitando escala e população disponíveis.
 - [ ] Criar avaliações locais com perguntas e resultados esperados derivados do
       Gold; comparar números com SQL de referência, não igualdade textual de SQL.
+- [x] Catalogar as 14 perguntas obrigatórias com identificadores Q01–Q14 e
+      colunas esperadas para orientar as avaliações locais.
 - [ ] Testar ciclo do agente com respostas/tool calls simulados. Reservar
       chamadas reais para uma validação manual pequena: meta máxima de 5 por dia,
       sem retentativas automáticas, anotando o consumo observado.
@@ -156,9 +158,13 @@ há teste local cobrindo esse transporte. A tentativa manual após a correção 
 alcançou o modelo e recebeu novamente `503 UNAVAILABLE` por alta demanda. A
 validação manual com `gemini-3.5-flash-lite` concluiu o ciclo completo: uma
 chamada `run_sql`, execução read-only e resposta final com 95.645 filmes. O
-Lite foi adotado como padrão temporário. A integração com a rota HTTP está em
-implementação; a cobertura das perguntas obrigatórias ainda está pendente.
-Pare e aguarde a revisão antes de consumir nova cota.
+Lite foi adotado como padrão temporário. A rota HTTP, o catálogo local das
+perguntas obrigatórias e o contexto semântico enviado ao agente foram
+implementados. Q07 e Q09 foram reescritas com CTEs materializadas e o executor
+passou a verificar o tempo a cada 100.000 instruções. A reprodução das 14
+avaliações passou em 31,8 segundos com limite comum de 5 segundos e orçamento
+de 15 segundos apenas para relações pessoa-filme. A integração com a interface
+ainda está pendente. Pare e aguarde a revisão antes de consumir nova cota.
 
 ## 4. Interface e substituição do chatbot anterior
 

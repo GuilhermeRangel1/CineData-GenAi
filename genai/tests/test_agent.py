@@ -48,6 +48,8 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     assert len(model.calls) == 2
     assert model.calls[0][1][0].name == "run_sql"
     assert "dim_movies" in model.calls[0][0][0]["content"]
+    assert "Q01" in model.calls[0][0][0]["content"]
+    assert "Q14" in model.calls[0][0][0]["content"]
 
 
 def test_agent_rejects_missing_tool_call(tmp_path) -> None:

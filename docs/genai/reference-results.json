@@ -1,0 +1,658 @@
+{
+  "snapshot_version": 1,
+  "gold": {
+    "size_bytes": 581120000,
+    "sha256": "410f5beef6ab9fb34b9044d5dd191f56f3f0dc30a56e6432386ecef0d977b012"
+  },
+  "results": {
+    "Q01": {
+      "columns": [
+        "sk_movie_id",
+        "titulo",
+        "receita_brl"
+      ],
+      "row_count": 10,
+      "rows": [
+        {
+          "sk_movie_id": "bb227566b3010c6af047a841f656ef46167596e6234afaa7c71e8fd88c5526ee",
+          "titulo": "Avatar: The Way Of Water",
+          "receita_brl": 12390136500.54
+        },
+        {
+          "sk_movie_id": "29218517ce6650ba3b6f20c22126f8fd7dd970d8f570156836e7a67dd741990e",
+          "titulo": "Avengers: Endgame",
+          "receita_brl": 11094720000
+        },
+        {
+          "sk_movie_id": "28240e7baa1c8d2eb4e7270fb85cdb4067faff6b52f10db395452ae90bb644d5",
+          "titulo": "Spider-man: No Way Home",
+          "receita_brl": 10977782882.74
+        },
+        {
+          "sk_movie_id": "6044a4c161975ee9efe4364e4e786a6b64852a4aa3520c930fb3ac99fd5f8ab5",
+          "titulo": "Avengers: Infinity War",
+          "receita_brl": 7190430847.63
+        },
+        {
+          "sk_movie_id": "1fca0312b67575a7ac6269bb52b52bdba2ed6104e57069a943d2adf2eddf19fb",
+          "titulo": "Top Gun: Maverick",
+          "receita_brl": 7160804869.01
+        },
+        {
+          "sk_movie_id": "0e6280b419bfa5789892b5c376e0d81b408b45d2b3caef780ea27f397bf19ab0",
+          "titulo": "Barbie",
+          "receita_brl": 6856159007.38
+        },
+        {
+          "sk_movie_id": "b752b365387a0742dfa5640a5e25f3f8a318b3046fd5076557c70b533548a5a0",
+          "titulo": "The Super Mario Bros. Movie",
+          "receita_brl": 6838413799.1
+        },
+        {
+          "sk_movie_id": "d5516903e7b6b2eb00e89aa0003a022e8621cc8cd1cc1132773badde9b0383bf",
+          "titulo": "The Lion King",
+          "receita_brl": 6227552146.58
+        },
+        {
+          "sk_movie_id": "accaaf9316592c050c15fd44821728487117edfbfdbb8cfc9f727c108a855f46",
+          "titulo": "Frozen Ii",
+          "receita_brl": 6094028191.32
+        },
+        {
+          "sk_movie_id": "3237c6227f10c9f50870043e9c1501c3dafa4cac072cac6a31db8521a350085a",
+          "titulo": "Jurassic World: Fallen Kingdom",
+          "receita_brl": 4934822930.85
+        }
+      ]
+    },
+    "Q02": {
+      "columns": [
+        "nome_genero",
+        "filmes_elegiveis",
+        "lucro_medio_brl"
+      ],
+      "row_count": 19,
+      "rows": [
+        {
+          "nome_genero": "Science Fiction",
+          "filmes_elegiveis": 134,
+          "lucro_medio_brl": 755742404.1749254
+        },
+        {
+          "nome_genero": "Adventure",
+          "filmes_elegiveis": 246,
+          "lucro_medio_brl": 724425244.4745935
+        },
+        {
+          "nome_genero": "Animation",
+          "filmes_elegiveis": 97,
+          "lucro_medio_brl": 509966381.98391753
+        },
+        {
+          "nome_genero": "Fantasy",
+          "filmes_elegiveis": 134,
+          "lucro_medio_brl": 509886798.93014926
+        },
+        {
+          "nome_genero": "Family",
+          "filmes_elegiveis": 142,
+          "lucro_medio_brl": 460045371.8099296
+        },
+        {
+          "nome_genero": "Action",
+          "filmes_elegiveis": 379,
+          "lucro_medio_brl": 457268303.08767813
+        },
+        {
+          "nome_genero": "War",
+          "filmes_elegiveis": 57,
+          "lucro_medio_brl": 247003988.76561403
+        },
+        {
+          "nome_genero": "Comedy",
+          "filmes_elegiveis": 403,
+          "lucro_medio_brl": 202550286.8662531
+        },
+        {
+          "nome_genero": "Music",
+          "filmes_elegiveis": 45,
+          "lucro_medio_brl": 187931397.14355555
+        },
+        {
+          "nome_genero": "Horror",
+          "filmes_elegiveis": 168,
+          "lucro_medio_brl": 166814396.18636906
+        },
+        {
+          "nome_genero": "History",
+          "filmes_elegiveis": 96,
+          "lucro_medio_brl": 148702036.40052083
+        },
+        {
+          "nome_genero": "Thriller",
+          "filmes_elegiveis": 321,
+          "lucro_medio_brl": 130135644.37118381
+        },
+        {
+          "nome_genero": "Mystery",
+          "filmes_elegiveis": 127,
+          "lucro_medio_brl": 129678635.57173228
+        },
+        {
+          "nome_genero": "Drama",
+          "filmes_elegiveis": 602,
+          "lucro_medio_brl": 125934724.08951828
+        },
+        {
+          "nome_genero": "Romance",
+          "filmes_elegiveis": 152,
+          "lucro_medio_brl": 121600061.64427632
+        },
+        {
+          "nome_genero": "Crime",
+          "filmes_elegiveis": 166,
+          "lucro_medio_brl": 115701719.72596388
+        },
+        {
+          "nome_genero": "Tv Movie",
+          "filmes_elegiveis": 3,
+          "lucro_medio_brl": 450909.25666666654
+        },
+        {
+          "nome_genero": "Documentary",
+          "filmes_elegiveis": 40,
+          "lucro_medio_brl": -1037292.9157499999
+        },
+        {
+          "nome_genero": "Western",
+          "filmes_elegiveis": 11,
+          "lucro_medio_brl": -12604827.19454545
+        }
+      ]
+    },
+    "Q03": {
+      "columns": [
+        "sk_movie_id",
+        "titulo",
+        "margem"
+      ],
+      "row_count": 10,
+      "rows": [
+        {
+          "sk_movie_id": "f7d031d0ef3becda38ac7c306f43ab7d09d26a1d91d2f369b44128c6b39f927d",
+          "titulo": "Dad, I'm Sorry",
+          "margem": 0.999992527892065
+        },
+        {
+          "sk_movie_id": "92e25addfb6959b868952af63a0101c4853ece7e0501f79eec604b6c34963050",
+          "titulo": "Etlb",
+          "margem": 0.99995
+        },
+        {
+          "sk_movie_id": "e28f92538f61366fb7beedadff5b86946d23846190c2e2147cc1b90cf5dbd0d0",
+          "titulo": "Jailbait",
+          "margem": 0.9999289940155535
+        },
+        {
+          "sk_movie_id": "fbaf049aaa8257ad95951a63fc76cae71aa5fb0948ab805d7915ad1b34bb1804",
+          "titulo": "Trivikrama",
+          "margem": 0.9996000229322733
+        },
+        {
+          "sk_movie_id": "9ac37c143fbc6038c2bafb0624371bfacc71c17e4793e7253f103999b1d7f34d",
+          "titulo": "The Good Neighbor",
+          "margem": 0.9988936842972316
+        },
+        {
+          "sk_movie_id": "73344924132aa5071d0afb7dba2d09ab5c770b70037169f97669ce4690d21b2a",
+          "titulo": "New York Masalı",
+          "margem": 0.9979982964224873
+        },
+        {
+          "sk_movie_id": "7e78e5da7c744d64ab592b7da03b46cca5ee3958d2876e4b06bd3996fbc42dcd",
+          "titulo": "Secret Superstar",
+          "margem": 0.9979166725568182
+        },
+        {
+          "sk_movie_id": "3aa2f3ba8d0306bbcc5e8dbf0355528a5dd5e3fae6305b8d9b85f9119efa37cd",
+          "titulo": "Alive",
+          "margem": 0.9974993511290354
+        },
+        {
+          "sk_movie_id": "6b1a93d3616cb37ae073699638bb97f2689cd0614c9f3113f2af66594c71db5e",
+          "titulo": "Bad Ben: The Mandela Effect",
+          "margem": 0.9972727272727273
+        },
+        {
+          "sk_movie_id": "8695bcdafe8619cf0479eb42723b407bd7873bfa82835694738aacda8b83409c",
+          "titulo": "Bad Ben",
+          "margem": 0.9972727272727272
+        }
+      ]
+    },
+    "Q04": {
+      "columns": [
+        "sk_movie_id",
+        "titulo",
+        "popularidade"
+      ],
+      "row_count": 5,
+      "rows": [
+        {
+          "sk_movie_id": "5d0950912e2683b41a71559bb595823fa6938cb2cbf0a721a28b8f3321e4596a",
+          "titulo": "Blue Beetle",
+          "popularidade": 2994.357
+        },
+        {
+          "sk_movie_id": "2db072c832df9fcb29f6550fff1899d1b71a1c330ac112d914469a6f53325835",
+          "titulo": "Gran Turismo",
+          "popularidade": 2680.593
+        },
+        {
+          "sk_movie_id": "198f2616d0bf06df4e7b6a84e27c5618cfebb32d9763a87e3d6ce88b47b11001",
+          "titulo": "La Fellinette",
+          "popularidade": 2020.0
+        },
+        {
+          "sk_movie_id": "7e46bf302b41ba2c05691c52723a1781c731757ba073fab658f13023831c2b44",
+          "titulo": "The Fear Footage 2: Curse Of The Tape",
+          "popularidade": 2019.0
+        },
+        {
+          "sk_movie_id": "1b9481ef390595afd13aab64b6733f07117e0402cb05902ba12f26630e5baa9f",
+          "titulo": "Wwe Survivor Series 2018",
+          "popularidade": 2018.0
+        }
+      ]
+    },
+    "Q05": {
+      "columns": [
+        "sk_movie_id",
+        "titulo",
+        "divergencia",
+        "nota_tmdb",
+        "qtd_tmdb",
+        "nota_imdb",
+        "qtd_imdb"
+      ],
+      "row_count": 10,
+      "rows": [
+        {
+          "sk_movie_id": "7b7d28dcff9fbb464e63ce5d3c182020daf06852125d68d2c9baae9ff44115bc",
+          "titulo": "Alfredo",
+          "divergencia": 9.0,
+          "nota_tmdb": 1.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 10.0,
+          "qtd_imdb": 7
+        },
+        {
+          "sk_movie_id": "3dda9f695eea4383330ddd59549cb6cde4b81789d3de09f5a60a11dd0ff97632",
+          "titulo": "Hit Me",
+          "divergencia": 9.0,
+          "nota_tmdb": 0.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 9.0,
+          "qtd_imdb": 8
+        },
+        {
+          "sk_movie_id": "50dabb1cd04b7778673610100dfa889b4cd5af9f642706bfd66ca1c709b9a01b",
+          "titulo": "The 9th Annual On Cinema Oscar Special",
+          "divergencia": 9.0,
+          "nota_tmdb": 0.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 9.0,
+          "qtd_imdb": 68
+        },
+        {
+          "sk_movie_id": "a9db78eea608d9bf9f184664482d1ecee46edc0ffdff5c8347014501ce51ffca",
+          "titulo": "Sweethearts Of The Gridiron",
+          "divergencia": 8.6,
+          "nota_tmdb": 0.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 8.6,
+          "qtd_imdb": 23
+        },
+        {
+          "sk_movie_id": "fd597d329d4fe2a94344f3acad3fbd6450207e78a0b2c53a54bfef3f3fa68ff3",
+          "titulo": "Madre Luna",
+          "divergencia": 8.5,
+          "nota_tmdb": 0.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 8.5,
+          "qtd_imdb": 8
+        },
+        {
+          "sk_movie_id": "8e1289918dafcea85b5d7c1834c38d60573d6a70ffde1496193c8c839796b2b4",
+          "titulo": "The Farmer",
+          "divergencia": 8.5,
+          "nota_tmdb": 0.5,
+          "qtd_tmdb": 1,
+          "nota_imdb": 9.0,
+          "qtd_imdb": 7
+        },
+        {
+          "sk_movie_id": "59ee6e439ed2d0562cf35d6035b60b6ea6c4b50fb186d4fd952962ad43ad8a3f",
+          "titulo": "Afraid Of The Night",
+          "divergencia": 8.3,
+          "nota_tmdb": 1.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 9.3,
+          "qtd_imdb": 49
+        },
+        {
+          "sk_movie_id": "a8fd9129d03d7c997c3c9c6d5bc1eb7d1fa3f4e59df7b879b43837aa0d4be1bd",
+          "titulo": "Dick Van Dyke: 98 Years Of Magic",
+          "divergencia": 8.3,
+          "nota_tmdb": 0.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 8.3,
+          "qtd_imdb": 235
+        },
+        {
+          "sk_movie_id": "1bc34f81ee30dc88a86feb0a9d9c335a065c298bb0e9743b6dc78d58f0531bc5",
+          "titulo": "Fan Club",
+          "divergencia": 8.3,
+          "nota_tmdb": 1.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 9.3,
+          "qtd_imdb": 44
+        },
+        {
+          "sk_movie_id": "98016a67d4654690da7cb0ad86c5ef380b669390fa9eb8afb75f16c879ced42d",
+          "titulo": "Rosario",
+          "divergencia": 8.3,
+          "nota_tmdb": 0.0,
+          "qtd_tmdb": 1,
+          "nota_imdb": 8.3,
+          "qtd_imdb": 7
+        }
+      ]
+    },
+    "Q06": {
+      "columns": [
+        "ano_lancamento",
+        "filmes_validos",
+        "nota_imdb_media"
+      ],
+      "row_count": 13,
+      "rows": [
+        {
+          "ano_lancamento": 2016,
+          "filmes_validos": 9532,
+          "nota_imdb_media": 6.333078052874528
+        },
+        {
+          "ano_lancamento": 2017,
+          "filmes_validos": 10283,
+          "nota_imdb_media": 6.345181367305261
+        },
+        {
+          "ano_lancamento": 2018,
+          "filmes_validos": 10468,
+          "nota_imdb_media": 6.275783339701948
+        },
+        {
+          "ano_lancamento": 2019,
+          "filmes_validos": 10726,
+          "nota_imdb_media": 6.254391198955809
+        },
+        {
+          "ano_lancamento": 2020,
+          "filmes_validos": 8764,
+          "nota_imdb_media": 6.253662711090826
+        },
+        {
+          "ano_lancamento": 2021,
+          "filmes_validos": 8805,
+          "nota_imdb_media": 6.243009653605905
+        },
+        {
+          "ano_lancamento": 2022,
+          "filmes_validos": 9136,
+          "nota_imdb_media": 6.2314470227670755
+        },
+        {
+          "ano_lancamento": 2023,
+          "filmes_validos": 7201,
+          "nota_imdb_media": 6.229273711984447
+        },
+        {
+          "ano_lancamento": 2024,
+          "filmes_validos": 1504,
+          "nota_imdb_media": 6.142021276595745
+        },
+        {
+          "ano_lancamento": 2025,
+          "filmes_validos": 2,
+          "nota_imdb_media": 6.15
+        },
+        {
+          "ano_lancamento": 2026,
+          "filmes_validos": 1,
+          "nota_imdb_media": 7.5
+        },
+        {
+          "ano_lancamento": 2027,
+          "filmes_validos": 2,
+          "nota_imdb_media": 6.4
+        },
+        {
+          "ano_lancamento": 2029,
+          "filmes_validos": 1,
+          "nota_imdb_media": 3.8
+        }
+      ]
+    },
+    "Q07": {
+      "columns": [
+        "sk_person_id",
+        "nome_pessoa",
+        "total_filmes"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "sk_person_id": "9cdd880f7e4f28ff8ba1cf4c8f43d58c36dd8b2cdf4f0b12fcb75dd5f2242a82",
+          "nome_pessoa": "Eric Roberts",
+          "total_filmes": 71
+        }
+      ]
+    },
+    "Q08": {
+      "columns": [
+        "sk_person_id",
+        "nome_pessoa",
+        "filmes_validos",
+        "nota_media"
+      ],
+      "row_count": 2,
+      "rows": [
+        {
+          "sk_person_id": "8c18a19be6046d1d7053a994855f93e87a74dbca79c9f39e34733a8592456faf",
+          "nome_pessoa": "Jun Shishido",
+          "filmes_validos": 8,
+          "nota_media": 9.1875
+        },
+        {
+          "sk_person_id": "437cfef567c1dac51f17a7ae5822a6c68ff4e9536b9dc3c4a732c3d98d668e05",
+          "nome_pessoa": "Yūichirō Hayashi",
+          "filmes_validos": 8,
+          "nota_media": 9.1875
+        }
+      ]
+    },
+    "Q09": {
+      "columns": [
+        "ator",
+        "diretor",
+        "filmes_em_comum"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "ator": "Joe Anoa'i",
+          "diretor": "Kevin Dunn",
+          "filmes_em_comum": 37
+        }
+      ]
+    },
+    "Q10": {
+      "columns": [
+        "nome_genero",
+        "total_filmes"
+      ],
+      "row_count": 19,
+      "rows": [
+        {
+          "nome_genero": "Drama",
+          "total_filmes": 28086
+        },
+        {
+          "nome_genero": "Documentary",
+          "total_filmes": 18082
+        },
+        {
+          "nome_genero": "Comedy",
+          "total_filmes": 16048
+        },
+        {
+          "nome_genero": "Horror",
+          "total_filmes": 8674
+        },
+        {
+          "nome_genero": "Thriller",
+          "total_filmes": 8540
+        },
+        {
+          "nome_genero": "Romance",
+          "total_filmes": 6209
+        },
+        {
+          "nome_genero": "Action",
+          "total_filmes": 5028
+        },
+        {
+          "nome_genero": "Animation",
+          "total_filmes": 3911
+        },
+        {
+          "nome_genero": "Crime",
+          "total_filmes": 3902
+        },
+        {
+          "nome_genero": "Tv Movie",
+          "total_filmes": 3336
+        },
+        {
+          "nome_genero": "Science Fiction",
+          "total_filmes": 3218
+        },
+        {
+          "nome_genero": "Family",
+          "total_filmes": 3140
+        },
+        {
+          "nome_genero": "Fantasy",
+          "total_filmes": 2722
+        },
+        {
+          "nome_genero": "Mystery",
+          "total_filmes": 2713
+        },
+        {
+          "nome_genero": "Music",
+          "total_filmes": 2384
+        },
+        {
+          "nome_genero": "Adventure",
+          "total_filmes": 2376
+        },
+        {
+          "nome_genero": "History",
+          "total_filmes": 1993
+        },
+        {
+          "nome_genero": "War",
+          "total_filmes": 804
+        },
+        {
+          "nome_genero": "Western",
+          "total_filmes": 355
+        }
+      ]
+    },
+    "Q11": {
+      "columns": [
+        "sk_company_id",
+        "nome_produtora",
+        "filmes_elegiveis",
+        "lucro_total_brl"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "sk_company_id": "db43c909d4de09d8c237ed8e0d38f5a0ad6b21c3a2b37eb1fd75f08895f5eeda",
+          "nome_produtora": "Marvel Studios",
+          "filmes_elegiveis": 17,
+          "lucro_total_brl": 61553661048.84
+        }
+      ]
+    },
+    "Q12": {
+      "columns": [
+        "sk_genre_id",
+        "nome_genero",
+        "filmes_validos",
+        "margem_media"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "sk_genre_id": "be8816dbd8b8aa53557ba5f25f5295b1ce2cf829d42d9256024b0698e7654f0d",
+          "nome_genero": "War",
+          "filmes_validos": 57,
+          "margem_media": -5.348832873312098
+        }
+      ]
+    },
+    "Q13": {
+      "columns": [
+        "sk_movie_id",
+        "titulo",
+        "qtd_avaliacoes_usuarios"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "sk_movie_id": "5d18b3d8ba31b9fe59da35917e52f88b04b8414a165a22275c797126dbfcb46d",
+          "titulo": "Die Hart 2: Die Harter",
+          "qtd_avaliacoes_usuarios": 13
+        }
+      ]
+    },
+    "Q14": {
+      "columns": [
+        "sk_movie_id",
+        "titulo",
+        "nota_media_usuarios",
+        "nota_imdb",
+        "qtd_avaliacoes_usuarios",
+        "qtd_imdb",
+        "divergencia"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "sk_movie_id": "bcf1f904f4d7888686978998bee88906409fa863353937bf310640305f86acf4",
+          "titulo": "The Moon Child",
+          "nota_media_usuarios": 0.0,
+          "nota_imdb": 9.8,
+          "qtd_avaliacoes_usuarios": 1,
+          "qtd_imdb": 10,
+          "divergencia": 9.8
+        }
+      ]
+    }
+  }
+}
