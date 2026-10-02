@@ -10,6 +10,63 @@ const SUGESTOES = [
   'Qual é o lucro médio em BRL por gênero?',
   'Qual é a nota IMDb média por ano de lançamento?',
 ]
+const AJUDA_SUGESTOES = [
+  {
+    titulo: 'Explorar o CineData',
+    perguntas: [
+      'O que o chatbot faz?',
+      'Como usar a busca de filmes?',
+      'Como criar uma lista no CineData?',
+      'Como encontro amigos no CineData?',
+      'Como funciona a aba Comunidades?',
+      'Como funciona o mapa de gostos no CineData?',
+    ],
+  },
+  {
+    titulo: 'Painel administrativo',
+    exigeAdmin: true,
+    perguntas: ['O que mostra a aba Analytics?'],
+  },
+  {
+    titulo: 'Finanças',
+    perguntas: [
+      'Quais são os 10 filmes com maior receita em BRL?',
+      'Qual é o lucro médio em BRL por gênero?',
+      'Quais filmes têm as maiores margens de lucro?',
+    ],
+  },
+  {
+    titulo: 'Popularidade e notas',
+    perguntas: [
+      'Quais são os 5 filmes mais populares?',
+      'Em quais filmes há maior divergência entre as notas TMDB e IMDb?',
+      'Qual é a nota IMDb média por ano de lançamento?',
+    ],
+  },
+  {
+    titulo: 'Elenco e direção',
+    perguntas: [
+      'Qual ator participou de mais filmes nos últimos cinco anos?',
+      'Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?',
+      'Qual dupla de ator e diretor trabalhou junta em mais filmes?',
+    ],
+  },
+  {
+    titulo: 'Gêneros e produtoras',
+    perguntas: [
+      'Quantos filmes existem associados a cada gênero?',
+      'Qual produtora acumulou o maior lucro total em BRL?',
+      'Qual gênero tem a maior margem média de lucro?',
+    ],
+  },
+  {
+    titulo: 'Avaliações do público',
+    perguntas: [
+      'Quais filmes têm a maior quantidade de avaliações de usuários?',
+      'Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?',
+    ],
+  },
+]
 const FALAS: Record<RobotMood, string> = {
   idle: 'Tenho um universo de filmes para explorar com você.',
   listening: 'Pode escrever. Estou de olho na sua pergunta!',
@@ -29,16 +86,18 @@ function SendIcon() {
   )
 }
 
-export function ChatbotHub() {
+export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
   const [mensagens, setMensagens] = useState<MensagemAssistente[]>([])
   const [texto, setTexto] = useState('')
   const [erro, setErro] = useState('')
   const [perguntaFalhou, setPerguntaFalhou] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [focado, setFocado] = useState(false)
+  const [ajudaAberta, setAjudaAberta] = useState(false)
   const [gesto, setGesto] = useState<'happy' | 'waving' | null>(null)
   const conversa = useRef<HTMLDivElement>(null)
   const entrada = useRef<HTMLTextAreaElement>(null)
+  const botaoAjuda = useRef<HTMLButtonElement>(null)
   const estado: RobotMood = carregando ? 'thinking' : gesto ?? (erro ? 'error' : focado || texto ? 'listening' : 'idle')
 
   useEffect(() => {
@@ -66,6 +125,7 @@ export function ChatbotHub() {
     }
     setTexto('')
     setErro('')
+    setAjudaAberta(false)
     setGesto(null)
     setCarregando(true)
 
@@ -118,7 +178,43 @@ export function ChatbotHub() {
           <div className="chatbot-companion-footer"><span aria-hidden="true">✦</span></div>
           </aside>
           <div className="chatbot-chat-column">
-          <div className="chatbot-conversation-heading"><div><span className="chatbot-mini-mark" aria-hidden="true">✦</span><h2>Conversa</h2></div></div>
+          <div className="chatbot-conversation-heading">
+            <div><span className="chatbot-mini-mark" aria-hidden="true">✦</span><h2>Conversa</h2></div>
+            <button
+              ref={botaoAjuda}
+              className="chatbot-help-trigger"
+              type="button"
+              aria-expanded={ajudaAberta}
+              aria-controls={ajudaAberta ? 'chatbot-help-panel' : undefined}
+              onClick={() => setAjudaAberta((aberta) => !aberta)}
+              onKeyDown={(event) => { if (event.key === 'Escape') setAjudaAberta(false) }}
+            >Ajuda</button>
+          </div>
+          {ajudaAberta && (
+            <div
+              className="chatbot-help-panel"
+              id="chatbot-help-panel"
+              role="region"
+              aria-label="Perguntas sugeridas"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setAjudaAberta(false)
+                  botaoAjuda.current?.focus()
+                }
+              }}
+            >
+              {AJUDA_SUGESTOES.filter((grupo) => !grupo.exigeAdmin || isAdmin).map((grupo) => (
+                <div className="chatbot-help-group" key={grupo.titulo}>
+                  <h3>{grupo.titulo}</h3>
+                  {grupo.perguntas.map((pergunta) => (
+                    <button key={pergunta} type="button" disabled={carregando} onClick={() => void enviar(pergunta)}>
+                      {pergunta}<span aria-hidden="true">↗</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
           {mensagens.length === 0 ? (
             <div className="chatbot-welcome">
               <span className="chatbot-welcome-symbol" aria-hidden="true">✳</span>
@@ -195,8 +291,10 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const { metadata, rows } = resposta
   const columns = colunasVisiveis(metadata.columns)
   const observacao = observacaoResultado(metadata)
+  const mostrarTexto = metadata.source === 'platform' || metadata.source === 'mixed'
   return (
     <div className="chatbot-result" aria-label="Resposta do chatbot">
+      {mostrarTexto && <p className="chatbot-result-answer">{resposta.answer}</p>}
       {rows.length > 0 && (
         <div className="chatbot-result-heading">
           <h3>{tituloResultado(metadata)}</h3>
@@ -218,7 +316,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
         </div>
       )}
       {rows.length > 0 && columns.length === 0 && <p className="chatbot-result-note">Não há detalhes para mostrar nesta resposta.</p>}
-      {rows.length === 0 && <p className="chatbot-result-note">Não encontrei resultados. Tente perguntar de outro jeito.</p>}
+      {rows.length === 0 && !mostrarTexto && <p className="chatbot-result-note">Não encontrei resultados. Tente perguntar de outro jeito.</p>}
       {metadata.truncated && <p className="chatbot-result-note">Exibindo os primeiros {rows.length} resultados.</p>}
       {observacao && <p className="chatbot-result-note">{observacao}</p>}
     </div>

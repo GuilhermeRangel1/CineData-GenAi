@@ -79,6 +79,11 @@ _PLATFORM_SOCIAL_FEATURE = re.compile(
     r"\b(?:lista|listas|amigo|amigos|amizade|amizades|comunidade|comunidades|"
     r"mapa de gostos|conta|perfil)\b"
 )
+_CASUAL_MESSAGE = re.compile(
+    r"^(?:(?:oi+|ola+|e ai|opa)[,!?.\s]*(?:tudo bem|como vai)?|"
+    r"bom dia|boa tarde|boa noite|tudo bem|como vai|obrigad[oa]|valeu|ate mais)"
+    r"[!?.\s]*$"
+)
 _ANALYTICAL_INTENT = re.compile(
     r"\b(?:quantos?|quantas?|quantidade|receita|lucro|popularidade|top\s*\d*|"
     r"maior(?:es)?\s+(?:nota|margem|lucro|receita)|nota\s+(?:m[eé]dia|imdb|tmdb)|"
@@ -88,6 +93,11 @@ _ANALYTICAL_INTENT = re.compile(
     re.IGNORECASE,
 )
 
+_DEFAULT_CHAT_RESPONSE = (
+    "Oi! Posso ajudar você a explorar o CineData ou responder perguntas "
+    "sobre filmes e dados do catálogo."
+)
+
 
 def _normalize_for_routing(question: str) -> str:
     return "".join(
@@ -95,6 +105,12 @@ def _normalize_for_routing(question: str) -> str:
         for character in unicodedata.normalize("NFD", question.casefold())
         if unicodedata.category(character) != "Mn"
     )
+
+
+def _is_casual_message(question: str) -> bool:
+    """Identifies brief conversational messages that do not need a SQL query."""
+
+    return bool(_CASUAL_MESSAGE.fullmatch(_normalize_for_routing(question).strip()))
 
 
 def _question_sources(question: str) -> tuple[bool, bool]:
@@ -765,6 +781,14 @@ class AgentService:
         normalized_question = question.strip()
         if not normalized_question:
             raise AgentError("A pergunta não pode ser vazia.")
+        if _is_casual_message(normalized_question):
+            return AgentResponse(
+                answer=_DEFAULT_CHAT_RESPONSE,
+                rows=(),
+                truncated=False,
+                tool_calls=0,
+                source="platform",
+            )
         platform_intent, analytical_intent = _question_sources(normalized_question)
         mixed_intent = platform_intent and analytical_intent
         if platform_intent and not analytical_intent:
@@ -892,6 +916,13 @@ class AgentService:
                 clarification = self._extract_clarification(first_turn.answer)
                 if clarification:
                     raise AgentClarification(clarification)
+                return AgentResponse(
+                    answer=_DEFAULT_CHAT_RESPONSE,
+                    rows=(),
+                    truncated=False,
+                    tool_calls=0,
+                    source="platform",
+                )
             call = self._require_tool_call(first_turn)
             if call.name != RUN_SQL_TOOL.name:
                 raise AgentError("O modelo solicitou uma ferramenta não permitida.")
