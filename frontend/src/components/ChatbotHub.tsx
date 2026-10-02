@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ErroDaApi, perguntarGenAi } from '../api/client'
 import type { MensagemConversa, RespostaGenAi } from '../types/api'
 import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
+import { colunasVisiveis, formatarCelula, observacaoResultado, rotuloColuna, tituloResultado } from './chatbotPresentation'
 import './ChatbotHub.css'
 
 const SUGESTOES = [
@@ -32,6 +33,7 @@ export function ChatbotHub() {
   const [mensagens, setMensagens] = useState<MensagemAssistente[]>([])
   const [texto, setTexto] = useState('')
   const [erro, setErro] = useState('')
+  const [perguntaFalhou, setPerguntaFalhou] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [focado, setFocado] = useState(false)
   const [gesto, setGesto] = useState<'happy' | 'waving' | null>(null)
@@ -54,13 +56,14 @@ export function ChatbotHub() {
     if (!carregando && mensagens.length) entrada.current?.focus({ preventScroll: true })
   }, [carregando, mensagens.length])
 
-  async function enviar(mensagem = texto) {
+  async function enviar(mensagem = texto, adicionarAoHistorico = true) {
     const conteudo = mensagem.trim()
     if (!conteudo || carregando) return
 
-    const mensagemUsuario: MensagemConversa = { role: 'user', conteudo }
-    const historicoExibido = [...mensagens, mensagemUsuario]
-    setMensagens(historicoExibido)
+    if (adicionarAoHistorico) {
+      const mensagemUsuario: MensagemConversa = { role: 'user', conteudo }
+      setMensagens((atuais) => [...atuais, mensagemUsuario])
+    }
     setTexto('')
     setErro('')
     setGesto(null)
@@ -70,11 +73,13 @@ export function ChatbotHub() {
       const resposta = await perguntarGenAi(conteudo)
       setMensagens((atuais) => [...atuais, { role: 'assistant', conteudo: resposta.answer, resposta }])
       setGesto('happy')
+      setPerguntaFalhou('')
     } catch (falha) {
       if (falha instanceof ErroDaApi && falha.codigo === 'ambiguous_question') {
         setErro(`Preciso de um detalhe para continuar: ${falha.message}`)
       } else {
         setErro(falha instanceof Error ? falha.message : 'Não consegui responder agora. Tente novamente.')
+        setPerguntaFalhou(conteudo)
       }
     } finally {
       setCarregando(false)
@@ -143,7 +148,16 @@ export function ChatbotHub() {
             </div>
           )}
 
-          {erro && <p className="chatbot-error" role="alert">{erro}</p>}
+          {erro && (
+            <div className="chatbot-error-wrap">
+              <p className="chatbot-error" role="alert">{erro}</p>
+              {perguntaFalhou && (
+                <button className="chatbot-retry" type="button" onClick={() => void enviar(perguntaFalhou, false)}>
+                  Tentar novamente
+                </button>
+              )}
+            </div>
+          )}
 
           <form className="chatbot-composer" onSubmit={enviarFormulario}>
             <textarea
@@ -179,37 +193,34 @@ export function ChatbotHub() {
 
 function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const { metadata, rows } = resposta
+  const columns = colunasVisiveis(metadata.columns)
+  const observacao = observacaoResultado(metadata)
   return (
-    <div className="chatbot-result" aria-label="Evidências da resposta">
-      <dl className="chatbot-result-meta">
-        {metadata.metric && <div><dt>Métrica</dt><dd>{metadata.metric}</dd></div>}
-        {metadata.unit && <div><dt>Unidade</dt><dd>{metadata.unit}</dd></div>}
-        {metadata.period && <div><dt>Período</dt><dd>{metadata.period}</dd></div>}
-        {metadata.population && <div><dt>População</dt><dd>{metadata.population}</dd></div>}
-      </dl>
+    <div className="chatbot-result" aria-label="Resposta do chatbot">
       {rows.length > 0 && (
+        <div className="chatbot-result-heading">
+          <h3>{tituloResultado(metadata)}</h3>
+          <span>{rows.length} {rows.length === 1 ? 'resultado' : 'resultados'}</span>
+        </div>
+      )}
+      {rows.length > 0 && columns.length > 0 && (
         <div className="chatbot-result-table-wrap">
           <table className="chatbot-result-table">
-            <thead><tr>{metadata.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead>
+            <thead><tr>{columns.map((column) => <th key={column} scope="col">{rotuloColuna(column, metadata)}</th>)}</tr></thead>
             <tbody>
               {rows.map((row, index) => (
                 <tr key={index}>
-                  {metadata.columns.map((column) => <td key={column}>{formatarValor(row[column])}</td>)}
+                  {columns.map((column) => <td key={column}>{formatarCelula(column, row[column])}</td>)}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      {rows.length === 0 && <p className="chatbot-result-note">Não encontrei resultados para esta consulta. Tente ajustar os filtros da pergunta.</p>}
-      {metadata.truncated && <p className="chatbot-result-note">A tabela foi limitada para manter a consulta segura.</p>}
-      {metadata.limitations && <p className="chatbot-result-note"><strong>Limitação:</strong> {metadata.limitations}</p>}
+      {rows.length > 0 && columns.length === 0 && <p className="chatbot-result-note">Não há detalhes para mostrar nesta resposta.</p>}
+      {rows.length === 0 && <p className="chatbot-result-note">Não encontrei resultados. Tente perguntar de outro jeito.</p>}
+      {metadata.truncated && <p className="chatbot-result-note">Exibindo os primeiros {rows.length} resultados.</p>}
+      {observacao && <p className="chatbot-result-note">{observacao}</p>}
     </div>
   )
-}
-
-function formatarValor(value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (typeof value === 'number') return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value)
-  return String(value)
 }
