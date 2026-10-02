@@ -1,6 +1,7 @@
 """Rotas públicas da aplicação GenAI."""
 
 import logging
+from functools import lru_cache
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,7 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.agent import AgentClarification, AgentError, AgentService
 from app.config import get_settings
-from app.errors import GoldDatabaseError, ProviderConfigurationError
+from app.errors import GoldDatabaseError, ProviderConfigurationError, QueryTimeoutError
 from app.gemini_adapter import GeminiToolCallingModel
 from app.gold_database import GoldDatabase
 from app.sql_executor import GoldQueryExecutor
@@ -60,8 +61,9 @@ class QuestionResponse(BaseModel):
     metadata: QuestionMetadata
 
 
+@lru_cache(maxsize=1)
 def get_agent_service() -> AgentService:
-    """Monta o agente real somente quando a rota recebe uma pergunta."""
+    """Reutiliza o cliente do provedor e seu pool de conexões entre perguntas."""
 
     settings = get_settings()
     api_key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None
@@ -76,6 +78,7 @@ def get_agent_service() -> AgentService:
         database,
         timeout_seconds=settings.gold_timeout_seconds,
         complex_timeout_seconds=settings.gold_complex_timeout_seconds,
+        pair_query_timeout_seconds=settings.gold_pair_query_timeout_seconds,
     )
     return AgentService(model, executor)
 
@@ -106,6 +109,19 @@ def answer_question(
                 "error": {
                     "code": "ambiguous_question",
                     "message": str(exc),
+                    "details": None,
+                },
+            },
+        )
+    except QueryTimeoutError:
+        logger.warning("Consulta GenAI excedeu o tempo máximo.")
+        return JSONResponse(
+            status_code=504,
+            content={
+                "status": "error",
+                "error": {
+                    "code": "query_timeout",
+                    "message": "A consulta levou mais tempo que o limite. Tente uma pergunta mais específica.",
                     "details": None,
                 },
             },

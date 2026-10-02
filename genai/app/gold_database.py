@@ -79,7 +79,8 @@ class GoldDatabase:
             raise GoldUnavailableError("A base Gold não está disponível.")
 
         try:
-            header = self.path.read_bytes()[:64]
+            with self.path.open("rb") as database_file:
+                header = database_file.read(64)
         except OSError as exc:
             raise GoldUnavailableError("A base Gold não está acessível.") from exc
 

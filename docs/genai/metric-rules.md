@@ -64,7 +64,7 @@ fornecida pela fonte.
 | Top 10 por receita em BRL | Uma linha por filme com `receita_brl` não nula; ordenar pela receita decrescente. Orçamento não é necessário. |
 | Lucro médio por gênero | Lucro calculado em BRL quando orçamento e receita existem; calcular a média por gênero associado e informar quantos filmes elegíveis compõem cada média. Um filme associado a mais de um gênero contribui uma vez em cada gênero. |
 | Maiores margens | Uma linha por filme elegível à margem; ordenar a fração de margem decrescente. |
-| Top 5 mais populares | `popularidade` não nula; zero é mantido como valor. |
+| Top 5 mais populares | `popularidade` não nula; zero é mantido como valor. A pontuação do Gold não é uma contagem real de visualizações. |
 | Divergência TMDB/IMDb | Diferença absoluta `ABS(nota_tmdb - nota_imdb)` por filme com ambas as notas não nulas e ambas as contagens de votos positivas. As duas escalas observadas são 0–10. Sem corte mínimo arbitrário de votos; expor as contagens no resultado. |
 | Nota IMDb média por ano | Média simples por filme de `nota_imdb` com `qtd_imdb > 0`, agrupada por `ano_lancamento`; informar total de filmes válidos. `ano_lancamento` coincide com o ano extraído de `data_lancamento` em todos os 95.645 filmes inspecionados. |
 | Ator com mais filmes nos últimos cinco anos | Tipo `Ator`, associação filme-pessoa distinta e data válida dentro da janela móvel. Contar filmes distintos por pessoa. |

@@ -36,11 +36,22 @@ ORDER BY margem DESC, m.titulo COLLATE NOCASE, m.sk_movie_id
 LIMIT 10;
 
 -- Q04: top 5 por popularidade; zero permanece como valor observado.
-SELECT m.sk_movie_id, m.titulo, f.popularidade
-FROM dim_movies AS m
-JOIN fact_movies_performance AS f USING (sk_movie_id)
-WHERE f.popularidade IS NOT NULL
-ORDER BY f.popularidade DESC, m.titulo COLLATE NOCASE, m.sk_movie_id
+WITH limite AS (
+    SELECT popularidade
+    FROM fact_movies_performance
+    WHERE popularidade IS NOT NULL
+    ORDER BY popularidade DESC
+    LIMIT 1 OFFSET 4
+), candidatos AS MATERIALIZED (
+    SELECT f.sk_movie_id, f.popularidade
+    FROM fact_movies_performance AS f
+    WHERE f.popularidade IS NOT NULL
+      AND f.popularidade >= (SELECT popularidade FROM limite)
+)
+SELECT m.sk_movie_id, m.titulo, c.popularidade
+FROM candidatos AS c
+JOIN dim_movies AS m ON m.sk_movie_id = c.sk_movie_id
+ORDER BY c.popularidade DESC, m.titulo COLLATE NOCASE, m.sk_movie_id
 LIMIT 5;
 
 -- Q05: divergência absoluta TMDB/IMDb; requer votos positivos nas duas fontes.
@@ -87,10 +98,9 @@ ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id;
 
 -- Q08: diretores com maior média IMDb; mínimo de cinco filmes com nota válida.
 WITH director_movies AS (
-    SELECT DISTINCT p.sk_person_id, p.nome_pessoa, m.sk_movie_id, f.nota_imdb
+    SELECT p.sk_person_id, p.nome_pessoa, bp.sk_movie_id, f.nota_imdb
     FROM dim_people AS p
     JOIN bridge_movie_person AS bp USING (sk_person_id)
-    JOIN dim_movies AS m USING (sk_movie_id)
     JOIN fact_movies_performance AS f USING (sk_movie_id)
     WHERE p.tipo_pessoa = 'Diretor'
       AND f.nota_imdb IS NOT NULL AND f.qtd_imdb > 0
@@ -110,34 +120,32 @@ ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id;
 
 -- Q09: dupla ator-diretor mais frequente por filmes distintos em comum.
 WITH actor_links AS MATERIALIZED (
-    SELECT bp.sk_movie_id, p.sk_person_id AS actor_id,
-           p.nome_pessoa AS ator
+    SELECT bp.sk_movie_id, p.sk_person_id
     FROM dim_people AS p
-    JOIN bridge_movie_person AS bp USING (sk_person_id)
+    JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id
     WHERE p.tipo_pessoa = 'Ator'
 ), director_links AS MATERIALIZED (
-    SELECT bp.sk_movie_id, p.sk_person_id AS director_id,
-           p.nome_pessoa AS diretor
+    SELECT bp.sk_movie_id, p.sk_person_id
     FROM dim_people AS p
-    JOIN bridge_movie_person AS bp USING (sk_person_id)
+    JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id
     WHERE p.tipo_pessoa = 'Diretor'
-), actor_director_films AS (
-    SELECT a.actor_id, a.ator, d.director_id, d.diretor, a.sk_movie_id
-    FROM actor_links AS a
-    JOIN director_links AS d USING (sk_movie_id)
-    WHERE a.actor_id <> d.director_id
-), pair_counts AS (
-    SELECT actor_id, ator, director_id, diretor,
+), pair_counts AS MATERIALIZED (
+    SELECT a.sk_person_id AS actor_id, d.sk_person_id AS director_id,
            COUNT(*) AS filmes_em_comum
-    FROM actor_director_films
-    GROUP BY actor_id, ator, director_id, diretor
-), ranked AS (
-    SELECT *, DENSE_RANK() OVER (ORDER BY filmes_em_comum DESC) AS posicao
+    FROM actor_links AS a
+    JOIN director_links AS d ON d.sk_movie_id = a.sk_movie_id
+    WHERE a.sk_person_id <> d.sk_person_id
+    GROUP BY a.sk_person_id, d.sk_person_id
+), max_count AS (
+    SELECT MAX(filmes_em_comum) AS filmes_em_comum
     FROM pair_counts
 )
-SELECT ator, diretor, filmes_em_comum
-FROM ranked WHERE posicao = 1
-ORDER BY ator COLLATE NOCASE, diretor COLLATE NOCASE, actor_id, director_id;
+SELECT ap.nome_pessoa AS ator, dp.nome_pessoa AS diretor, pc.filmes_em_comum
+FROM pair_counts AS pc
+JOIN max_count AS mc USING (filmes_em_comum)
+JOIN dim_people AS ap ON ap.sk_person_id = pc.actor_id
+JOIN dim_people AS dp ON dp.sk_person_id = pc.director_id
+ORDER BY ator COLLATE NOCASE, diretor COLLATE NOCASE, pc.actor_id, pc.director_id;
 
 -- Q10: filmes distintos associados a cada gênero.
 SELECT g.nome_genero, COUNT(DISTINCT bg.sk_movie_id) AS total_filmes
@@ -152,13 +160,11 @@ WITH film_profit AS (
     SELECT sk_movie_id, receita_brl - orcamento_brl AS lucro_brl
     FROM fact_movies_performance
     WHERE receita_brl IS NOT NULL AND orcamento_brl IS NOT NULL
-), company_film AS (
-    SELECT DISTINCT sk_movie_id, sk_company_id FROM bridge_movie_company
 ), company_totals AS (
     SELECT c.sk_company_id, c.nome_produtora, COUNT(*) AS filmes_elegiveis,
            SUM(p.lucro_brl) AS lucro_total_brl
     FROM film_profit AS p
-    JOIN company_film AS bc USING (sk_movie_id)
+    JOIN bridge_movie_company AS bc USING (sk_movie_id)
     JOIN dim_companies AS c USING (sk_company_id)
     GROUP BY c.sk_company_id, c.nome_produtora
 ), ranked AS (

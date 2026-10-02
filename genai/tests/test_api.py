@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.agent import AgentClarification
 from app.agent_models import AgentResponse
 from app.api import get_agent_service
+from app.errors import QueryTimeoutError
 from app.main import app
 
 
@@ -101,6 +102,34 @@ def test_question_returns_clarification_envelope(client: TestClient) -> None:
         "error": {
             "code": "ambiguous_question",
             "message": "Informe o período da análise.",
+            "details": None,
+        },
+    }
+
+
+def test_question_returns_query_timeout_envelope(client: TestClient) -> None:
+    class TimingOutAgent:
+        def answer(self, question: str) -> AgentResponse:
+            raise QueryTimeoutError("internal timeout detail")
+
+    app.dependency_overrides[get_agent_service] = lambda: TimingOutAgent()
+    try:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Quais produtoras têm mais filmes?"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 504
+    assert response.json() == {
+        "status": "error",
+        "error": {
+            "code": "query_timeout",
+            "message": (
+                "A consulta levou mais tempo que o limite. "
+                "Tente uma pergunta mais específica."
+            ),
             "details": None,
         },
     }

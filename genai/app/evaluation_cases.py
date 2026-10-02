@@ -60,7 +60,10 @@ MANDATORY_EVALUATIONS: tuple[EvaluationCase, ...] = (
         unit="pontuação de popularidade",
         period="todo o Gold disponível",
         population="filmes com popularidade não nula",
-        limitations="zero é um valor válido e não deve ser tratado como ausência",
+        limitations=(
+            "popularidade é uma pontuação do Gold, não contagem real de visualizações; "
+            "zero é válido e não deve ser tratado como ausência"
+        ),
     ),
     EvaluationCase(
         "Q05",
