@@ -8,7 +8,7 @@ leitura pelo futuro módulo analítico.
 
 ## Integridade e tabelas
 
-- Arquivo: `data/cinerocket.db` (aproximadamente 581 MB).
+- Arquivo: `data/cinerocket.db` (aproximadamente 689 MiB).
 - `PRAGMA integrity_check`: `ok`.
 - `PRAGMA foreign_key_check`: nenhuma violação encontrada.
 - O esquema analítico contém dez tabelas Gold. `alembic_version` é metadado
@@ -26,6 +26,14 @@ leitura pelo futuro módulo analítico.
 | `bridge_movie_genre` | 121.521 | PK composta filme + gênero; FKs para ambas dimensões |
 | `bridge_movie_person` | 745.450 | PK composta filme + pessoa; FKs para ambas dimensões |
 | `bridge_movie_company` | 116.326 | PK composta filme + produtora; FKs para ambas dimensões |
+
+## Índices de consulta
+
+A base inclui índices de apoio para rankings de pessoas: `dim_people(tipo_pessoa,
+sk_person_id)` filtra atores e diretores; `bridge_movie_person(sk_person_id,
+sk_movie_id)` atende às associações por pessoa sem buscar cada linha na tabela
+principal. Eles aceleram a análise de créditos sem alterar as linhas Gold. O
+serviço GenAI continua abrindo o arquivo em modo somente leitura.
 
 ## Colunas relevantes para as métricas
 
