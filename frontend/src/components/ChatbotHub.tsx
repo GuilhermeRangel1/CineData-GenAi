@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ErroDaApi, perguntarGenAi } from '../api/client'
-import type { MensagemChatbot, RespostaGenAi } from '../types/api'
+import type { MensagemConversa, RespostaGenAi } from '../types/api'
 import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
 import './ChatbotHub.css'
 
@@ -18,7 +18,7 @@ const FALAS: Record<RobotMood, string> = {
   waving: 'Oii! Que bom ter você por aqui.',
 }
 
-type MensagemAssistente = MensagemChatbot & { resposta?: RespostaGenAi }
+type MensagemAssistente = MensagemConversa & { resposta?: RespostaGenAi }
 
 function SendIcon() {
   return (
@@ -58,7 +58,7 @@ export function ChatbotHub() {
     const conteudo = mensagem.trim()
     if (!conteudo || carregando) return
 
-    const mensagemUsuario: MensagemChatbot = { role: 'user', conteudo }
+    const mensagemUsuario: MensagemConversa = { role: 'user', conteudo }
     const historicoExibido = [...mensagens, mensagemUsuario]
     setMensagens(historicoExibido)
     setTexto('')

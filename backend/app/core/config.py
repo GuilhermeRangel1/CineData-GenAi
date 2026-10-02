@@ -1,6 +1,5 @@
 from functools import lru_cache
 
-from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,8 +21,6 @@ class Settings(BaseSettings):
     initial_admin_name: str | None = None
     initial_admin_password: str | None = None
     tmdb_api_token: str | None = None
-    gemini_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-3.8-flash"
 
 
 @lru_cache

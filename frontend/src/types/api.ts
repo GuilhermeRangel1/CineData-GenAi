@@ -37,14 +37,9 @@ export interface ErroGenAi {
   }
 }
 
-export interface MensagemChatbot {
+export interface MensagemConversa {
   role: 'user' | 'assistant'
   conteudo: string
-}
-
-export interface RespostaChatbot {
-  mensagem: string
-  modelo: string
 }
 
 export interface MetadadosPagina {

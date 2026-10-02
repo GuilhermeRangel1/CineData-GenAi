@@ -27,8 +27,6 @@ import type {
   TmdbResultado,
   ResumoAnalytics,
   MapaGostos,
-  MensagemChatbot,
-  RespostaChatbot,
   RespostaGenAi,
 } from '../types/api'
 import { obterTokenSessao } from '../auth/session'
@@ -174,13 +172,6 @@ export function obterMapaGostos(
   return requisitar<MapaGostos>(`/mapa-de-gostos?${consulta.toString()}`, {
     signal,
     cache: 'no-store',
-  })
-}
-
-export function conversarComAssistente(mensagens: MensagemChatbot[]): Promise<RespostaChatbot> {
-  return requisitar<RespostaChatbot>('/assistente/mensagens', {
-    method: 'POST',
-    body: JSON.stringify({ mensagens }),
   })
 }
 
