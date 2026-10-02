@@ -9,9 +9,10 @@ somente leitura e usam o Gold diretamente.
 
 - Docker Desktop com Docker Compose v2.
 - Git e Git LFS para obter o banco Gold versionado.
-- Chave Gemini configurada em `genai/.env` para usar o chatbot. Sem a chave, a
-  aplicação e o catálogo iniciam, mas perguntas GenAI retornam erro de
-  configuração do provedor.
+- Chave Gemini configurada em `genai/.env` para perguntas analíticas do chatbot.
+  Sem a chave, a aplicação e o catálogo iniciam e perguntas sobre como usar o
+  CineData continuam disponíveis pelo guia local; perguntas analíticas retornam
+  erro de configuração do provedor.
 
 ## Clonar e iniciar
 

@@ -68,7 +68,9 @@ Campos:
   Pode ser vazia quando a consulta válida não encontrar registros.
 - `metadata.metric`: identificador estável da métrica respondida, quando
   reconhecido.
-- `metadata.source`: sempre `gold` para respostas analíticas.
+- `metadata.source`: `gold` para perguntas analíticas, `platform` para respostas
+  baseadas no guia do CineData ou `mixed` quando a pergunta combina as duas
+  fontes.
 - `metadata.query_id`: identificador Q01–Q14 quando a formulação obrigatória for
   reconhecida.
 - `metadata.unit`: unidade ou escala da métrica, quando conhecida.

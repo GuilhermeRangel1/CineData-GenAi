@@ -72,6 +72,31 @@ def test_question_returns_agent_response(client: TestClient) -> None:
     }
 
 
+def test_question_response_preserves_platform_source(client: TestClient) -> None:
+    class PlatformAgent:
+        def answer(self, question: str) -> AgentResponse:
+            return AgentResponse(
+                answer="Use os filtros do catálogo.",
+                rows=(),
+                truncated=False,
+                tool_calls=0,
+                source="platform",
+            )
+
+    app.dependency_overrides[get_agent_service] = lambda: PlatformAgent()
+    try:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Como filtro filmes no CineData?"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["metadata"]["source"] == "platform"
+    assert response.json()["metadata"]["tool_calls"] == 0
+
+
 def test_question_rejects_empty_question(client: TestClient) -> None:
     app.dependency_overrides[get_agent_service] = lambda: object()
     try:

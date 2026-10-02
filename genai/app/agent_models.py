@@ -45,6 +45,7 @@ class AgentResponse:
     period: str | None = None
     population: str | None = None
     limitations: str | None = None
+    source: Literal["gold", "platform", "mixed"] = "gold"
 
 
 ToolName = Literal["run_sql"]

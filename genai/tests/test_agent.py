@@ -203,6 +203,42 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     assert "nunca como a quantidade qtd_imdb" in model.calls[0][0][0]["content"]
 
 
+def test_platform_question_uses_guide_without_model_or_sql(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel([])
+
+    response = AgentService(
+        model, GoldQueryExecutor(GoldDatabase(database_path))
+    ).answer("Como faço para filtrar filmes por gênero no CineData?")
+
+    assert response.source == "platform"
+    assert response.rows == ()
+    assert response.tool_calls == 0
+    assert "Filtros avançados" in response.answer
+    assert "gênero" in response.answer
+    assert model.calls == []
+
+
+def test_mixed_question_uses_guide_and_gold_sources(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel(
+        [ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT COUNT(*) AS total FROM dim_movies"}))]
+    )
+
+    response = AgentService(
+        model, GoldQueryExecutor(GoldDatabase(database_path))
+    ).answer("Como faço para encontrar filmes no CineData e quantos filmes há no catálogo?")
+
+    assert response.source == "mixed"
+    assert response.rows == (({"total": 1}),)
+    assert response.tool_calls == 1
+    assert "Orientação sobre o CineData" in response.answer
+    assert "Análise dos filmes (Gold)" in response.answer
+    assert len(model.calls) == 1
+
+
 def test_agent_attaches_case_metadata_and_validates_columns(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_gold_fixture(database_path)

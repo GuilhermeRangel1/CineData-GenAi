@@ -5,6 +5,7 @@ import re
 import time
 import unicodedata
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ModelTurn, ToolCall, ToolDefinition
@@ -28,6 +29,99 @@ class AgentClarification(AgentError):
 
 
 logger = logging.getLogger(__name__)
+
+_PLATFORM_ACTION = re.compile(
+    r"\b(?:como|onde)\s+(?:(?:eu\s+)?(?:posso|faco)\s+(?:para\s+)?)?"
+    r"(?:usar|encontrar|buscar|filtrar|criar|crio|salvar|avaliar|avalio|"
+    r"acessar|entrar|participar|adicionar|adiciono|abrir|editar|gerenciar|funciona)\b"
+)
+_PLATFORM_FEATURE = re.compile(
+    r"\b(?:cinedata|site|plataforma|minhas? listas?|amigos?|amizades?|"
+    r"comunidades?|mapa de gostos|conta|perfil|filtros?|catalogo|filmes?|"
+    r"generos?|pessoa|produtora|duracao|avaliacoes?)\b"
+)
+_ANALYTICAL_INTENT = re.compile(
+    r"\b(?:quantos?|quantas?|quantidade|receita|lucro|popularidade|top\s*\d*|"
+    r"maior(?:es)?\s+(?:nota|margem|lucro|receita)|nota\s+(?:m[eé]dia|imdb|tmdb)|"
+    r"diverg[eê]ncia|margem(?:\s+m[eé]dia)?|m[eé]dia\s+de|filmes\s+(?:mais|por))\b|"
+    r"\bator(?:es)?\b.{0,35}\b(?:mais|maior|numero)\b|"
+    r"\b(?:mais|maior|numero)\b.{0,35}\bator(?:es)?\b",
+    re.IGNORECASE,
+)
+
+
+def _normalize_for_routing(question: str) -> str:
+    return "".join(
+        character
+        for character in unicodedata.normalize("NFD", question.casefold())
+        if unicodedata.category(character) != "Mn"
+    )
+
+
+def _question_sources(question: str) -> tuple[bool, bool]:
+    """Returns whether a question has platform and/or analytical intent."""
+
+    normalized = _normalize_for_routing(question)
+    platform = bool(
+        (_PLATFORM_ACTION.search(normalized) and _PLATFORM_FEATURE.search(normalized))
+        or re.search(r"\b(?:o que|quais? funcoes?)\b.{0,50}\bcinedata\b", normalized)
+        or re.search(r"\bcomo funciona\b.{0,40}\b(?:cinedata|site|plataforma)\b", normalized)
+        or re.search(
+            r"\b(?:cinedata|site|plataforma)\b.{0,40}\b(?:ajuda|usar|funciona)\b",
+            normalized,
+        )
+    )
+    analytical = bool(_ANALYTICAL_INTENT.search(normalized))
+    return platform, analytical
+
+
+def _platform_guide_path() -> Path:
+    """Locates the versioned guide in a source checkout or the GenAI image."""
+
+    return Path(__file__).resolve().parents[2] / "docs" / "platform-guide.md"
+
+
+def _platform_guide_answer(question: str) -> str:
+    """Returns relevant, verbatim guide sections without generating new claims."""
+
+    guide_path = _platform_guide_path()
+    try:
+        guide = guide_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise AgentError("O guia da plataforma não está disponível.") from exc
+
+    normalized = _normalize_for_routing(question)
+    topics = {
+        "filmes": (
+            "## Encontrar filmes",
+            (
+                "filme", "catalogo", "busca", "buscar", "encontrar", "genero",
+                "filtro", "nota", "trailer", "sinopse", "duracao", "produtora",
+            ),
+        ),
+        "listas": ("**Minhas listas:**", ("lista", "salvar", "adicionar", "assistir depois")),
+        "amigos": ("**Amigos:**", ("amigo", "amizade", "pedido", "pessoa")),
+        "comunidades": (
+            "**Comunidades:**", ("comunidade", "conversa", "publicar", "comentar", "reagir")
+        ),
+        "mapa": ("**Mapa de gostos:**", ("mapa", "gosto", "sugest", "conexao")),
+    }
+    selected: list[str] = []
+    if any(word in normalized for word in topics["filmes"][1]):
+        catalog_guide = guide.split("## Recursos da conta", 1)[0]
+        selected.append(catalog_guide.split("## Onde conferir", 1)[0].strip())
+    for key in ("listas", "amigos", "comunidades", "mapa"):
+        marker, words = topics[key]
+        if any(word in normalized for word in words):
+            start = guide.find(marker)
+            if start >= 0:
+                end = guide.find("\n- **", start + len(marker))
+                if end < 0:
+                    end = guide.find("\n\nEntre ou crie", start)
+                selected.append(guide[start:end if end >= 0 else len(guide)].strip())
+    if not selected:
+        selected.append(guide.split("## Onde conferir", 1)[0].strip())
+    return "\n\n".join(dict.fromkeys(selected))
 
 
 class ToolCallingModel(Protocol):
@@ -522,14 +616,43 @@ class AgentService:
         normalized_question = question.strip()
         if not normalized_question:
             raise AgentError("A pergunta não pode ser vazia.")
+        platform_intent, analytical_intent = _question_sources(normalized_question)
+        mixed_intent = platform_intent and analytical_intent
+        if platform_intent and not analytical_intent:
+            return AgentResponse(
+                answer=_platform_guide_answer(normalized_question),
+                rows=(),
+                truncated=False,
+                tool_calls=0,
+                source="platform",
+            )
         evaluation_case = find_evaluation_case(normalized_question)
-        ranking_limit = _popularity_rank_limit(normalized_question)
-        director_average = _is_unfiltered_director_average_question(normalized_question)
-        actor_movie_count = _is_unfiltered_actor_movie_count_question(normalized_question)
-        five_year_actor_count = _is_unfiltered_five_year_actor_question(normalized_question)
-        actor_director_pair = _is_unfiltered_actor_director_pair_question(normalized_question)
-        top_company_profit = _is_unfiltered_top_company_profit_question(normalized_question)
-        top_company_count = _top_company_movie_count_limit(normalized_question)
+        ranking_limit = None if mixed_intent else _popularity_rank_limit(normalized_question)
+        director_average = (
+            not mixed_intent
+            and _is_unfiltered_director_average_question(normalized_question)
+        )
+        actor_movie_count = (
+            not mixed_intent
+            and _is_unfiltered_actor_movie_count_question(normalized_question)
+        )
+        five_year_actor_count = (
+            not mixed_intent
+            and _is_unfiltered_five_year_actor_question(normalized_question)
+        )
+        actor_director_pair = (
+            not mixed_intent
+            and _is_unfiltered_actor_director_pair_question(normalized_question)
+        )
+        top_company_profit = (
+            not mixed_intent
+            and _is_unfiltered_top_company_profit_question(normalized_question)
+        )
+        top_company_count = (
+            None
+            if mixed_intent
+            else _top_company_movie_count_limit(normalized_question)
+        )
         all_time_actor_ranking = False
         all_time_company_count = False
         if five_year_actor_count:
@@ -582,6 +705,13 @@ class AgentService:
                     "\nIdentifique a intenção entre os casos obrigatórios abaixo e use "
                     "aliases iguais às colunas esperadas quando fizer sentido:\n"
                     f"{_MANDATORY_QUESTIONS_CONTEXT}"
+                    + (
+                        "\nA pergunta também pede orientação sobre o CineData. "
+                        "Gere SQL somente para a parte analítica; ignore a parte "
+                        "sobre uso da plataforma."
+                        if mixed_intent
+                        else ""
+                    )
                 ),
             },
             {"role": "user", "content": normalized_question},
@@ -631,6 +761,22 @@ class AgentService:
         if result.truncated:
             final_answer += " A tabela foi limitada; há mais resultados disponíveis."
 
+        if mixed_intent:
+            platform_answer = _platform_guide_answer(normalized_question)
+            analytical_answer = (
+                "A consulta Gold não encontrou resultados; a tabela está vazia."
+                if row_count == 0
+                else (
+                    f"A consulta Gold retornou {row_count} "
+                    f"{'resultado' if row_count == 1 else 'resultados'}; "
+                    "os valores estão na tabela."
+                )
+            )
+            final_answer = (
+                f"Orientação sobre o CineData (guia da plataforma):\n{platform_answer}\n\n"
+                f"Análise dos filmes (Gold): {analytical_answer}"
+            )
+
         metric = evaluation_case.metric if evaluation_case else None
         unit = evaluation_case.unit if evaluation_case else None
         period = evaluation_case.period if evaluation_case else None
@@ -675,6 +821,7 @@ class AgentService:
             period=period,
             population=population,
             limitations=limitations,
+            source="mixed" if mixed_intent else "gold",
         )
 
     @staticmethod

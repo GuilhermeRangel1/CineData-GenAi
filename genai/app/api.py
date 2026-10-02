@@ -39,7 +39,7 @@ class QuestionRequest(BaseModel):
 class QuestionMetadata(BaseModel):
     """Metadados semânticos e operacionais da consulta executada."""
 
-    source: Literal["gold"] = "gold"
+    source: Literal["gold", "platform", "mixed"] = "gold"
     query_id: str | None = None
     metric: str | None = None
     unit: str | None = None
@@ -61,18 +61,23 @@ class QuestionResponse(BaseModel):
     metadata: QuestionMetadata
 
 
+class _UnconfiguredModel:
+    """Allows local guide answers without a provider key."""
+
+    def complete(self, messages, tools):
+        raise ProviderConfigurationError("A chave da Gemini API não foi configurada.")
+
+
 @lru_cache(maxsize=1)
 def get_agent_service() -> AgentService:
     """Reutiliza o cliente do provedor e seu pool de conexões entre perguntas."""
 
     settings = get_settings()
     api_key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None
-    try:
+    if api_key:
         model = GeminiToolCallingModel(api_key, model=settings.gemini_model)
-    except ProviderConfigurationError as exc:
-        raise HTTPException(
-            status_code=503, detail="O provedor GenAI não está configurado."
-        ) from exc
+    else:
+        model = _UnconfiguredModel()
     database = GoldDatabase(settings.gold_database_path, settings.gold_timeout_seconds)
     executor = GoldQueryExecutor(
         database,
@@ -101,6 +106,10 @@ def answer_question(
         response = service.answer(payload.question)
     except GoldDatabaseError as exc:
         raise HTTPException(status_code=503, detail="A base Gold não está disponível.") from exc
+    except ProviderConfigurationError as exc:
+        raise HTTPException(
+            status_code=503, detail="O provedor GenAI não está configurado."
+        ) from exc
     except AgentClarification as exc:
         return JSONResponse(
             status_code=422,
@@ -137,6 +146,7 @@ def answer_question(
         answer=response.answer,
         rows=list(response.rows),
         metadata=QuestionMetadata(
+            source=response.source,
             query_id=response.query_id,
             metric=response.metric,
             unit=response.unit,

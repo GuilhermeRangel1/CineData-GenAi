@@ -1,10 +1,10 @@
 # CineData GenAI - instruções do projeto
 
-**Escopo vigente:** o segundo bloco da etapa 3 do plano GenAI está concluído.
-O próximo bloco deve tratar somente de uma validação manual curta do adaptador
-Gemini e do fluxo de uma pergunta representativa. Não integre frontend, faça
-avaliação em lote ou ultrapasse o orçamento de chamadas antes de um novo
-checkpoint revisado pelo usuário.
+**Escopo vigente:** as etapas obrigatórias do módulo GenAI e a interface do
+chatbot estão implementadas localmente. O plano em `TODO.md` agora também
+registra a orientação sobre a própria plataforma, o botão Ajuda e melhorias
+opcionais. Trate cada melhoria como um bloco revisável, com checkpoint antes
+de avançar para a seguinte.
 
 ## Processo obrigatório de trabalho em checkpoints
 
@@ -35,7 +35,13 @@ Use esta ordem:
 3. esquema, dados e semântica efetivamente encontrados em `cinerocket.db`;
 4. decisões registradas neste repositório e no TODO vigente.
 
-Os requisitos da atividade definem o escopo obrigatório. Interface visual, memória, fallback, cache, avaliação formal, busca semântica e Databricks são possibilidades opcionais; não as converta em requisitos sem pedido do usuário. Não invente nomes de colunas, chaves, unidades, regras de negócio ou resultados. Confirme-os no banco antes de escrever consultas. Se o arquivo Gold não estiver disponível ou uma métrica for ambígua, avance no que for independente e registre a pendência claramente.
+Os requisitos da atividade definem o escopo obrigatório. A orientação sobre a
+plataforma, o botão Ajuda e as melhorias opcionais foram solicitados pelo usuário
+e estão planejados nas etapas 6 a 14 do TODO; sua inclusão no plano não autoriza
+implementar todos de uma vez. Não invente nomes de colunas, chaves, unidades,
+regras de negócio ou resultados. Confirme-os no banco antes de escrever
+consultas. Se o arquivo Gold não estiver disponível ou uma métrica for ambígua,
+avance no que for independente e registre a pendência claramente.
 
 ## Requisitos obrigatórios da atividade
 
@@ -81,7 +87,12 @@ Implemente primeiro o caminho mínimo completo: pergunta -> geração de consult
 
 As proteções necessárias para uma integração segura e funcional não são “extras”: restrinja o acesso ao Gold, rejeite operações de escrita e falhas de validação, trate erros de consulta/modelo e evite afirmar resultados que o SQL não retornou. O checklist detalhado de implementação e os critérios por etapa estão em [`TODO.md`](TODO.md).
 
-São sugestões opcionais no enunciado: guardrails adicionais, interface visual, gráficos, memória de conversa, fallback entre modelos gratuitos, cache de respostas, avaliação com perguntas e respostas esperadas, combinação híbrida de SQL com busca semântica de sinopses e conexão ao Databricks. Só implemente uma dessas extensões após o fluxo obrigatório estar funcional e se ela couber no prazo ou for solicitada.
+São sugestões opcionais no enunciado: guardrails adicionais, interface visual,
+gráficos, memória de conversa, fallback entre modelos gratuitos, cache de
+respostas, avaliação com perguntas e respostas esperadas, combinação híbrida de
+SQL com busca semântica de sinopses e conexão ao Databricks. A interface visual
+já existe. O usuário pediu para planejar as demais extensões no TODO e
+priorizar respostas sobre o CineData e um botão Ajuda.
 
 ## Transição do produto anterior
 

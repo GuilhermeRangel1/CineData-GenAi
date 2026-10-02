@@ -8,6 +8,7 @@ WORKDIR /app/genai
 
 COPY genai/pyproject.toml ./pyproject.toml
 COPY genai/app ./app
+COPY docs/platform-guide.md /app/docs/platform-guide.md
 
 RUN pip install --no-cache-dir .
 

@@ -19,6 +19,9 @@ chamadas externas.
 8. Se faltar uma métrica ou período essencial, o modelo pode responder com
    `CLARIFY:`; nesse caso o serviço não executa SQL e a API devolve
    `ambiguous_question`.
+9. Perguntas sobre como usar o CineData são respondidas pelo guia versionado da
+   plataforma sem executar SQL. Perguntas mistas preservam a orientação do guia
+   separada dos resultados analíticos retornados pelo Gold.
 
 O modelo não recebe acesso direto ao arquivo, à conexão SQLite ou a outras
 ferramentas. O orquestrador também não aceita uma resposta factual sem que a

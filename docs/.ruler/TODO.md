@@ -98,14 +98,117 @@ o restante do CineData.
 - [x] Revalidar as funcionalidades existentes da aplicação após a migração do
       banco com a suíte de regressão e uma cópia descartável para testes que
       alterem dados.
-- [ ] Publicar no GitHub somente com autorização explícita.
 
 **Critério de saída:** a aplicação completa inicia conforme as instruções de
 clone e mantém as funcionalidades anteriores; documentação e arquivos
 versionados correspondem ao estado entregue.
 
-## Depois dos requisitos obrigatórios
+## 6. Responder sobre o CineData (extra prioritário)
 
-Considerar como extras, conforme prazo e benefício: memória de conversa,
-cache, fallback de provedor, busca semântica descritiva, gráficos e avaliações
-ampliadas. Não bloqueiam a entrega obrigatória.
+- [x] Criar um guia curto e versionado das funcionalidades reais do site:
+      catálogo e detalhes dos filmes; busca e filtros por gênero, pessoa,
+      produtora, ano, duração e nota; listas, avaliações, amigos, comunidades,
+      mapa de gostos e áreas restritas por perfil. Conferido no frontend e nas
+      rotas; ver [`platform-guide.md`](../platform-guide.md).
+- [x] Encaminhar perguntas sobre **como usar o CineData** para esse guia, sem
+      gerar SQL analítico nem inventar funções. Separar esse caminho das
+      perguntas sobre dados dos filmes; pedidos mistos identificam separadamente
+      o guia da plataforma e os resultados Gold. O contrato registra a origem.
+- [ ] Explicar requisitos de acesso quando relevantes, como entrar na conta
+      para usar recursos pessoais. Se a funcionalidade não existir ou a pergunta
+      estiver vaga, dizer isso com clareza e pedir o detalhe necessário.
+- [ ] Cobrir o roteamento e o conteúdo do guia com verificações locais sem
+      provedor; conferir manualmente uma pergunta de cada tipo.
+
+**Critério de saída:** a pessoa consegue perguntar o que pode fazer no site e
+como encontrar filmes, listas, amigos ou comunidades; o chatbot responde com
+informação verificada da plataforma, sem tentar gerar SQL para esse tema.
+
+## 7. Botão Ajuda com perguntas sugeridas
+
+- [ ] Adicionar um botão **Ajuda** dentro do chat com exemplos curtos e
+      clicáveis sobre catálogo, métricas e uso da plataforma.
+- [ ] Manter os exemplos sincronizados com as perguntas que o chatbot consegue
+      responder; abrir e fechar a ajuda não deve chamar o modelo.
+
+**Critério de saída:** a pessoa encontra uma sugestão e consegue enviá-la no
+chat; os exemplos não expõem tabelas, chaves ou detalhes de implementação.
+
+## Extras independentes
+
+As etapas abaixo podem ser priorizadas conforme benefício e prazo; nenhuma
+bloqueia a entrega obrigatória. A interface visual já está na etapa 4, os
+guardrails básicos de SQL na etapa 2 e a avaliação local das 14 perguntas na
+etapa 3. Cada extra amplia uma dessas capacidades. Planejar checkpoints dentro
+de cada etapa e manter as chamadas reais dentro do orçamento diário.
+
+## 8. Guardrails adicionais
+
+- [ ] Identificar perguntas adversariais, tentativas de consultar outras fontes
+      e padrões de SQL excessivamente custosos, além dos bloqueios já existentes.
+- [ ] Melhorar a rejeição e as mensagens de erro sem impedir consultas legítimas
+      do catálogo; usar exemplos locais para avaliar falsos bloqueios.
+
+**Critério de saída:** casos adversariais são bloqueados com segurança, casos
+legítimos continuam funcionando e as decisões ficam cobertas por verificações
+locais sem chamadas ao provedor.
+
+## 9. Gráficos para respostas analíticas
+
+- [ ] Identificar resultados que se beneficiam de gráfico, como médias por ano,
+      rankings e comparações entre gêneros.
+- [ ] Renderizar o gráfico a partir das linhas retornadas pela API, com título,
+      unidade e escala adequados; preservar a tabela acessível como alternativa.
+
+**Critério de saída:** respostas adequadas mostram um gráfico legível, com os
+mesmos valores da tabela; respostas inadequadas continuam apenas em tabela.
+
+## 10. Memória de conversa
+
+- [ ] Definir o contexto mínimo para perguntas de continuação, como “e em
+      2020?”, sem mudar silenciosamente a métrica ou os filtros anteriores.
+- [ ] Limitar e permitir limpar o histórico; separar sessões e não incluir
+      segredos ou dados pessoais desnecessários no contexto enviado ao modelo.
+
+**Critério de saída:** uma pergunta de continuação usa o contexto correto, uma
+conversa nova não herda esse contexto e a pessoa consegue apagá-lo.
+
+## 11. Fallback entre modelos gratuitos
+
+- [ ] Configurar um modelo alternativo e definir quais falhas permitem a troca,
+      considerando disponibilidade, cota diária e tempo total de resposta.
+- [ ] Registrar qual modelo respondeu sem expor chaves; evitar novas tentativas
+      quando a falha estiver na pergunta, na validação ou no banco.
+
+**Critério de saída:** a troca ocorre apenas nas falhas previstas, mantém o
+mesmo contrato de resposta e não cria uma sequência ilimitada de chamadas.
+
+## 12. Cache de respostas
+
+- [ ] Definir uma chave que considere pergunta, filtros, contexto aplicável e
+      versão do Gold, sem misturar respostas de sessões diferentes.
+- [ ] Estabelecer expiração e invalidação quando os dados ou as regras mudarem;
+      deixar claro quando uma resposta veio do cache.
+
+**Critério de saída:** perguntas equivalentes evitam trabalho repetido e uma
+atualização do Gold ou mudança de contexto não devolve dados antigos.
+
+## 13. Avaliação ampliada
+
+- [ ] Ampliar os casos Q01–Q14 com variações de linguagem, filtros, empates,
+      ambiguidades, resultados vazios e perguntas sobre a plataforma.
+- [ ] Comparar números e regras com consultas de referência; medir também
+      cobertura, erros e tempo sem exigir SQL textual idêntico.
+
+**Critério de saída:** a avaliação detecta respostas incorretas e regressões
+com dados locais e mocks; chamadas reais permanecem manuais e reduzidas.
+
+## 14. Agente híbrido SQL e busca semântica
+
+- [ ] Preparar um índice das sinopses e de outros textos autorizados, com forma
+      de atualizar o índice quando o catálogo mudar.
+- [ ] Encaminhar perguntas descritivas para busca semântica e quantitativas
+      para SQL; combinar evidências quando a pergunta exigir as duas fontes.
+
+**Critério de saída:** respostas descritivas apontam os filmes encontrados,
+números vêm de SQL e a origem de cada informação fica clara para a pessoa.
