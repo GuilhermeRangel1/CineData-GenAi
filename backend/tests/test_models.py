@@ -26,6 +26,7 @@ def test_movie_schema_registers_expected_tables() -> None:
         "community_posts",
         "community_comments",
         "community_reactions",
+        "gold_database_sync",
     }
 
     assert set(Base.metadata.tables) == expected_tables

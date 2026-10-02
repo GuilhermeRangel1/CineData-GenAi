@@ -72,7 +72,11 @@ def test_question_returns_agent_response(client: TestClient) -> None:
 
 
 def test_question_rejects_empty_question(client: TestClient) -> None:
-    response = client.post("/api/v1/questions", json={"question": "  "})
+    app.dependency_overrides[get_agent_service] = lambda: object()
+    try:
+        response = client.post("/api/v1/questions", json={"question": "  "})
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 422
 

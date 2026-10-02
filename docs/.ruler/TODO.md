@@ -85,7 +85,7 @@ o restante do CineData.
 
 - [x] Configurar e validar `docker compose up` (sem `--build`) para construir
       as imagens e iniciar os quatro serviços no checkout atual.
-- [ ] Repetir a inicialização em clone limpo para confirmar o preparo completo
+- [x] Repetir a inicialização em clone limpo para confirmar o preparo completo
       do projeto e do banco operacional.
 - [x] Verificar o objeto Gold via Git LFS no checkout atual e documentar
       instalação do Git LFS e obtenção do arquivo em um clone novo.
@@ -95,7 +95,7 @@ o restante do CineData.
       somente o Gold e os exemplos de ambiente são versionados intencionalmente.
 - [x] Fazer smoke check sem escrita no catálogo e nos health checks depois do
       rebuild.
-- [ ] Revalidar as funcionalidades existentes da aplicação após a migração do
+- [x] Revalidar as funcionalidades existentes da aplicação após a migração do
       banco com a suíte de regressão e uma cópia descartável para testes que
       alterem dados.
 - [ ] Publicar no GitHub somente com autorização explícita.
