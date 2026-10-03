@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from app.agent_models import ModelTurn, ToolCall, ToolDefinition
+from app.complexity_router import QuestionComplexity
 from app.errors import ProviderConfigurationError, ProviderTransientError
 
 
@@ -22,12 +23,14 @@ class GeminiToolCallingModel:
         self,
         api_key: str | None,
         model: str = "gemini-3.5-flash-lite",
+        complex_model: str | None = "gemini-3.5-flash",
         fallback_model: str | None = "gemini-3.5-flash",
         client: Any = None,
     ):
         if not api_key and client is None:
             raise ProviderConfigurationError("A chave da Gemini API não foi configurada.")
         self.model = model
+        self.complex_model = complex_model if complex_model and complex_model != model else None
         self.fallback_model = fallback_model if fallback_model and fallback_model != model else None
         self.client = client or genai.Client(api_key=api_key)
 
@@ -36,14 +39,36 @@ class GeminiToolCallingModel:
         messages: Sequence[dict[str, Any]],
         tools: Sequence[ToolDefinition],
     ) -> ModelTurn:
-        """Executa uma inferência e normaliza texto ou pedido de ferramenta."""
+        """Executa uma inferência leve e normaliza texto ou pedido de ferramenta."""
+
+        return self.complete_for_complexity(messages, tools, QuestionComplexity.SIMPLE)
+
+    def complete_for_complexity(
+        self,
+        messages: Sequence[dict[str, Any]],
+        tools: Sequence[ToolDefinition],
+        complexity: QuestionComplexity,
+    ) -> ModelTurn:
+        """Escolhe o modelo principal localmente; fallback continua só para falhas."""
 
         config = types.GenerateContentConfig(
             system_instruction=self._system_instruction(messages),
             temperature=0,
             **({"tools": [self._tool(tool) for tool in tools]} if tools else {}),
         )
-        models = (self.model, *( (self.fallback_model,) if self.fallback_model else () ))
+        primary_model = (
+            self.complex_model
+            if complexity in {QuestionComplexity.HYBRID, QuestionComplexity.COMPLEX}
+            and self.complex_model
+            else self.model
+        )
+        # A configuração de fallback atende a rota leve. Quando a rota complexa
+        # já usa esse mesmo modelo, o modelo leve passa a ser a alternativa para
+        # manter uma tentativa real, sem repetir a mesma chamada.
+        fallback_model = self.fallback_model
+        if fallback_model == primary_model and primary_model != self.model:
+            fallback_model = self.model
+        models = (primary_model, *((fallback_model,) if fallback_model and fallback_model != primary_model else ()))
         for index, selected_model in enumerate(models):
             try:
                 response = self.client.models.generate_content(
@@ -52,7 +77,11 @@ class GeminiToolCallingModel:
                     config=config,
                 )
                 result = self._normalize_response(response)
-                logger.info("Gemini respondeu usando o modelo %s", selected_model)
+                logger.info(
+                    "Gemini respondeu usando a rota %s e o modelo %s",
+                    complexity,
+                    selected_model,
+                )
                 return result
             except Exception as exc:
                 can_fallback = index == 0 and self.fallback_model and self._is_transient_failure(exc)

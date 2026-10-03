@@ -104,6 +104,7 @@ def get_agent_service() -> AgentService:
         model = GeminiToolCallingModel(
             api_key,
             model=settings.gemini_model,
+            complex_model=settings.gemini_complex_model,
             fallback_model=settings.gemini_fallback_model,
         )
     else:

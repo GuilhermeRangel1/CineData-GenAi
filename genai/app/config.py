@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:8080,http://localhost:5173"
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_complex_model: str | None = "gemini-3.5-flash"
     gemini_fallback_model: str | None = "gemini-3.5-flash"
     response_cache_ttl_seconds: float = 300.0
     response_cache_rules_version: str = "1"

@@ -249,3 +249,47 @@ detectar uma atualização do arquivo Gold e os caminhos são verificados localm
 **Critério de saída:** usuários autenticados podem retomar e excluir conversas
 salvas; visitantes usam conversa temporária; o modo temporário não persiste
 mensagens nem aparece no histórico.
+
+## 16. Observabilidade do agente
+
+- [ ] Registrar métricas operacionais por requisição, como duração, status,
+      origem da resposta, cache, fallback e quantidade de linhas, sem guardar
+      pergunta, resposta, token ou outro dado sensível.
+- [ ] Exibir para administradores um resumo de volume, latência, erros, cache e
+      fallback, com período selecionável.
+
+**Critério de saída:** administradores conseguem identificar a velocidade e a
+confiabilidade do agente sem acessar o conteúdo privado das conversas.
+
+## 17. Exportação de análises
+
+- [x] Permitir exportar resultados tabulares do chatbot em CSV com títulos de
+      coluna voltados à pessoa usuária.
+- [x] Permitir baixar gráficos analíticos em PNG, incluindo título, unidade,
+      período e filtros aplicados.
+
+**Critério de saída:** uma resposta analítica pode ser reutilizada fora do
+CineData sem perder contexto de métrica, unidade ou período.
+
+## 18. Streaming de progresso
+
+- [x] Exibir estados curtos e claros enquanto o agente processa a pergunta,
+      diferenciando entendimento, consulta e preparação da resposta.
+- [x] Manter os estados compatíveis com respostas do guia local, cache,
+      busca híbrida, esclarecimento e erro, sem revelar SQL ou detalhes do
+      provedor.
+
+**Critério de saída:** durante uma consulta lenta, a pessoa entende que o
+chatbot continua processando e recebe o resultado final no mesmo fluxo.
+
+## 19. Roteamento por complexidade
+
+- [x] Classificar localmente perguntas simples, analíticas, híbridas e de maior
+      complexidade antes da chamada ao provedor.
+- [x] Selecionar o modelo principal adequado ao tipo de pergunta e manter o
+      fallback somente para falhas temporárias, sem ampliar chamadas ou expor a
+      configuração do provedor.
+
+**Critério de saída:** perguntas simples preservam menor custo e latência;
+perguntas complexas recebem capacidade adicional mantendo o mesmo contrato de
+segurança e resposta.

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ConversationContext, ModelTurn, ToolCall, ToolDefinition
+from app.complexity_router import QuestionComplexity, classify_question
 from app.errors import QueryExecutionError, QueryTimeoutError, SqlValidationError
 from app.evaluation_cases import (
     MANDATORY_EVALUATIONS,
@@ -928,6 +929,7 @@ class AgentService:
             )
         platform_intent, analytical_intent = _question_sources(normalized_question)
         mixed_intent = platform_intent and analytical_intent
+        complexity = classify_question(normalized_question, has_context=bool(context))
         semantic_matches = ()
         if platform_intent and not analytical_intent:
             if _is_vague_platform_question(normalized_question):
@@ -1135,7 +1137,11 @@ class AgentService:
             {"role": "user", "content": normalized_question},
             ]
             model_started_at = time.perf_counter()
-            first_turn = self.model.complete(messages, (RUN_SQL_TOOL,))
+            complete_for_complexity = getattr(self.model, "complete_for_complexity", None)
+            if callable(complete_for_complexity):
+                first_turn = complete_for_complexity(messages, (RUN_SQL_TOOL,), complexity)
+            else:
+                first_turn = self.model.complete(messages, (RUN_SQL_TOOL,))
             model_seconds = time.perf_counter() - model_started_at
             if first_turn.tool_call is None:
                 clarification = self._extract_clarification(first_turn.answer)
