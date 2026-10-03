@@ -89,7 +89,11 @@ def get_agent_service() -> AgentService:
     settings = get_settings()
     api_key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None
     if api_key:
-        model = GeminiToolCallingModel(api_key, model=settings.gemini_model)
+        model = GeminiToolCallingModel(
+            api_key,
+            model=settings.gemini_model,
+            fallback_model=settings.gemini_fallback_model,
+        )
     else:
         model = _UnconfiguredModel()
     database = GoldDatabase(settings.gold_database_path, settings.gold_timeout_seconds)

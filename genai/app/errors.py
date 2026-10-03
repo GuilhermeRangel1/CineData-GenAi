@@ -27,3 +27,7 @@ class QueryExecutionError(RuntimeError):
 
 class ProviderConfigurationError(RuntimeError):
     """O adaptador de modelo não está configurado para executar."""
+
+
+class ProviderTransientError(RuntimeError):
+    """Falha temporária do provedor que pode usar um modelo alternativo."""

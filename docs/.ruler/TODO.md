@@ -192,9 +192,9 @@ conversa nova não herda esse contexto e a pessoa consegue apagá-lo.
 
 ## 11. Fallback entre modelos gratuitos
 
-- [ ] Configurar um modelo alternativo e definir quais falhas permitem a troca,
+- [x] Configurar um modelo alternativo e definir quais falhas permitem a troca,
       considerando disponibilidade, cota diária e tempo total de resposta.
-- [ ] Registrar qual modelo respondeu sem expor chaves; evitar novas tentativas
+- [x] Registrar qual modelo respondeu sem expor chaves; evitar novas tentativas
       quando a falha estiver na pergunta, na validação ou no banco.
 
 **Critério de saída:** a troca ocorre apenas nas falhas previstas, mantém o

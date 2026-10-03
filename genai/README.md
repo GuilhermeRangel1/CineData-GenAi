@@ -47,6 +47,10 @@ O adaptador lê `GENAI_GEMINI_API_KEY` do `.env` e usa
 `GENAI_GEMINI_MODEL` ou `gemini-3.5-flash-lite` por padrão. A suíte de testes injeta
 um cliente simulado; ela nunca consome a cota do provedor.
 
+Em falhas temporárias do provedor (timeout, conexão, cota ou 5xx), o adaptador tenta
+uma vez `GENAI_GEMINI_FALLBACK_MODEL`, que usa `gemini-3.5-flash` por padrão. Falhas
+de pergunta, validação SQL, guardrails e Gold não acionam essa troca.
+
 As perguntas obrigatórias estão catalogadas em
 [`docs/genai/evaluation-cases.md`](../docs/genai/evaluation-cases.md), com os
 identificadores Q01–Q14 e as colunas esperadas para as avaliações locais.

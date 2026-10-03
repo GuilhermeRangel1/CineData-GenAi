@@ -1,6 +1,7 @@
 """Adaptador Gemini para a porta interna de tool calling."""
 
 import json
+import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -8,7 +9,10 @@ from google import genai
 from google.genai import types
 
 from app.agent_models import ModelTurn, ToolCall, ToolDefinition
-from app.errors import ProviderConfigurationError
+from app.errors import ProviderConfigurationError, ProviderTransientError
+
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiToolCallingModel:
@@ -18,11 +22,13 @@ class GeminiToolCallingModel:
         self,
         api_key: str | None,
         model: str = "gemini-3.5-flash-lite",
+        fallback_model: str | None = "gemini-3.5-flash",
         client: Any = None,
     ):
         if not api_key and client is None:
             raise ProviderConfigurationError("A chave da Gemini API não foi configurada.")
         self.model = model
+        self.fallback_model = fallback_model if fallback_model and fallback_model != model else None
         self.client = client or genai.Client(api_key=api_key)
 
     def complete(
@@ -37,11 +43,32 @@ class GeminiToolCallingModel:
             temperature=0,
             **({"tools": [self._tool(tool) for tool in tools]} if tools else {}),
         )
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=self._contents(messages),
-            config=config,
-        )
+        models = (self.model, *( (self.fallback_model,) if self.fallback_model else () ))
+        for index, selected_model in enumerate(models):
+            try:
+                response = self.client.models.generate_content(
+                    model=selected_model,
+                    contents=self._contents(messages),
+                    config=config,
+                )
+                result = self._normalize_response(response)
+                logger.info("Gemini respondeu usando o modelo %s", selected_model)
+                return result
+            except Exception as exc:
+                can_fallback = index == 0 and self.fallback_model and self._is_transient_failure(exc)
+                if not can_fallback:
+                    raise
+                logger.warning(
+                    "Modelo Gemini %s indisponível (%s); tentando %s uma vez.",
+                    selected_model,
+                    exc.__class__.__name__,
+                    self.fallback_model,
+                )
+
+        raise ProviderConfigurationError("Nenhum modelo Gemini está configurado.")
+
+    @staticmethod
+    def _normalize_response(response: Any) -> ModelTurn:
         for candidate in response.candidates or []:
             for part in candidate.content.parts or []:
                 if part.function_call:
@@ -53,7 +80,19 @@ class GeminiToolCallingModel:
                         )
                     )
 
-        return ModelTurn(answer=response.text or None)
+        if response.text:
+            return ModelTurn(answer=response.text)
+        raise ProviderTransientError("O provedor não retornou conteúdo utilizável.")
+
+    @staticmethod
+    def _is_transient_failure(exc: Exception) -> bool:
+        if isinstance(exc, ProviderTransientError | TimeoutError | ConnectionError | OSError):
+            return True
+        status = getattr(exc, "status_code", getattr(exc, "code", None))
+        try:
+            return int(status) in {408, 429, 500, 502, 503, 504}
+        except (TypeError, ValueError):
+            return False
 
     @staticmethod
     def _tool(tool: ToolDefinition) -> types.Tool:
