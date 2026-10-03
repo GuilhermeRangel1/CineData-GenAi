@@ -87,10 +87,17 @@ _PLATFORM_SOCIAL_FEATURE = re.compile(
     r"\b(?:lista|listas|amigo|amigos|amizade|amizades|comunidade|comunidades|"
     r"mapa de gostos|conta|perfil)\b"
 )
-_CASUAL_MESSAGE = re.compile(
-    r"^(?:(?:oi+|ola+|e ai|opa)[,!?.\s]*(?:tudo bem|como vai)?|"
-    r"bom dia|boa tarde|boa noite|tudo bem|como vai|obrigad[oa]|valeu|ate mais)"
-    r"[!?.\s]*$"
+_CONVERSATIONAL_MESSAGE = re.compile(
+    r"^(?:"
+    r"(?:oi+|ola+|e ai|opa)[,!?.\s]*(?:tudo bem|como vai)?|"
+    r"bom dia|boa tarde|boa noite|"
+    r"tudo bem(?:\s+(?:com\s+)?(?:voce|vc))?|"
+    r"como (?:vai|voce (?:esta|ta)(?:\s+hoje)?)|e voce|"
+    r"(?:qual (?:e )?seu nome|quem (?:e|eh) voce|"
+    r"o que voce (?:faz|pode fazer)|voce (?:e|eh) (?:um )?(?:robo|bot|chatbot|assistente))|"
+    r"(?:podemos|da para|pode) conversar(?: comigo)?|"
+    r"obrigad[oa]|valeu|ate mais|tchau"
+    r")[!?.\s]*$"
 )
 _ANALYTICAL_INTENT = re.compile(
     r"\b(?:quantos?|quantas?|quantidade|receita|lucro|popularidade|top\s*\d*|"
@@ -120,10 +127,47 @@ def _normalize_for_routing(question: str) -> str:
     )
 
 
-def _is_casual_message(question: str) -> bool:
-    """Identifies brief conversational messages that do not need a SQL query."""
+def _is_conversational_message(question: str) -> bool:
+    """Identifies social messages that do not require a platform guide or SQL."""
 
-    return bool(_CASUAL_MESSAGE.fullmatch(_normalize_for_routing(question).strip()))
+    return bool(_CONVERSATIONAL_MESSAGE.fullmatch(_normalize_for_routing(question).strip()))
+
+
+def _conversational_response(question: str) -> str:
+    """Responds naturally while keeping the chatbot's scope clear."""
+
+    normalized = _normalize_for_routing(question).strip()
+    if (
+        "qual" in normalized and "nome" in normalized
+        or normalized.startswith("quem")
+        or "o que voce" in normalized
+        or "voce e" in normalized
+        or "voce eh" in normalized
+    ):
+        return (
+            "Sou o chatbot do CineData. Posso conversar sobre a plataforma, "
+            "ajudar a encontrar filmes e responder perguntas sobre o catálogo."
+        )
+    if "conversar" in normalized:
+        return (
+            "Claro! Também posso ajudar você a descobrir filmes, explorar o "
+            "CineData ou analisar dados do catálogo."
+        )
+    if (
+        "tudo bem" in normalized
+        or "como vai" in normalized
+        or "como voce" in normalized
+        or normalized.startswith("e voce")
+    ):
+        return (
+            "Tudo bem por aqui! Posso ajudar você a explorar o CineData ou "
+            "responder perguntas sobre filmes e dados do catálogo."
+        )
+    if "obrigad" in normalized or "valeu" in normalized:
+        return "Por nada! Quando quiser, é só mandar uma pergunta sobre cinema ou o CineData."
+    if "ate mais" in normalized:
+        return "Até mais! Quando quiser continuar, estou por aqui."
+    return _DEFAULT_CHAT_RESPONSE
 
 
 def _question_sources(question: str) -> tuple[bool, bool]:
@@ -631,6 +675,26 @@ def _is_unfiltered_top_company_profit_question(question: str) -> bool:
     )
 
 
+def _is_unfiltered_genre_movie_count_question(question: str) -> bool:
+    """Reconhece contagens gerais de filmes por gênero, inclusive paráfrases de Q10."""
+
+    normalized = "".join(
+        character
+        for character in unicodedata.normalize("NFD", question.casefold())
+        if unicodedata.category(character) != "Mn"
+    )
+    if not re.search(r"\bfilmes?\b", normalized) or not re.search(r"\bgeneros?\b", normalized):
+        return False
+    if not re.search(r"\b(?:quantos|quantidade|numero|total|cada)\b", normalized):
+        return False
+    if re.search(
+        r"\b(?:ano|anos|em\s+20\d{2}|lucro|margem|receita|orcamento|nota|imdb|tmdb|popularidade)\b",
+        normalized,
+    ):
+        return False
+    return True
+
+
 def _top_company_movie_count_limit(question: str) -> int | None:
     """Extracts a top-N only from unfiltered all-time producer count questions."""
 
@@ -761,6 +825,14 @@ WHERE lucro_total_brl = (SELECT MAX(lucro_total_brl) FROM company_totals)
 ORDER BY nome_produtora COLLATE NOCASE, sk_company_id"""
 
 
+_GENRE_MOVIE_COUNT_SQL = """SELECT g.nome_genero,
+       COUNT(DISTINCT bg.sk_movie_id) AS total_filmes
+FROM dim_genres AS g
+JOIN bridge_movie_genre AS bg USING (sk_genre_id)
+GROUP BY g.sk_genre_id, g.nome_genero
+ORDER BY total_filmes DESC, g.nome_genero COLLATE NOCASE, g.sk_genre_id"""
+
+
 def _top_company_profit_by_year_sql(year: int) -> str:
     """Mantém a consulta de Q11 pequena quando uma continuação troca só o ano."""
 
@@ -846,9 +918,9 @@ class AgentService:
             raise AgentError("A pergunta não pode ser vazia.")
         if message := rejection_message(normalized_question):
             raise AgentGuardrail(message)
-        if _is_casual_message(normalized_question):
+        if _is_conversational_message(normalized_question):
             return AgentResponse(
-                answer=_DEFAULT_CHAT_RESPONSE,
+                answer=_conversational_response(normalized_question),
                 rows=(),
                 truncated=False,
                 tool_calls=0,
@@ -957,6 +1029,10 @@ class AgentService:
             if mixed_intent
             else _top_company_movie_count_limit(normalized_question)
         )
+        genre_movie_count = (
+            not mixed_intent
+            and _is_unfiltered_genre_movie_count_question(normalized_question)
+        )
         continuation_company_profit_year = _continuation_company_profit_year(
             normalized_question, context
         )
@@ -975,6 +1051,10 @@ class AgentService:
         elif actor_director_pair:
             evaluation_case = get_evaluation_case("Q09")
             query = _ACTOR_DIRECTOR_PAIR_SQL
+            model_seconds = 0.0
+        elif genre_movie_count:
+            evaluation_case = get_evaluation_case("Q10")
+            query = _GENRE_MOVIE_COUNT_SQL
             model_seconds = 0.0
         elif top_company_count is not None:
             evaluation_case = None
