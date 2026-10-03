@@ -40,9 +40,12 @@ describe('ChatbotHub GenAI', () => {
       expect.stringContaining('/api/v1/questions'),
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ question: 'Quais são os 10 filmes com maior receita em BRL?', context: [] }),
       }),
     )
+    const [, options] = (fetcher.mock.calls as unknown as Array<[string, RequestInit]>)[0]!
+    expect(JSON.parse(String(options.body))).toMatchObject({
+      question: 'Quais são os 10 filmes com maior receita em BRL?', context: [], conversation_id: expect.any(String),
+    })
   })
 
   it('exibe esclarecimento devolvido pela API sem quebrar a conversa', async () => {
@@ -149,15 +152,12 @@ describe('ChatbotHub GenAI', () => {
     await user.type(input, 'E em 2020?')
     await user.click(screen.getByRole('button', { name: 'Enviar mensagem' }))
 
-    expect(fetcher).toHaveBeenLastCalledWith(
-      expect.stringContaining('/api/v1/questions'),
-      expect.objectContaining({
-        body: JSON.stringify({
-          question: 'E em 2020?',
-          context: [{ question: 'Qual é a nota IMDb média por ano?', metric: 'nota IMDb média por ano', unit: 'pontos IMDb', period: 'todo o Gold disponível', population: 'filmes válidos' }],
-        }),
-      }),
-    )
+    const [, continuationOptions] = (fetcher.mock.calls as unknown as Array<[string, RequestInit]>).at(-1)!
+    expect(JSON.parse(String(continuationOptions.body))).toMatchObject({
+      question: 'E em 2020?',
+      context: [{ question: 'Qual é a nota IMDb média por ano?', metric: 'nota IMDb média por ano', unit: 'pontos IMDb', period: 'todo o Gold disponível', population: 'filmes válidos' }],
+      conversation_id: expect.any(String),
+    })
     await user.click(screen.getByRole('button', { name: 'Limpar conversa' }))
     expect(screen.getByText('O que vamos descobrir?')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Limpar conversa' })).not.toBeInTheDocument()

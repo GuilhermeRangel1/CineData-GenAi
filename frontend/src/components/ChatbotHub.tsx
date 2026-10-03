@@ -95,6 +95,10 @@ function contextoDaConversa(mensagens: MensagemAssistente[]): ContextoConversaGe
   return contexto.length ? [contexto.at(-1)!] : []
 }
 
+function criarIdConversa() {
+  return globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 function SendIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -115,6 +119,7 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
   const conversa = useRef<HTMLDivElement>(null)
   const entrada = useRef<HTMLTextAreaElement>(null)
   const botaoAjuda = useRef<HTMLButtonElement>(null)
+  const idConversa = useRef(criarIdConversa())
   const estado: RobotMood = carregando ? 'thinking' : gesto ?? (erro ? 'error' : focado || texto ? 'listening' : 'idle')
 
   useEffect(() => {
@@ -152,7 +157,7 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
     setCarregando(true)
 
     try {
-      const resposta = await perguntarGenAi(conteudo, contextoDaConversa(mensagens))
+      const resposta = await perguntarGenAi(conteudo, contextoDaConversa(mensagens), idConversa.current)
       setMensagens((atuais) => [...atuais, { role: 'assistant', conteudo: resposta.answer, resposta }])
       setGesto('happy')
       setPerguntaFalhou('')
@@ -184,6 +189,7 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
     setPerguntaFalhou('')
     setAjudaAberta(false)
     setGesto(null)
+    idConversa.current = criarIdConversa()
     entrada.current?.focus({ preventScroll: true })
   }
 
@@ -334,6 +340,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const possuiGrafico = temGraficoDeResultado(metadata, rows)
   return (
     <div className="chatbot-result" aria-label="Resposta do chatbot">
+      {metadata.cached && <p className="chatbot-cache-note">Resposta recuperada do cache desta conversa</p>}
       {mostrarTexto && <p className="chatbot-result-answer">{resposta.answer}</p>}
       {rows.length > 0 && (
         <div className="chatbot-result-heading">

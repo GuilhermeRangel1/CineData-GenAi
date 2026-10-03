@@ -188,10 +188,11 @@ export function obterMapaGostos(
 export function perguntarGenAi(
   pergunta: string,
   contexto: ContextoConversaGenAi[] = [],
+  conversationId?: string,
 ): Promise<RespostaGenAi> {
   return requisitarGenAi<RespostaGenAi>('/questions', {
     method: 'POST',
-    body: JSON.stringify({ question: pergunta, context: contexto }),
+    body: JSON.stringify({ question: pergunta, context: contexto, conversation_id: conversationId }),
   })
 }
 

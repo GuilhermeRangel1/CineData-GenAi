@@ -83,6 +83,7 @@
 .chatbot-robot--compact { width: 51px; margin: -4px 0 0 -9px; }
 .chatbot-robot--compact .robot-body, .chatbot-robot--compact .robot-arm, .chatbot-robot--compact .robot-shadow { display: none; }
 .chatbot-result { min-width: 0; flex: 1; padding: 20px; border: 1px solid #b4dcd222; border-radius: 4px 14px 14px; background: #16252d; }
+.chatbot-cache-note { width: fit-content; margin: 0 0 13px; padding: 5px 8px; border: 1px solid #7dc9dd38; border-radius: 999px; background: #7dc9dd0e; color: #9cd7e6; font-size: 9px; font-weight: 650; letter-spacing: .02em; }
 .chatbot-result-answer { margin: 0 0 16px; color: #e0eaeb; font-size: 13px; line-height: 1.7; white-space: pre-line; }
 .chatbot-result-answer:last-child { margin-bottom: 0; }
 .chatbot-result-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 17px; }

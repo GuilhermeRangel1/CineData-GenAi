@@ -19,6 +19,7 @@ export interface MetadadosGenAi {
   row_count: number
   truncated: boolean
   tool_calls: number
+  cached: boolean
 }
 
 export interface RespostaGenAi {

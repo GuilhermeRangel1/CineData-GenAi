@@ -69,6 +69,7 @@ def test_question_returns_agent_response(client: TestClient) -> None:
             "row_count": 1,
             "truncated": False,
             "tool_calls": 1,
+                "cached": False,
         },
     }
 

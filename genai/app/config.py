@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_fallback_model: str | None = "gemini-3.5-flash"
+    response_cache_ttl_seconds: float = 300.0
+    response_cache_rules_version: str = "1"
 
     model_config = SettingsConfigDict(
         env_file=".env",

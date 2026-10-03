@@ -51,6 +51,10 @@ Em falhas temporárias do provedor (timeout, conexão, cota ou 5xx), o adaptador
 uma vez `GENAI_GEMINI_FALLBACK_MODEL`, que usa `gemini-3.5-flash` por padrão. Falhas
 de pergunta, validação SQL, guardrails e Gold não acionam essa troca.
 
+Respostas bem-sucedidas podem ser reutilizadas por cinco minutos na mesma conversa.
+A chave inclui a pergunta, o contexto semântico, a sessão temporária, a revisão local
+do Gold e a versão das regras. A interface identifica quando uma resposta veio do cache.
+
 As perguntas obrigatórias estão catalogadas em
 [`docs/genai/evaluation-cases.md`](../docs/genai/evaluation-cases.md), com os
 identificadores Q01–Q14 e as colunas esperadas para as avaliações locais.

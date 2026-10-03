@@ -202,9 +202,9 @@ mesmo contrato de resposta e não cria uma sequência ilimitada de chamadas.
 
 ## 12. Cache de respostas
 
-- [ ] Definir uma chave que considere pergunta, filtros, contexto aplicável e
+- [x] Definir uma chave que considere pergunta, filtros, contexto aplicável e
       versão do Gold, sem misturar respostas de sessões diferentes.
-- [ ] Estabelecer expiração e invalidação quando os dados ou as regras mudarem;
+- [x] Estabelecer expiração e invalidação quando os dados ou as regras mudarem;
       deixar claro quando uma resposta veio do cache.
 
 **Critério de saída:** perguntas equivalentes evitam trabalho repetido e uma

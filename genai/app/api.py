@@ -15,6 +15,7 @@ from app.errors import GoldDatabaseError, ProviderConfigurationError, QueryTimeo
 from app.gemini_adapter import GeminiToolCallingModel
 from app.gold_database import GoldDatabase
 from app.insight_service import InsightService
+from app.response_cache import ResponseCache, gold_version, make_cache_key
 from app.sql_executor import GoldQueryExecutor
 
 router = APIRouter()
@@ -37,6 +38,7 @@ class QuestionRequest(BaseModel):
 
     question: str = Field(min_length=1, max_length=1000)
     context: list[ConversationTurn] = Field(default_factory=list, max_length=3)
+    conversation_id: str | None = Field(default=None, min_length=12, max_length=80)
 
     @field_validator("question")
     @classmethod
@@ -63,6 +65,7 @@ class QuestionMetadata(BaseModel):
     row_count: int
     truncated: bool
     tool_calls: int
+    cached: bool = False
 
 
 class QuestionResponse(BaseModel):
@@ -106,6 +109,14 @@ def get_agent_service() -> AgentService:
     return AgentService(model, executor, insight_service=InsightService(model))
 
 
+@lru_cache(maxsize=1)
+def get_response_cache() -> ResponseCache:
+    """Reutiliza um cache local, sem persistir conversas após reiniciar o serviço."""
+
+    settings = get_settings()
+    return ResponseCache(ttl_seconds=settings.response_cache_ttl_seconds)
+
+
 @router.get("/health", tags=["operational"])
 def health() -> dict[str, str]:
     """Indica que o processo HTTP está ativo."""
@@ -120,20 +131,33 @@ def answer_question(
 ) -> QuestionResponse | JSONResponse:
     """Responde uma pergunta usando o agente e a base Gold read-only."""
 
-    try:
-        response = service.answer(
-            payload.question,
-            tuple(
-                ConversationContext(
-                    question=turn.question.strip(),
-                    metric=turn.metric,
-                    unit=turn.unit,
-                    period=turn.period,
-                    population=turn.population,
-                )
-                for turn in payload.context
-            ),
+    context = tuple(
+        ConversationContext(
+            question=turn.question.strip(),
+            metric=turn.metric,
+            unit=turn.unit,
+            period=turn.period,
+            population=turn.population,
         )
+        for turn in payload.context
+    )
+    cache_key = None
+    if payload.conversation_id and isinstance(service, AgentService):
+        settings = get_settings()
+        try:
+            cache_key = make_cache_key(
+                conversation_id=payload.conversation_id,
+                question=payload.question,
+                context=context,
+                gold_revision=gold_version(service.executor.database.path),
+                rules_version=settings.response_cache_rules_version,
+            )
+        except OSError:
+            cache_key = None
+    cached_response = get_response_cache().get(cache_key) if cache_key else None
+
+    try:
+        response = cached_response or service.answer(payload.question, context)
     except GoldDatabaseError as exc:
         raise HTTPException(status_code=503, detail="A base Gold não está disponível.") from exc
     except ProviderConfigurationError as exc:
@@ -195,6 +219,9 @@ def answer_question(
             status_code=502, detail="Não foi possível concluir a pergunta."
         ) from exc
 
+    if cache_key and cached_response is None:
+        get_response_cache().put(cache_key, response)
+
     return QuestionResponse(
         status="success",
         answer=response.answer,
@@ -212,5 +239,6 @@ def answer_question(
             row_count=len(response.rows),
             truncated=response.truncated,
             tool_calls=response.tool_calls,
+            cached=cached_response is not None,
         ),
     )
