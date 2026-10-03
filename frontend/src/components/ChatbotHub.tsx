@@ -11,6 +11,7 @@ import {
 } from '../api/client'
 import type { ContextoConversaGenAi, ConversaResumo, MensagemConversa, RespostaGenAi } from '../types/api'
 import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
+import { baixarResultadoCsv } from './chatbotExport'
 import { ChatbotResultChart, temGraficoDeResultado } from './ChatbotResultChart'
 import { colunasVisiveis, formatarCelula, observacaoResultado, rotuloColuna, tituloResultado } from './chatbotPresentation'
 import './ChatbotHub.css'
@@ -23,6 +24,7 @@ const SUGESTOES = [
 const AJUDA_SUGESTOES = [
   {
     titulo: 'Explorar o CineData',
+    tema: 'explorar',
     perguntas: [
       'O que o chatbot faz?',
       'Como usar a busca de filmes?',
@@ -34,11 +36,13 @@ const AJUDA_SUGESTOES = [
   },
   {
     titulo: 'Painel administrativo',
+    tema: 'admin',
     exigeAdmin: true,
     perguntas: ['O que mostra a aba Analytics?'],
   },
   {
     titulo: 'Finanças',
+    tema: 'financas',
     perguntas: [
       'Quais são os 10 filmes com maior receita em BRL?',
       'Qual é o lucro médio em BRL por gênero?',
@@ -47,6 +51,7 @@ const AJUDA_SUGESTOES = [
   },
   {
     titulo: 'Popularidade e notas',
+    tema: 'notas',
     perguntas: [
       'Quais são os 5 filmes mais populares?',
       'Em quais filmes há maior divergência entre as notas TMDB e IMDb?',
@@ -55,6 +60,7 @@ const AJUDA_SUGESTOES = [
   },
   {
     titulo: 'Elenco e direção',
+    tema: 'pessoas',
     perguntas: [
       'Qual ator participou de mais filmes nos últimos cinco anos?',
       'Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?',
@@ -63,6 +69,7 @@ const AJUDA_SUGESTOES = [
   },
   {
     titulo: 'Gêneros e produtoras',
+    tema: 'generos',
     perguntas: [
       'Quantos filmes existem associados a cada gênero?',
       'Qual produtora acumulou o maior lucro total em BRL?',
@@ -71,6 +78,7 @@ const AJUDA_SUGESTOES = [
   },
   {
     titulo: 'Avaliações do público',
+    tema: 'avaliacoes',
     perguntas: [
       'Quais filmes têm a maior quantidade de avaliações de usuários?',
       'Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?',
@@ -327,7 +335,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
           <p className="sr-only" role="status">{FALAS[estado]}</p>
           {isAuthenticated && (
             <section className="chatbot-history" aria-label="Conversas salvas">
-              <div><strong>Suas conversas</strong><button type="button" onClick={() => iniciarConversa(false)} disabled={carregando}>+</button></div>
+              <div><strong>Suas conversas</strong><button className="chatbot-history-create" type="button" aria-label="Criar nova conversa" title="Nova conversa" onClick={() => iniciarConversa(false)} disabled={carregando}><span aria-hidden="true" /></button></div>
               {carregandoHistorico ? <p>Carregando conversas…</p> : erroHistorico ? <p className="chatbot-history-error">{erroHistorico} <button type="button" onClick={() => setVersaoHistorico((versao) => versao + 1)}>Tentar novamente</button></p> : conversasSalvas.length === 0 ? <p>Nenhuma conversa salva ainda.</p> : (
                 <ul>{conversasSalvas.map((conversaSalva) => (
                   <li key={conversaSalva.id} className={conversaAtiva === conversaSalva.id ? 'is-active' : undefined}>
@@ -371,7 +379,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
               }}
             >
               {AJUDA_SUGESTOES.filter((grupo) => !grupo.exigeAdmin || isAdmin).map((grupo) => (
-                <div className="chatbot-help-group" key={grupo.titulo}>
+                <div className={`chatbot-help-group chatbot-help-group--${grupo.tema}`} key={grupo.titulo}>
                   <h3>{grupo.titulo}</h3>
                   {grupo.perguntas.map((pergunta) => (
                     <button key={pergunta} type="button" disabled={carregando} onClick={() => void enviar(pergunta)}>
@@ -464,6 +472,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
 function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const { metadata, rows } = resposta
   const columns = colunasVisiveis(metadata.columns)
+  const titulo = tituloResultado(metadata)
   const observacao = observacaoResultado(metadata)
   const mostrarTexto = metadata.source === 'platform' || metadata.source === 'mixed'
   const possuiGrafico = temGraficoDeResultado(metadata, rows)
@@ -474,7 +483,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
       {rows.length > 0 && (
         <div className="chatbot-result-heading">
           <h3>{tituloResultado(metadata)}</h3>
-          <span>{rows.length} {rows.length === 1 ? 'resultado' : 'resultados'}</span>
+          <div><span>{rows.length} {rows.length === 1 ? 'resultado' : 'resultados'}</span><button className="chatbot-export-csv" type="button" onClick={() => baixarResultadoCsv({ titulo, metadata, columns, rows })}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 13v2.5c0 .55.45 1 1 1h11c.55 0 1-.45 1-1V13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>Baixar CSV</button></div>
         </div>
       )}
       <ChatbotResultChart metadata={metadata} rows={rows} />

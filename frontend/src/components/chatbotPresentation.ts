@@ -65,6 +65,50 @@ const ROTULOS: Record<string, string> = {
   relevancia: 'Relevância',
 }
 
+const INDICADORES: Record<string, string> = {
+  Q01: 'Receita por filme',
+  Q02: 'Lucro médio por gênero',
+  Q03: 'Margem de lucro por filme',
+  Q04: 'Popularidade por filme',
+  Q05: 'Diferença entre notas do IMDb e TMDB',
+  Q06: 'Média das notas IMDb por ano',
+  Q07: 'Participação de atores em filmes recentes',
+  Q08: 'Média das notas IMDb por diretor',
+  Q09: 'Parcerias entre atores e diretores',
+  Q10: 'Filmes por gênero',
+  Q11: 'Lucro acumulado por produtora',
+  Q12: 'Margem média de lucro por gênero',
+  Q13: 'Avaliações do público por filme',
+  Q14: 'Diferença entre notas do público e IMDb',
+}
+
+const ABRANGENCIAS: Record<string, string> = {
+  Q01: 'Filmes com receita registrada',
+  Q02: 'Filmes com receita e orçamento registrados',
+  Q03: 'Filmes com receita e orçamento registrados',
+  Q04: 'Filmes com índice de popularidade disponível',
+  Q05: 'Filmes avaliados no IMDb e no TMDB',
+  Q06: 'Filmes com avaliações no IMDb',
+  Q07: 'Filmes lançados nos últimos cinco anos',
+  Q08: 'Diretores com pelo menos cinco filmes avaliados',
+  Q09: 'Filmes com participação de ator e direção',
+  Q10: 'Filmes vinculados a gêneros',
+  Q11: 'Filmes com receita e orçamento registrados',
+  Q12: 'Filmes com receita e orçamento registrados',
+  Q13: 'Filmes com avaliações do público',
+  Q14: 'Filmes avaliados pelo público e no IMDb',
+}
+
+const UNIDADES: Record<string, string> = {
+  BRL: 'Reais (R$)',
+  'BRL por filme': 'Reais por filme',
+  'filmes distintos': 'Filmes',
+  avaliações: 'Avaliações',
+  'pontuação de popularidade': 'Índice de popularidade',
+  'pontuação em escala de 0 a 10': 'Notas de 0 a 10',
+  'fração, com exibição possível em percentual': 'Percentual',
+}
+
 const GENEROS: Record<string, string> = {
   action: 'Ação',
   adventure: 'Aventura',
@@ -99,6 +143,30 @@ export function tituloResultado(metadata: MetadadosGenAi): string {
   if (metadata.columns.includes('nome_genero') && metadata.columns.includes('total_filmes')) return 'Filmes por gênero'
   if (metadata.columns.includes('popularidade')) return 'Filmes mais populares'
   return 'Resultados encontrados'
+}
+
+export function contextoParaExibicao(metadata: MetadadosGenAi): Array<[string, string]> {
+  const indicador = (metadata.query_id && INDICADORES[metadata.query_id]) ?? metadata.metric
+  const unidade = metadata.unit ? (UNIDADES[metadata.unit] ?? metadata.unit) : null
+  const periodo = metadata.period
+    ? (/gold/i.test(metadata.period) ? 'Até a atualidade' : metadata.period.replace(/^anos presentes no /i, 'Anos disponíveis no '))
+    : null
+  const abrangencia = (metadata.query_id && ABRANGENCIAS[metadata.query_id])
+    ?? metadata.population
+      ?.replaceAll('receita_brl', 'receita')
+      .replaceAll('orcamento_brl', 'orçamento')
+      .replaceAll('nota_imdb', 'nota IMDb')
+      .replaceAll('qtd_imdb', 'avaliações no IMDb')
+      .replaceAll('não nula', 'registrada')
+      .replaceAll('não nulos', 'registrados')
+
+  const campos: Array<[string, string | null | undefined]> = [
+    ['Indicador', indicador],
+    ['Valores exibidos', unidade],
+    ['Período', periodo],
+    ['Abrangência', abrangencia],
+  ]
+  return campos.flatMap(([label, value]) => value ? [[label, value] as [string, string]] : [])
 }
 
 export function observacaoResultado(metadata: MetadadosGenAi): string | null {

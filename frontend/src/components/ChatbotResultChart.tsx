@@ -1,4 +1,6 @@
+import { useRef, useState } from 'react'
 import type { MetadadosGenAi } from '../types/api'
+import { baixarGraficoPng } from './chatbotExport'
 import { formatarCelula, rotuloColuna } from './chatbotPresentation'
 
 type TipoGrafico = 'barras' | 'linha' | 'rosca' | 'dispersao'
@@ -19,7 +21,7 @@ const ESPECIFICACOES: Record<string, EspecificacaoGrafico> = {
   Q02: { tipo: 'barras', colunaRotulo: 'nome_genero', colunaValor: 'lucro_medio_brl', titulo: 'Lucro médio por gênero', tema: 'financeiro' },
   Q03: { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'margem', titulo: 'Margem de lucro por filme', tema: 'financeiro' },
   Q04: { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'popularidade', titulo: 'Popularidade por filme', tema: 'popularidade' },
-  Q05: { tipo: 'dispersao', colunaRotulo: 'titulo', colunaValor: 'divergencia', titulo: 'IMDb × TMDB', tema: 'divergencia', colunaX: 'nota_tmdb', colunaY: 'nota_imdb' },
+  Q05: { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'divergencia', titulo: 'Divergência entre IMDb e TMDB', tema: 'divergencia' },
   Q06: { tipo: 'linha', colunaRotulo: 'ano_lancamento', colunaValor: 'nota_imdb_media', titulo: 'Média IMDb por ano', tema: 'notas' },
   Q07: { tipo: 'barras', colunaRotulo: 'nome_pessoa', colunaValor: 'total_filmes', titulo: 'Filmes por ator', tema: 'pessoas' },
   Q08: { tipo: 'barras', colunaRotulo: 'nome_pessoa', colunaValor: 'nota_media', titulo: 'Média IMDb por diretor', tema: 'notas' },
@@ -27,7 +29,7 @@ const ESPECIFICACOES: Record<string, EspecificacaoGrafico> = {
   Q11: { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: 'lucro_total_brl', titulo: 'Lucro total por produtora', tema: 'financeiro' },
   Q12: { tipo: 'barras', colunaRotulo: 'nome_genero', colunaValor: 'margem_media', titulo: 'Margem média por gênero', tema: 'financeiro' },
   Q13: { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'qtd_avaliacoes_usuarios', titulo: 'Avaliações por filme', tema: 'catalogo' },
-  Q14: { tipo: 'dispersao', colunaRotulo: 'titulo', colunaValor: 'divergencia', titulo: 'Público × IMDb', tema: 'divergencia', colunaX: 'nota_media_usuarios', colunaY: 'nota_imdb' },
+  Q14: { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'divergencia', titulo: 'Divergência entre público e IMDb', tema: 'divergencia' },
 }
 
 type PontoGrafico = { rotulo: string; valor: number }
@@ -107,7 +109,8 @@ function rotuloCurto(value: string) {
 function GraficoDeBarras({ pontos, spec }: { pontos: PontoGrafico[]; spec: EspecificacaoGrafico }) {
   const largura = 720
   const margemEsquerda = 168
-  const margemDireita = 84
+  // A margem acomoda números longos, como valores em BRL, também no PNG.
+  const margemDireita = 176
   const alturaLinha = 34
   const altura = pontos.length * alturaLinha + 38
   const minimo = Math.min(0, ...pontos.map((ponto) => ponto.valor))
@@ -168,20 +171,27 @@ function GraficoDeRosca({ pontos, spec }: { pontos: PontoGrafico[]; spec: Especi
   if (!total) return <GraficoDeBarras pontos={pontos} spec={spec} />
   let acumulado = 0
   const circunferencia = 2 * Math.PI * 54
-  return <div className="chatbot-donut-wrap">
-    <svg className="chatbot-chart chatbot-chart--donut" viewBox="0 0 360 220" role="img" aria-label={`${spec.titulo}. A tabela abaixo contém todos os valores.`}>
-      <circle className="chatbot-donut-track" cx="112" cy="110" r="54" />
+  return (
+    <svg className="chatbot-chart chatbot-chart--donut" viewBox="0 0 720 260" role="img" aria-label={`${spec.titulo}. A tabela abaixo contém todos os valores.`}>
+      <circle className="chatbot-donut-track" cx="158" cy="130" r="54" />
       {dados.map((ponto, indice) => {
         const tamanho = (ponto.valor / total) * circunferencia
         const deslocamento = -acumulado
         acumulado += tamanho
-        return <circle key={ponto.rotulo} className="chatbot-donut-segment" cx="112" cy="110" r="54" stroke={CORES_ROSCA[indice]} strokeDasharray={`${tamanho} ${circunferencia - tamanho}`} strokeDashoffset={deslocamento} />
+        return <circle key={ponto.rotulo} className="chatbot-donut-segment" cx="158" cy="130" r="54" transform="rotate(-90 158 130)" stroke={CORES_ROSCA[indice]} strokeDasharray={`${tamanho} ${circunferencia - tamanho}`} strokeDashoffset={deslocamento} />
       })}
-      <text className="chatbot-donut-total" x="112" y="105" textAnchor="middle">{formatarCelula(spec.colunaValor, total)}</text>
-      <text className="chatbot-donut-caption" x="112" y="123" textAnchor="middle">no recorte</text>
+      <text className="chatbot-donut-total" x="158" y="125" textAnchor="middle">{formatarCelula(spec.colunaValor, total)}</text>
+      <text className="chatbot-donut-caption" x="158" y="143" textAnchor="middle">no recorte</text>
+      {dados.map((ponto, indice) => {
+        const y = 44 + indice * 28
+        return <g key={`legenda-${ponto.rotulo}`}>
+          <circle cx="302" cy={y - 4} r="4" fill={CORES_ROSCA[indice]} />
+          <text className="chatbot-donut-legend-label" x="316" y={y}>{rotuloCurto(ponto.rotulo)}</text>
+          <text className="chatbot-donut-legend-value" x="682" y={y} textAnchor="end">{Math.round((ponto.valor / total) * 100)}%</text>
+        </g>
+      })}
     </svg>
-    <ul className="chatbot-chart-legend">{dados.map((ponto, indice) => <li key={ponto.rotulo}><i style={{ background: CORES_ROSCA[indice] }} /><span>{rotuloCurto(ponto.rotulo)}</span><strong>{Math.round((ponto.valor / total) * 100)}%</strong></li>)}</ul>
-  </div>
+  )
 }
 
 function GraficoDeDispersao({ rows, spec, metadata }: { rows: Array<Record<string, unknown>>; spec: EspecificacaoGrafico; metadata: MetadadosGenAi }) {
@@ -206,7 +216,11 @@ function GraficoDeDispersao({ rows, spec, metadata }: { rows: Array<Record<strin
 
 export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenAi; rows: Array<Record<string, unknown>> }) {
   const spec = especificacao(metadata, rows)
+  const chart = useRef<HTMLElement>(null)
+  const [exportando, setExportando] = useState(false)
+  const [erroExportacao, setErroExportacao] = useState('')
   if (!spec) return null
+  const specForExport = spec
   const pontos = rows.flatMap((row) => {
     const valor = numero(row[spec.colunaValor])
     if (valor === null || row[spec.colunaRotulo] === undefined || row[spec.colunaRotulo] === null) return []
@@ -214,10 +228,23 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
   }).slice(0, 8)
   if (pontos.length < 2) return null
 
-  return <figure className={`chatbot-chart-card chatbot-chart-card--${spec.tema}`}>
+  async function exportarPng() {
+    if (!chart.current) return
+    setExportando(true)
+    setErroExportacao('')
+    try {
+      await baixarGraficoPng({ elemento: chart.current, titulo: specForExport.titulo, metadata })
+    } catch (error) {
+      setErroExportacao(error instanceof Error ? error.message : 'Não foi possível baixar o gráfico.')
+    } finally {
+      setExportando(false)
+    }
+  }
+
+  return <figure ref={chart} className={`chatbot-chart-card chatbot-chart-card--${spec.tema}`}>
     <figcaption>
       <span>Visualização</span>
-      <strong>{spec.titulo}</strong>
+      <div><strong>{spec.titulo}</strong><button className="chatbot-export-png" type="button" onClick={() => void exportarPng()} disabled={exportando}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 13v2.5c0 .55.45 1 1 1h11c.55 0 1-.45 1-1V13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>{exportando ? 'Gerando…' : 'Baixar PNG'}</button></div>
       <small>{rotuloColuna(spec.colunaValor, metadata)}</small>
     </figcaption>
     {spec.tipo === 'linha' && <GraficoDeLinha pontos={pontos} spec={spec} />}
@@ -225,6 +252,7 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
     {spec.tipo === 'rosca' && <GraficoDeRosca pontos={pontos} spec={spec} />}
     {spec.tipo === 'dispersao' && <GraficoDeDispersao rows={rows} spec={spec} metadata={metadata} />}
     {rows.length > pontos.length && <p>O gráfico mostra os primeiros {pontos.length} resultados; a tabela contém a lista completa.</p>}
+    {erroExportacao && <p className="chatbot-chart-export-error" role="alert">{erroExportacao}</p>}
   </figure>
 }
 
