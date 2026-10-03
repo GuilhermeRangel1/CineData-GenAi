@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.errors import GoldDatabaseError, ProviderConfigurationError, QueryTimeoutError
 from app.gemini_adapter import GeminiToolCallingModel
 from app.gold_database import GoldDatabase
+from app.insight_service import InsightService
 from app.sql_executor import GoldQueryExecutor
 
 router = APIRouter()
@@ -58,6 +59,7 @@ class QuestionResponse(BaseModel):
     status: Literal["success"] = "success"
     answer: str
     rows: list[dict[str, Any]]
+    insights: list[str]
     metadata: QuestionMetadata
 
 
@@ -85,7 +87,7 @@ def get_agent_service() -> AgentService:
         complex_timeout_seconds=settings.gold_complex_timeout_seconds,
         pair_query_timeout_seconds=settings.gold_pair_query_timeout_seconds,
     )
-    return AgentService(model, executor)
+    return AgentService(model, executor, insight_service=InsightService(model))
 
 
 @router.get("/health", tags=["operational"])
@@ -169,6 +171,7 @@ def answer_question(
         status="success",
         answer=response.answer,
         rows=list(response.rows),
+        insights=list(response.insights),
         metadata=QuestionMetadata(
             source=response.source,
             query_id=response.query_id,

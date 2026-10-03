@@ -25,6 +25,7 @@ export interface RespostaGenAi {
   status: 'success'
   answer: string
   rows: Array<Record<string, unknown>>
+  insights: string[]
   metadata: MetadadosGenAi
 }
 

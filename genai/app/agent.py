@@ -5,6 +5,7 @@ import re
 import time
 import unicodedata
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -16,6 +17,7 @@ from app.evaluation_cases import (
     get_evaluation_case,
 )
 from app.gold_database import EXPECTED_TABLES
+from app.insight_service import InsightService
 from app.question_guard import rejection_message
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
@@ -774,10 +776,17 @@ ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id"""
 class AgentService:
     """Consulta o Gold com uma chamada de modelo e responde com evidências."""
 
-    def __init__(self, model: ToolCallingModel, executor: GoldQueryExecutor, max_rows: int = 100):
+    def __init__(
+        self,
+        model: ToolCallingModel,
+        executor: GoldQueryExecutor,
+        max_rows: int = 100,
+        insight_service: InsightService | None = None,
+    ):
         self.model = model
         self.executor = executor
         self.max_rows = max_rows
+        self.insight_service = insight_service
 
     def answer(self, question: str) -> AgentResponse:
         """Responde usando dados retornados pela ferramenta SQL controlada."""
@@ -1020,7 +1029,7 @@ class AgentService:
             result.truncated,
         )
 
-        return AgentResponse(
+        response = AgentResponse(
             answer=final_answer,
             rows=result.rows,
             truncated=result.truncated,
@@ -1034,6 +1043,9 @@ class AgentService:
             limitations=limitations,
             source="mixed" if mixed_intent else "gold",
         )
+        if self.insight_service is None:
+            return response
+        return replace(response, insights=self.insight_service.generate(response))
 
     @staticmethod
     def _require_tool_call(turn: ModelTurn) -> ToolCall:

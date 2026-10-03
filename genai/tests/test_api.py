@@ -56,6 +56,7 @@ def test_question_returns_agent_response(client: TestClient) -> None:
         "status": "success",
         "answer": "Existem 95.645 filmes.",
         "rows": [{"COUNT(*)": 95645}],
+        "insights": [],
         "metadata": {
             "source": "gold",
             "query_id": None,

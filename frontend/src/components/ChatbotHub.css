@@ -84,6 +84,35 @@
 .chatbot-result-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 17px; }
 .chatbot-result-heading h3 { margin: 0; color: #eff7f5; font-size: 15px; font-weight: 650; line-height: 1.4; letter-spacing: -.02em; }
 .chatbot-result-heading span { padding: 5px 9px; border: 1px solid #a0edda27; border-radius: 999px; background: #a0edda0a; color: #a8dacc; font-size: 10px; white-space: nowrap; }
+.chatbot-chart-card { margin: 0 0 16px; padding: 15px; overflow: hidden; border: 1px solid #9bd6c71f; border-radius: 12px; background: linear-gradient(135deg, #8ee7da0a, transparent 56%), #0f2027; }
+.chatbot-chart-card figcaption { display: grid; gap: 3px; margin-bottom: 12px; }
+.chatbot-chart-card figcaption span { color: #87d8ca; font-size: 9px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.chatbot-chart-card figcaption strong { color: #eff7f5; font-size: 13px; font-weight: 650; }
+.chatbot-chart-card figcaption small { color: #91acb2; font-size: 10px; }
+.chatbot-chart-card > p { margin: 10px 0 0; color: #91acb2; font-size: 10px; line-height: 1.5; }
+.chatbot-chart { display: block; width: 100%; min-width: 540px; overflow: visible; }
+.chatbot-chart-axis { stroke: #b1dfd34d; stroke-width: 1; }
+.chatbot-chart-grid { stroke: #b1dfd31c; stroke-width: 1; }
+.chatbot-chart-bar { fill: #68cfc1; opacity: .88; }
+.chatbot-chart-bar.is-negative { fill: #ed7b85; }
+.chatbot-chart-label { fill: #c3d8d9; font-size: 11px; }
+.chatbot-chart-value { fill: #8fe2d5; font-size: 10px; font-weight: 650; }
+.chatbot-chart-line { fill: none; stroke: #7ee1d0; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.chatbot-chart-point { fill: #d9fff7; stroke: #5bc6b6; stroke-width: 3; }
+.chatbot-chart-x-label { fill: #9db7bc; font-size: 10px; }
+.chatbot-insights { margin: 0 0 16px; padding: 13px 15px; border-left: 2px solid #7ee1d0; border-radius: 0 10px 10px 0; background: #7ee1d00a; }
+.chatbot-insights > span { color: #8ee8d8; font-size: 9px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.chatbot-insights ul { display: grid; gap: 6px; padding: 0; margin: 9px 0 0; list-style: none; }
+.chatbot-insights li { color: #d3e5e4; font-size: 11px; line-height: 1.55; }
+.chatbot-insights li::before { content: '•'; margin-right: 8px; color: #7ee1d0; }
+.chatbot-result-data { margin: 0; }
+.chatbot-result-data summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; border: 1px solid #a0edda33; border-radius: 10px; background: #a0edda0a; color: #b9eadf; font-size: 11px; font-weight: 650; cursor: pointer; list-style: none; }
+.chatbot-result-data summary::-webkit-details-marker { display: none; }
+.chatbot-result-data summary::before { content: '+'; margin-right: 2px; color: #93ead9; font-size: 16px; font-weight: 400; }
+.chatbot-result-data[open] summary { margin-bottom: 10px; border-color: #a0edda52; background: #a0edda12; }
+.chatbot-result-data[open] summary::before { content: '−'; }
+.chatbot-result-data summary span { margin-left: auto; color: #84aaa2; font-size: 10px; font-weight: 500; }
+.chatbot-result-data.is-open > .chatbot-result-table-wrap { margin-top: 0; }
 .chatbot-result-table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid #b4dcd21a; border-radius: 10px; scrollbar-width: thin; }
 .chatbot-result-table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; color: #e0eaeb; }
 .chatbot-result-table th { padding: 12px 14px; color: #9bd6c7; background: #9bd6c70a; font-size: 10px; font-weight: 650; white-space: nowrap; }
@@ -187,6 +216,7 @@
   .chatbot-robot--compact { width: 46px; }
   .chatbot-result { padding: 12px; }
   .chatbot-result-heading { align-items: flex-start; flex-direction: column; }
+  .chatbot-chart-card { padding: 12px; overflow-x: auto; }
   .chatbot-result-table { font-size: 11px; }
   .chatbot-result-table th, .chatbot-result-table td { padding: 10px; }
   .chatbot-loading-bubble { gap: 8px; padding: 10px; }

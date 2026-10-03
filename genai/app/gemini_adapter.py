@@ -32,14 +32,15 @@ class GeminiToolCallingModel:
     ) -> ModelTurn:
         """Executa uma inferência e normaliza texto ou pedido de ferramenta."""
 
+        config = types.GenerateContentConfig(
+            system_instruction=self._system_instruction(messages),
+            temperature=0,
+            **({"tools": [self._tool(tool) for tool in tools]} if tools else {}),
+        )
         response = self.client.models.generate_content(
             model=self.model,
             contents=self._contents(messages),
-            config=types.GenerateContentConfig(
-                system_instruction=self._system_instruction(messages),
-                tools=[self._tool(tool) for tool in tools],
-                temperature=0,
-            ),
+            config=config,
         )
         for candidate in response.candidates or []:
             for part in candidate.content.parts or []:

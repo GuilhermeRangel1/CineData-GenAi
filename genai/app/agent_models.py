@@ -46,6 +46,7 @@ class AgentResponse:
     population: str | None = None
     limitations: str | None = None
     source: Literal["gold", "platform", "mixed"] = "gold"
+    insights: tuple[str, ...] = ()
 
 
 ToolName = Literal["run_sql"]

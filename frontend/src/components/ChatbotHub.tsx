@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ErroDaApi, perguntarGenAi } from '../api/client'
 import type { MensagemConversa, RespostaGenAi } from '../types/api'
 import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
+import { ChatbotResultChart, temGraficoDeResultado } from './ChatbotResultChart'
 import { colunasVisiveis, formatarCelula, observacaoResultado, rotuloColuna, tituloResultado } from './chatbotPresentation'
 import './ChatbotHub.css'
 
@@ -102,7 +103,12 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
 
   useEffect(() => {
     const painel = conversa.current
-    if (painel) painel.scrollTop = painel.scrollHeight
+    if (!painel) return
+    if (carregando) {
+      painel.scrollTop = painel.scrollHeight
+      return
+    }
+    painel.querySelector<HTMLElement>('[data-chatbot-result]:last-of-type')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [mensagens, carregando])
 
   useEffect(() => {
@@ -233,7 +239,7 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
           ) : (
             <div className="chatbot-messages" ref={conversa} role="log" aria-label="Histórico da conversa" aria-live="polite" aria-relevant="additions text">
               {mensagens.map((mensagem, indice) => (
-                <article key={`${indice}-${mensagem.role}`} className={`chatbot-message chatbot-message--${mensagem.role}`}>
+                <article key={`${indice}-${mensagem.role}`} className={`chatbot-message chatbot-message--${mensagem.role}`} data-chatbot-result={mensagem.resposta ? '' : undefined}>
                   {mensagem.role === 'assistant' && <span className="chatbot-message-avatar"><ChatbotRobot compact mood="happy" /></span>}
                   {mensagem.resposta ? <ResultadoGenAi resposta={mensagem.resposta} /> : <p>{mensagem.conteudo}</p>}
                 </article>
@@ -295,6 +301,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const columns = colunasVisiveis(metadata.columns)
   const observacao = observacaoResultado(metadata)
   const mostrarTexto = metadata.source === 'platform' || metadata.source === 'mixed'
+  const possuiGrafico = temGraficoDeResultado(metadata, rows)
   return (
     <div className="chatbot-result" aria-label="Resposta do chatbot">
       {mostrarTexto && <p className="chatbot-result-answer">{resposta.answer}</p>}
@@ -304,19 +311,29 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
           <span>{rows.length} {rows.length === 1 ? 'resultado' : 'resultados'}</span>
         </div>
       )}
+      <ChatbotResultChart metadata={metadata} rows={rows} />
+      {possuiGrafico && resposta.insights.length > 0 && (
+        <section className="chatbot-insights" aria-label="Insights sobre os dados">
+          <span>Insights</span>
+          <ul>{resposta.insights.map((insight) => <li key={insight}>{insight}</li>)}</ul>
+        </section>
+      )}
       {rows.length > 0 && columns.length > 0 && (
-        <div className="chatbot-result-table-wrap">
-          <table className="chatbot-result-table">
-            <thead><tr>{columns.map((column) => <th key={column} scope="col">{rotuloColuna(column, metadata)}</th>)}</tr></thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={index}>
-                  {columns.map((column) => <td key={column}>{formatarCelula(column, row[column])}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <details className={`chatbot-result-data ${possuiGrafico ? '' : 'is-open'}`} open={!possuiGrafico}>
+          {possuiGrafico && <summary>Ver dados em tabela <span>{rows.length} {rows.length === 1 ? 'resultado' : 'resultados'}</span></summary>}
+          <div className="chatbot-result-table-wrap">
+            <table className="chatbot-result-table">
+              <thead><tr>{columns.map((column) => <th key={column} scope="col">{rotuloColuna(column, metadata)}</th>)}</tr></thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={index}>
+                    {columns.map((column) => <td key={column}>{formatarCelula(column, row[column])}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
       )}
       {rows.length > 0 && columns.length === 0 && <p className="chatbot-result-note">Não há detalhes para mostrar nesta resposta.</p>}
       {rows.length === 0 && !mostrarTexto && <p className="chatbot-result-note">Não encontrei resultados. Tente perguntar de outro jeito.</p>}

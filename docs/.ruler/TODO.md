@@ -165,13 +165,20 @@ provedor.
 
 ## 9. Gráficos para respostas analíticas
 
-- [ ] Identificar resultados que se beneficiam de gráfico, como médias por ano,
+- [x] Identificar resultados que se beneficiam de gráfico, como médias por ano,
       rankings e comparações entre gêneros.
-- [ ] Renderizar o gráfico a partir das linhas retornadas pela API, com título,
+- [x] Renderizar o gráfico a partir das linhas retornadas pela API, com título,
       unidade e escala adequados; preservar a tabela acessível como alternativa.
+- [x] Criar um agente de insights separado da ferramenta SQL, que receba apenas
+      os dados retornados, a métrica, a unidade e o período para destacar até
+      três achados objetivos sem inventar números nem consultar o Gold.
+- [x] Exibir os insights junto do gráfico e incluí-los no contrato da resposta,
+      preparando o armazenamento no mesmo cache quando a etapa de cache for
+      implementada.
 
 **Critério de saída:** respostas adequadas mostram um gráfico legível, com os
-mesmos valores da tabela; respostas inadequadas continuam apenas em tabela.
+mesmos valores da tabela e insights fiéis aos dados; respostas inadequadas
+continuam apenas em tabela.
 
 ## 10. Memória de conversa
 
@@ -222,3 +229,17 @@ com dados locais e mocks; chamadas reais permanecem manuais e reduzidas.
 
 **Critério de saída:** respostas descritivas apontam os filmes encontrados,
 números vêm de SQL e a origem de cada informação fica clara para a pessoa.
+
+## 15. Privacidade e conversa temporária
+
+- [ ] Adicionar um modo de conversa temporária que mantenha o contexto apenas
+      durante a sessão aberta e permita apagar a conversa a qualquer momento.
+- [ ] Evitar que dados pessoais, tokens ou identificadores da conta sejam
+      enviados ao modelo; anonimizar ou remover esses dados quando forem
+      necessários para uma resposta.
+- [ ] Informar de forma simples quando a conversa temporária estiver ativa e
+      quais dados são usados para responder.
+
+**Critério de saída:** a pessoa pode iniciar uma conversa temporária, encerrar
+e limpar seu contexto sem persistência indevida; o modelo recebe somente os
+dados necessários e nenhum segredo ou identificador pessoal.
