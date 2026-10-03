@@ -195,7 +195,8 @@
 .chatbot-motion-on .robot-eye { animation: robot-blink 6.2s ease-in-out infinite !important; }
 .chatbot-motion-on .robot-arm--left { animation: robot-arm-drift 4.8s ease-in-out infinite !important; }
 .chatbot-motion-on .robot-arm--right { animation: robot-arm-drift 4.8s ease-in-out -2.4s infinite !important; }
-.chatbot-motion-on .chatbot-robot[data-mood="idle"] .robot-arm--right { animation: robot-idle-wave 16s ease-in-out infinite !important; }
+.chatbot-motion-on .chatbot-robot[data-mood="idle"] .robot-arm--left { animation: robot-idle-left 14s ease-in-out infinite !important; }
+.chatbot-motion-on .chatbot-robot[data-mood="idle"] .robot-arm--right { animation: robot-idle-right 14s ease-in-out infinite !important; }
 .chatbot-motion-on .chatbot-robot[data-mood="idle"] .robot-gaze { animation: robot-look 12s ease-in-out infinite !important; }
 .chatbot-motion-on .robot-heart { animation: robot-heart 3s ease-in-out infinite !important; }
 .chatbot-motion-on .chatbot-robot[data-mood="thinking"] .robot-eye { animation: robot-think 1.6s ease-in-out infinite !important; }
@@ -216,12 +217,15 @@
 @keyframes robot-heart { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
 @keyframes robot-think { 0%, 100% { transform: scaleY(.45); } 50% { transform: scaleY(1); } }
 @keyframes robot-wave { 0%, 100% { transform: rotate(-112deg); } 50% { transform: rotate(-139deg); } }
-@keyframes robot-idle-wave { 0%, 64%, 88%, 100% { transform: rotate(0); } 70%, 78% { transform: rotate(-118deg); } 74%, 82% { transform: rotate(-140deg); } }
+@keyframes robot-idle-left { 0%, 25%, 100% { transform: rotate(-3deg); } 12%, 62% { transform: rotate(7deg); } 42%, 80% { transform: rotate(-12deg); } }
+@keyframes robot-idle-right { 0%, 8%, 26%, 100% { transform: rotate(3deg); } 13%, 21% { transform: rotate(-116deg); } 17% { transform: rotate(-138deg); } 48%, 74% { transform: rotate(11deg); } }
 @keyframes robot-look { 0%, 20%, 70%, 100% { transform: translate(0, 0); } 30%, 44% { transform: translate(5px, 0); } 52%, 62% { transform: translate(-4px, -2px); } }
 @keyframes robot-nod { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(4px); } }
 @keyframes robot-twinkle { 0%, 100% { opacity: .3; } 50% { opacity: .8; } }
 @keyframes chatbot-dot { 0%, 50%, 100% { transform: translateY(0); opacity: .4; } 22% { transform: translateY(-5px); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .chatbot-motion-on .robot-float { animation-duration: 8s !important; } }
+@media (prefers-reduced-motion: reduce) {
+  .chatbot-motion-on .robot-float, .chatbot-motion-on .robot-shadow, .chatbot-motion-on .robot-eye, .chatbot-motion-on .robot-arm, .chatbot-motion-on .robot-gaze, .chatbot-motion-on .robot-heart, .chatbot-motion-on .robot-head { animation: none !important; }
+}
 @media (max-width: 1100px) {
   .chatbot-chat-area { grid-template-columns: minmax(175px, .25fr) minmax(0, 1fr); }
   .chatbot-chat-column { padding-right: 20px; padding-left: 20px; }
