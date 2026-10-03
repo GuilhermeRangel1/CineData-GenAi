@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { listarFilmes } from '../api/client'
+import { listarFilmes, obterPaginaFilmesEmCache } from '../api/client'
 import { Icon } from '../components/Icon'
 import { MovieCard } from '../components/MovieCard'
 import { useResource } from '../hooks/useResource'
@@ -95,13 +95,24 @@ export function Catalog({
     [criarParametros, page],
   )
   const { data, loading, error, retry, isPreviousData } = useResource(loader, revision, true)
+  const paginaEmCache = obterPaginaFilmesEmCache(criarParametros(page))
+  const dadosExibidos = paginaEmCache ?? (isPreviousData ? null : data)
+  const meta = dadosExibidos?.meta ?? data?.meta
+  const aguardandoPagina = loading && !paginaEmCache
   useEffect(() => {
-    if (!data || isPreviousData || loading || page >= data.meta.total_paginas) return
-    void listarFilmes(criarParametros(page + 1)).catch(() => undefined)
-  }, [criarParametros, data, isPreviousData, loading, page])
-  if (data && page > Math.max(1, data.meta.total_paginas))
-    setPage(Math.max(1, data.meta.total_paginas))
-  const paginaExibida = isPreviousData ? (data?.meta.pagina ?? page) : page
+    if (!dadosExibidos || page >= dadosExibidos.meta.total_paginas) return
+    void listarFilmes(criarParametros(page + 1)).then((proximaPagina) => {
+      proximaPagina.itens.slice(0, 6).forEach((filme) => {
+        const url = filme.url_poster ?? filme.url_backdrop
+        if (url) {
+          const imagem = new Image()
+          imagem.src = url
+        }
+      })
+    }).catch(() => undefined)
+  }, [criarParametros, dadosExibidos, page])
+  if (meta && page > Math.max(1, meta.total_paginas))
+    setPage(Math.max(1, meta.total_paginas))
   function changePage(value: number) {
     setPage(value)
     document.getElementById('catalogo')?.scrollIntoView({ block: 'start' })
@@ -249,13 +260,13 @@ export function Catalog({
           </div>
         </div>
       )}
-      <div aria-busy={loading}>
+      <div aria-busy={aguardandoPagina}>
         <p className="result-count" role="status">
-          {loading
+          {aguardandoPagina
             ? 'Buscando histórias…'
             : error
               ? 'Catálogo indisponível'
-              : `${(data?.meta.total_itens ?? 0).toLocaleString('pt-BR')} ${data?.meta.total_itens === 1 ? 'filme' : 'filmes'}${query ? ` para “${query}”` : ' para descobrir'}`}
+              : `${(dadosExibidos?.meta.total_itens ?? 0).toLocaleString('pt-BR')} ${dadosExibidos?.meta.total_itens === 1 ? 'filme' : 'filmes'}${query ? ` para “${query}”` : ' para descobrir'}`}
         </p>
         {error ? (
           <div className="empty-state" role="alert">
@@ -266,13 +277,13 @@ export function Catalog({
               Tentar novamente
             </button>
           </div>
-        ) : loading && !data ? (
+        ) : aguardandoPagina ? (
           <div className="movie-grid">
-            {Array.from({ length: 6 }, (_, i) => (
-              <div className="poster skeleton" key={i} />
+            {Array.from({ length: 12 }, (_, i) => (
+              <div className="movie-card" key={i}><div className="poster skeleton" /></div>
             ))}
           </div>
-        ) : !data?.itens.length ? (
+        ) : !dadosExibidos?.itens.length ? (
           <div className="empty-state">
             <Icon name="search" />
             <h3>Nenhuma história por aqui. Ainda.</h3>
@@ -297,32 +308,32 @@ export function Catalog({
             )}
           </div>
         ) : (
-          <>
-            <div className="movie-grid">
-              {data.itens.map((movie) => (
-                <MovieCard key={movie.id} movie={movie} onOpen={onOpen} />
-              ))}
-            </div>
-            <nav className="pagination" aria-label="Paginação do catálogo">
-              <button
-                className="button button-outline"
-                disabled={loading || page === 1}
-                onClick={() => changePage(page - 1)}
-              >
-                <Icon name="left" /> Anterior
-              </button>
-              <span>
-                Página <strong>{paginaExibida}</strong> de {data.meta.total_paginas.toLocaleString('pt-BR')}
-              </span>
-              <button
-                className="button button-outline"
-                disabled={loading || page >= data.meta.total_paginas}
-                onClick={() => changePage(page + 1)}
-              >
-                Próxima <Icon name="arrow" />
-              </button>
-            </nav>
-          </>
+          <div className="movie-grid">
+            {dadosExibidos.itens.map((movie) => (
+              <MovieCard key={movie.id} movie={movie} onOpen={onOpen} />
+            ))}
+          </div>
+        )}
+        {!error && meta && meta.total_paginas > 0 && (
+          <nav className="pagination" aria-label="Paginação do catálogo">
+            <button
+              className="button button-outline"
+              disabled={aguardandoPagina || page === 1}
+              onClick={() => changePage(page - 1)}
+            >
+              <Icon name="left" /> Anterior
+            </button>
+            <span>
+              Página <strong>{page}</strong> de {meta.total_paginas.toLocaleString('pt-BR')}
+            </span>
+            <button
+              className="button button-outline"
+              disabled={aguardandoPagina || page >= meta.total_paginas}
+              onClick={() => changePage(page + 1)}
+            >
+              Próxima <Icon name="arrow" />
+            </button>
+          </nav>
         )}
       </div>
     </section>

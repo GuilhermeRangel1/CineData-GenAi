@@ -15,7 +15,7 @@ import { AnalyticsDashboard } from './components/AnalyticsDashboard'
 import { TasteMap } from './components/TasteMap'
 import { ChatbotHub } from './components/ChatbotHub'
 import { atualizarUsuarioSessao, carregarSessao, encerrarSessao, salvarSessao, type Sessao } from './auth/session'
-import { entrarComoAdministradorDeTeste } from './api/client'
+import { entrarComoAdministradorDeTeste, obterMapaGostos } from './api/client'
 import './App.css'
 
 function App() {
@@ -51,6 +51,9 @@ function App() {
   function showLists() {
     setPage('lists')
   }
+  function anteciparMapaGostos() {
+    void obterMapaGostos({ limiteNos: 24, vizinhosPorFilme: 3 }).catch(() => undefined)
+  }
   function explore(value: string) {
     setGenre(value)
     setCatalogVersion((version) => version + 1)
@@ -78,7 +81,7 @@ function App() {
           <button type="button" aria-current={page === 'friends' ? 'page' : undefined} onClick={() => setPage('friends')}>Amigos</button>
           <button type="button" aria-current={page === 'communities' ? 'page' : undefined} onClick={() => setPage('communities')}>Comunidades</button>
           <button type="button" aria-current={page === 'chatbot' ? 'page' : undefined} onClick={() => setPage('chatbot')}>Chatbot</button>
-          {session && <button type="button" aria-current={page === 'taste-map' ? 'page' : undefined} onClick={() => setPage('taste-map')}>Mapa de gostos</button>}
+          {session && <button type="button" aria-current={page === 'taste-map' ? 'page' : undefined} onPointerEnter={anteciparMapaGostos} onFocus={anteciparMapaGostos} onClick={() => setPage('taste-map')}>Mapa de gostos</button>}
           {session?.usuario.role === 'admin' && <button type="button" aria-current={page === 'analytics' ? 'page' : undefined} onClick={() => setPage('analytics')}>Analytics</button>}
         </nav>
         <a href="#catalogo" className="header-search" onClick={showHome}>

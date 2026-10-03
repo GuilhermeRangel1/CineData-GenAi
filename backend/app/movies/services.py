@@ -7,7 +7,7 @@ from uuid import uuid4
 from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
 
 from app.api.v1.schemas import MetadadosPagina, Pagina
 from app.core.config import get_settings
@@ -68,10 +68,9 @@ class CatalogoFilmesService:
     async def listar(self, consulta: ConsultaCatalogo) -> Pagina[FilmeResumo]:
         """Retorna um catálogo filtrado, ordenado e paginado de forma estável."""
 
-        statement = select(DimMovie).options(
-            selectinload(DimMovie.genres),
-            selectinload(DimMovie.reviews_summary),
-        )
+        # Ordena apenas as chaves. Carregar sinopses, URLs e relações antes do
+        # LIMIT faz o SQLite transportar muito mais dados pela ordenação.
+        statement = select(DimMovie.sk_movie_id)
 
         if consulta.busca:
             movie_ids = self._ids_busca(
@@ -227,7 +226,28 @@ class CatalogoFilmesService:
         result = await self._session.scalars(
             statement.order_by(*ordenacao).offset(offset).limit(consulta.tamanho_pagina)
         )
-        filmes = list(result.unique())
+        movie_ids = list(result)
+        if movie_ids:
+            filmes_resultado = await self._session.scalars(
+                select(DimMovie)
+                .where(DimMovie.sk_movie_id.in_(movie_ids))
+                .options(
+                    load_only(
+                        DimMovie.sk_movie_id,
+                        DimMovie.id_filme,
+                        DimMovie.titulo,
+                        DimMovie.ano_lancamento,
+                        DimMovie.url_poster,
+                        DimMovie.url_backdrop,
+                    ),
+                    selectinload(DimMovie.genres),
+                    selectinload(DimMovie.reviews_summary),
+                )
+            )
+            filmes_por_id = {filme.sk_movie_id: filme for filme in filmes_resultado}
+            filmes = [filmes_por_id[movie_id] for movie_id in movie_ids]
+        else:
+            filmes = []
 
         return Pagina(
             itens=[self._para_resumo(filme) for filme in filmes],

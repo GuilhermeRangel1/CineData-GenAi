@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { obterMapaGostos } from '../api/client'
+import { obterMapaGostos, obterMapaGostosEmCache } from '../api/client'
 import type { MapaGostos, NoMapaGostos } from '../types/api'
 import { Icon } from './Icon'
 
@@ -34,18 +34,20 @@ function distribuir(nos: NoMapaGostos[]): Map<string, Posicao> {
 
 export function TasteMap({ onOpenMovie, revision = 0 }: { onOpenMovie: (id: string) => void; revision?: number }) {
   const [busca, setBusca] = useState('')
-  const [dados, setDados] = useState<MapaGostos | null>(null)
+  const [dados, setDados] = useState<MapaGostos | null>(
+    () => obterMapaGostosEmCache({ limiteNos: 24, vizinhosPorFilme: 3 }),
+  )
   const [erro, setErro] = useState('')
   const [selecionado, setSelecionado] = useState<NoMapaGostos | null>(null)
   const [tentativa, setTentativa] = useState(0)
   const [excluir, setExcluir] = useState<string[]>([])
-  const [carregando, setCarregando] = useState(true)
+  const [carregando, setCarregando] = useState(!dados)
   const [foco, setFoco] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
-      void obterMapaGostos({ limiteNos: 24, vizinhosPorFilme: 3, excluir }, controller.signal)
+      void obterMapaGostos({ limiteNos: 24, vizinhosPorFilme: 3, excluir }, controller.signal, tentativa > 0)
         .then((mapa) => {
           if (controller.signal.aborted) return
           setDados(mapa)

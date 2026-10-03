@@ -70,8 +70,8 @@ PALAVRAS_SEM_SINAL = frozenset(
         "um",
     }
 )
-LIMITE_CANDIDATOS_MINIMO = 400
-LIMITE_CANDIDATOS_MAXIMO = 900
+LIMITE_CANDIDATOS_MINIMO = 350
+LIMITE_CANDIDATOS_MAXIMO = 700
 LIMITE_TERMOS_SINOPSE = 32
 
 
@@ -190,7 +190,7 @@ class MapaGostosService:
 
         return min(
             LIMITE_CANDIDATOS_MAXIMO,
-            max(LIMITE_CANDIDATOS_MINIMO, limite_recomendacoes * 50),
+            max(LIMITE_CANDIDATOS_MINIMO, limite_recomendacoes * 35),
         )
 
     async def _avaliacoes_do_usuario(self, user_id: str, *, limit: int) -> list[MovieReview]:

@@ -30,14 +30,19 @@ import type {
   ContextoConversaGenAi,
   RespostaGenAi,
 } from '../types/api'
-import { obterTokenSessao } from '../auth/session'
+import { carregarSessao, obterTokenSessao } from '../auth/session'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 const genAiApiBaseUrl = import.meta.env.VITE_GENAI_API_BASE_URL ?? '/genai/api/v1'
 const CACHE_TTL_MS = 60_000
+const MAPA_CACHE_TTL_MS = 30_000
 
 type CacheEntry = { expiraEm: number; valor: unknown }
 const cacheDeLeitura = new Map<string, CacheEntry>()
+const leiturasPendentes = new Map<string, Promise<unknown>>()
+const cacheMapaGostos = new Map<string, CacheEntry>()
+const mapasPendentes = new Map<string, Promise<MapaGostos>>()
+let geracaoCache = 0
 
 export class ErroDaApi extends Error {
   readonly status: number
@@ -106,19 +111,48 @@ async function requisitarComCache<T>(caminho: string, signal?: AbortSignal): Pro
   const chave = `${apiBaseUrl}${caminho}`
   const entrada = cacheDeLeitura.get(chave)
   if (entrada && entrada.expiraEm > Date.now()) return entrada.valor as T
+  const pendente = leiturasPendentes.get(chave)
+  if (pendente) return pendente as Promise<T>
+  const geracao = geracaoCache
+  const pedido = requisitar<T>(caminho, { signal, cache: 'no-store' }).then((dados) => {
+    if (geracao === geracaoCache)
+      cacheDeLeitura.set(chave, { expiraEm: Date.now() + CACHE_TTL_MS, valor: dados })
+    return dados
+  })
+  if (signal) return pedido
+  const compartilhado = pedido.finally(() => {
+    if (leiturasPendentes.get(chave) === compartilhado) leiturasPendentes.delete(chave)
+  })
+  leiturasPendentes.set(chave, compartilhado)
+  return compartilhado
+}
 
-  const dados = await requisitar<T>(caminho, { signal, cache: 'no-store' })
-  cacheDeLeitura.set(chave, { expiraEm: Date.now() + CACHE_TTL_MS, valor: dados })
-  return dados
+export function obterPaginaFilmesEmCache(parametros: URLSearchParams): Pagina<FilmeResumo> | null {
+  const chave = `${apiBaseUrl}/filmes?${parametros.toString()}`
+  const entrada = cacheDeLeitura.get(chave)
+  if (!entrada) return null
+  if (entrada.expiraEm <= Date.now()) {
+    cacheDeLeitura.delete(chave)
+    return null
+  }
+  return entrada.valor as Pagina<FilmeResumo>
 }
 
 function invalidarCacheDeFilmes() {
+  geracaoCache += 1
   cacheDeLeitura.clear()
+  cacheMapaGostos.clear()
+  leiturasPendentes.clear()
+  mapasPendentes.clear()
 }
 
 /** Uso exclusivo dos testes: cada caso começa sem respostas em memória. */
 export function limparCacheDaApiParaTeste() {
+  geracaoCache += 1
   cacheDeLeitura.clear()
+  leiturasPendentes.clear()
+  cacheMapaGostos.clear()
+  mapasPendentes.clear()
 }
 
 export function registrar(dados: {
@@ -172,6 +206,7 @@ export function obterResumoAnalytics(
 export function obterMapaGostos(
   parametros: { limiteNos: number; vizinhosPorFilme: number; busca?: string; excluir?: string[] },
   signal?: AbortSignal,
+  forcarAtualizacao = false,
 ): Promise<MapaGostos> {
   const consulta = new URLSearchParams({
     limite_nos: String(parametros.limiteNos),
@@ -179,10 +214,38 @@ export function obterMapaGostos(
   })
   if (parametros.busca?.trim()) consulta.set('busca', parametros.busca.trim())
   parametros.excluir?.forEach((id) => consulta.append('excluir', id))
-  return requisitar<MapaGostos>(`/mapa-de-gostos?${consulta.toString()}`, {
+  const chave = `${carregarSessao()?.usuario.id ?? 'visitante'}:${consulta.toString()}`
+  const entrada = cacheMapaGostos.get(chave)
+  if (!forcarAtualizacao && entrada && entrada.expiraEm > Date.now())
+    return Promise.resolve(entrada.valor as MapaGostos)
+  const pendente = mapasPendentes.get(chave)
+  if (!forcarAtualizacao && pendente) return pendente
+  const geracao = geracaoCache
+  const request = requisitar<MapaGostos>(`/mapa-de-gostos?${consulta.toString()}`, {
     signal,
     cache: 'no-store',
   })
+  const promise = request.then((mapa) => {
+    if (geracao === geracaoCache)
+      cacheMapaGostos.set(chave, { valor: mapa, expiraEm: Date.now() + MAPA_CACHE_TTL_MS })
+    return mapa
+  }).finally(() => {
+    if (mapasPendentes.get(chave) === promise) mapasPendentes.delete(chave)
+  })
+  mapasPendentes.set(chave, promise)
+  return promise
+}
+
+export function obterMapaGostosEmCache(
+  parametros: { limiteNos: number; vizinhosPorFilme: number; excluir?: string[] },
+): MapaGostos | null {
+  const consulta = new URLSearchParams({
+    limite_nos: String(parametros.limiteNos),
+    vizinhos_por_filme: String(parametros.vizinhosPorFilme),
+  })
+  parametros.excluir?.forEach((id) => consulta.append('excluir', id))
+  const entrada = cacheMapaGostos.get(`${carregarSessao()?.usuario.id ?? 'visitante'}:${consulta.toString()}`)
+  return entrada && entrada.expiraEm > Date.now() ? entrada.valor as MapaGostos : null
 }
 
 export function perguntarGenAi(
