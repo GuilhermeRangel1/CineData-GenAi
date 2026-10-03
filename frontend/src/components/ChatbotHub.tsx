@@ -369,8 +369,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
                 onClick={() => iniciarConversa(!modoTemporario)}
                 disabled={carregando || !isAuthenticated}
               >
-                <span className="chatbot-temporary-icon" aria-hidden="true" />
-                <span>{modoTemporario ? 'Temporário ativo' : 'Temporário inativo'}</span>
+                Temporário
               </button>
               <button
                 ref={botaoAjuda}
