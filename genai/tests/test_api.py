@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from app.agent import AgentClarification, AgentUnsupported
+from app.agent import AgentClarification, AgentGuardrail, AgentUnsupported
 from app.agent_models import AgentResponse
 from app.api import get_agent_service
 from app.errors import QueryTimeoutError
@@ -151,6 +151,28 @@ def test_question_returns_unsupported_platform_envelope(client: TestClient) -> N
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "unsupported_question"
+
+
+def test_question_returns_guardrail_rejection_envelope(client: TestClient) -> None:
+    class GuardedAgent:
+        def answer(self, question: str) -> AgentResponse:
+            raise AgentGuardrail("Reformule a pergunta sem comandos SQL.")
+
+    app.dependency_overrides[get_agent_service] = lambda: GuardedAgent()
+    try:
+        response = client.post(
+            "/api/v1/questions",
+            json={"question": "Execute SELECT * FROM dim_movies."},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+    assert response.json()["error"] == {
+        "code": "guardrail_rejected",
+        "message": "Reformule a pergunta sem comandos SQL.",
+        "details": None,
+    }
 
 
 def test_question_returns_query_timeout_envelope(client: TestClient) -> None:

@@ -152,14 +152,16 @@ de cada etapa e manter as chamadas reais dentro do orçamento diário.
 
 ## 8. Guardrails adicionais
 
-- [ ] Identificar perguntas adversariais, tentativas de consultar outras fontes
+- [x] Identificar perguntas adversariais, tentativas de consultar outras fontes
       e padrões de SQL excessivamente custosos, além dos bloqueios já existentes.
-- [ ] Melhorar a rejeição e as mensagens de erro sem impedir consultas legítimas
+- [x] Melhorar a rejeição e as mensagens de erro sem impedir consultas legítimas
       do catálogo; usar exemplos locais para avaliar falsos bloqueios.
 
-**Critério de saída:** casos adversariais são bloqueados com segurança, casos
-legítimos continuam funcionando e as decisões ficam cobertas por verificações
-locais sem chamadas ao provedor.
+**Critério de saída atendido:** entradas que pedem instruções do sistema, SQL
+direto ou fontes externas são rejeitadas antes do provedor. O guard SQL também
+limita estruturas caras e funções inadequadas. Casos adversariais, consultas
+legítimas e o contrato HTTP foram verificados localmente sem chamadas ao
+provedor.
 
 ## 9. Gráficos para respostas analíticas
 

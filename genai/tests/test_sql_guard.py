@@ -58,6 +58,19 @@ def test_validate_caps_explicit_limit() -> None:
     assert query.sql.endswith("LIMIT 2")
 
 
+@pytest.mark.parametrize(
+    "sql",
+    (
+        "WITH RECURSIVE numbers(value) AS (SELECT 1 UNION ALL SELECT value + 1 FROM numbers) SELECT value FROM numbers",
+        "SELECT left_table.id FROM dim_movies AS left_table CROSS JOIN dim_people AS right_table",
+        "SELECT randomblob(1000000) FROM dim_movies",
+    ),
+)
+def test_validate_rejects_costly_or_unsafe_query_shapes(sql: str) -> None:
+    with pytest.raises(SqlValidationError):
+        validate_sql(sql)
+
+
 def test_executor_returns_rows_and_truncation(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_gold_fixture(database_path)

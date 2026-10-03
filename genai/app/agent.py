@@ -16,6 +16,7 @@ from app.evaluation_cases import (
     get_evaluation_case,
 )
 from app.gold_database import EXPECTED_TABLES
+from app.question_guard import rejection_message
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
 
@@ -30,6 +31,10 @@ class AgentClarification(AgentError):
 
 class AgentUnsupported(AgentError):
     """A plataforma não documenta a funcionalidade pedida."""
+
+
+class AgentGuardrail(AgentUnsupported):
+    """A entrada pede uma ação fora do contrato seguro do chatbot."""
 
 
 logger = logging.getLogger(__name__)
@@ -541,7 +546,7 @@ def _is_unfiltered_five_year_actor_question(question: str) -> bool:
         for character in unicodedata.normalize("NFD", question.casefold())
         if unicodedata.category(character) != "Mn"
     )
-    if not re.search(r"\bator(?:es)?\b", normalized):
+    if not re.search(r"\bqual\s+ator\b", normalized):
         return False
     if not re.search(r"\bmais\s+filmes\b|\bmaior\s+numero\s+de\s+filmes\b", normalized):
         return False
@@ -781,6 +786,8 @@ class AgentService:
         normalized_question = question.strip()
         if not normalized_question:
             raise AgentError("A pergunta não pode ser vazia.")
+        if message := rejection_message(normalized_question):
+            raise AgentGuardrail(message)
         if _is_casual_message(normalized_question):
             return AgentResponse(
                 answer=_DEFAULT_CHAT_RESPONSE,

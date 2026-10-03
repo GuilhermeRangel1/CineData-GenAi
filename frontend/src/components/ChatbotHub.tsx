@@ -137,6 +137,9 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
     } catch (falha) {
       if (falha instanceof ErroDaApi && falha.codigo === 'ambiguous_question') {
         setErro(`Preciso de um detalhe para continuar: ${falha.message}`)
+      } else if (falha instanceof ErroDaApi && falha.codigo === 'guardrail_rejected') {
+        setErro(falha.message)
+        setPerguntaFalhou('')
       } else {
         setErro(falha instanceof Error ? falha.message : 'Não consegui responder agora. Tente novamente.')
         setPerguntaFalhou(conteudo)

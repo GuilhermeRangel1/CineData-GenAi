@@ -52,6 +52,12 @@ _GOLD_COLUMNS = frozenset(
     }
 )
 
+_MAX_SQL_LENGTH = 16_000
+_MAX_CTES = 8
+_MAX_JOINS = 8
+_MAX_SUBQUERIES = 12
+_DENIED_FUNCTIONS = frozenset({"load_extension", "readfile", "writefile", "randomblob", "zeroblob"})
+
 
 def _without_accents(value: str) -> str:
     """Retorna um identificador ASCII para tolerar acentos introduzidos pelo modelo."""
@@ -87,6 +93,8 @@ def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
         raise SqlValidationError("A consulta SQL está vazia.")
     if max_rows < 1:
         raise ValueError("max_rows deve ser positivo.")
+    if len(sql) > _MAX_SQL_LENGTH:
+        raise SqlValidationError("A consulta SQL excede o tamanho permitido.")
 
     try:
         statements = parse(sql, read="sqlite")
@@ -102,6 +110,23 @@ def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
 
     _normalize_gold_columns(expression)
 
+    ctes = tuple(expression.find_all(exp.CTE))
+    if len(ctes) > _MAX_CTES:
+        raise SqlValidationError("A consulta usa CTEs demais.")
+    if any(with_clause.args.get("recursive") for with_clause in expression.find_all(exp.With)):
+        raise SqlValidationError("CTEs recursivas não são permitidas.")
+    if len(tuple(expression.find_all(exp.Join))) > _MAX_JOINS:
+        raise SqlValidationError("A consulta usa joins demais.")
+    if len(tuple(expression.find_all(exp.Subquery))) > _MAX_SUBQUERIES:
+        raise SqlValidationError("A consulta usa subconsultas demais.")
+    for join in expression.find_all(exp.Join):
+        if join.args.get("kind") == "CROSS":
+            raise SqlValidationError("CROSS JOIN não é permitido.")
+    for function in expression.find_all(exp.Func):
+        function_name = (function.name or function.sql_name()).casefold()
+        if function_name in _DENIED_FUNCTIONS:
+            raise SqlValidationError("A consulta usa uma função não permitida.")
+
     cte_names = {cte.alias_or_name for cte in expression.find_all(exp.CTE)}
     tables: set[str] = set()
     for table in expression.find_all(exp.Table):
@@ -116,16 +141,17 @@ def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
     if not tables:
         raise SqlValidationError("A consulta precisa ler uma tabela Gold.")
 
-    limit = expression.args.get("limit")
-    if limit is None:
+    limits = tuple(expression.find_all(exp.Limit))
+    if not limits:
         expression = expression.limit(max_rows)
     else:
-        limit_expression = limit.args.get("expression")
-        if (
-            isinstance(limit_expression, exp.Literal)
-            and limit_expression.is_int
-            and int(limit_expression.this) > max_rows
-        ):
-            limit.set("expression", exp.Literal.number(max_rows))
+        for limit in limits:
+            limit_expression = limit.args.get("expression")
+            if (
+                isinstance(limit_expression, exp.Literal)
+                and limit_expression.is_int
+                and int(limit_expression.this) > max_rows
+            ):
+                limit.set("expression", exp.Literal.number(max_rows))
 
     return ValidatedQuery(sql=expression.sql(dialect="sqlite"), tables=frozenset(tables))
