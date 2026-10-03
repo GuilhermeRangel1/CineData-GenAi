@@ -119,7 +119,7 @@ export function CommunityHub({ usuario, onLoginRequested, onOpenMovie, onBusyCha
           <p className="eyebrow"><span className="red-line" />CINEMA É EXPERIÊNCIA COLETIVA</p>
           <h1>Comunidades</h1>
         </div>
-        {usuario?.role === 'admin' && <button className="button button-outline" onClick={() => openEditor('create')}>+ Nova comunidade</button>}
+        {usuario?.role === 'admin' && <button className="button button-light" onClick={() => openEditor('create')}>+ Nova comunidade</button>}
       </header>
       <div className="community-content">
         {error && !editor && !deleting && <p className="form-error" role="alert">{error}</p>}
