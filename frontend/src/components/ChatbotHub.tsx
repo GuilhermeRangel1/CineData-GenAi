@@ -337,7 +337,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
             <span className="chatbot-star chatbot-star--two" aria-hidden="true">✦</span>
             <span className="chatbot-star chatbot-star--three" aria-hidden="true">·</span>
             <button className="chatbot-robot-button" type="button" aria-label="Acenar para o robô" onClick={() => setGesto('waving')} disabled={carregando || gesto === 'waving'}>
-              <ChatbotRobot mood={estado} />
+              <ChatbotRobot mood={estado} incognito={modoTemporario} />
             </button>
           </div>
           <p className="sr-only" role="status">{FALAS[estado]}</p>
@@ -360,8 +360,18 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
             <div className="chatbot-conversation-heading">
             <div><span className="chatbot-mini-mark" aria-hidden="true">✦</span><h2>{abrindoConversa ? 'Abrindo conversa…' : tituloConversaAtiva || 'Conversa'}</h2></div>
             <div className="chatbot-conversation-actions">
-              <button className="chatbot-clear-trigger" type="button" onClick={() => iniciarConversa(!isAuthenticated)} disabled={carregando}>Nova conversa</button>
-              <button className={`chatbot-temporary-trigger ${modoTemporario ? 'is-active' : ''}`} type="button" onClick={() => iniciarConversa(true)} disabled={carregando}>Temporária</button>
+              <button
+                className={`chatbot-temporary-trigger ${modoTemporario ? 'is-active' : ''}`}
+                type="button"
+                aria-pressed={modoTemporario}
+                aria-label={modoTemporario ? 'Desativar modo temporário' : 'Ativar modo temporário'}
+                title={!isAuthenticated ? 'Entre na sua conta para alternar entre conversas salvas e temporárias' : undefined}
+                onClick={() => iniciarConversa(!modoTemporario)}
+                disabled={carregando || !isAuthenticated}
+              >
+                <span className="chatbot-temporary-icon" aria-hidden="true" />
+                <span>{modoTemporario ? 'Temporário ativo' : 'Temporário inativo'}</span>
+              </button>
               <button
                 ref={botaoAjuda}
                 className="chatbot-help-trigger"
@@ -421,14 +431,14 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
             <div className="chatbot-messages" ref={conversa} role="log" aria-label="Histórico da conversa" aria-live="polite" aria-relevant="additions text">
               {mensagens.map((mensagem, indice) => (
                 <article key={`${indice}-${mensagem.role}`} className={`chatbot-message chatbot-message--${mensagem.role}`} data-chatbot-result={mensagem.resposta ? '' : undefined}>
-                  {mensagem.role === 'assistant' && <span className="chatbot-message-avatar"><ChatbotRobot compact mood="happy" /></span>}
+                  {mensagem.role === 'assistant' && <span className="chatbot-message-avatar"><ChatbotRobot compact mood="happy" incognito={modoTemporario} /></span>}
                   {mensagem.resposta ? <ResultadoGenAi resposta={mensagem.resposta} /> : <p>{mensagem.conteudo}</p>}
                 </article>
               ))}
               {carregando && (
                 <article className="chatbot-message chatbot-message--assistant chatbot-message--loading" aria-label="Chatbot está respondendo">
-                  <span className="chatbot-message-avatar"><ChatbotRobot compact mood="thinking" /></span>
-                  <div className="chatbot-loading-bubble"><span className="chatbot-loading-dots" aria-hidden="true"><i /><i /><i /></span></div>
+                  <span className="chatbot-message-avatar"><ChatbotRobot compact mood="thinking" incognito={modoTemporario} /></span>
+                  <div className="chatbot-loading-bubble"><span className="chatbot-loading-dots" aria-hidden="true"><i /><i /><i /></span><span key={progresso} className="chatbot-loading-status">{progresso || 'Entendendo sua pergunta…'}</span></div>
                 </article>
               )}
             </div>

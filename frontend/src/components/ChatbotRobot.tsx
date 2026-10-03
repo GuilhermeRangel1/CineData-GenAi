@@ -1,12 +1,14 @@
 import { useId } from 'react'
+import { ChatbotRobotNoir } from './ChatbotRobotNoir'
 
 export type RobotMood = 'idle' | 'listening' | 'thinking' | 'happy' | 'error' | 'waving'
 
 /** Vector companion: the shell, visor and eyes stay crisp at every display size. */
-export function ChatbotRobot({ mood = 'idle', compact = false }: { mood?: RobotMood; compact?: boolean }) {
+export function ChatbotRobot({ mood = 'idle', compact = false, incognito = false }: { mood?: RobotMood; compact?: boolean; incognito?: boolean }) {
   const id = useId().replace(/:/g, '')
+  if (incognito) return <ChatbotRobotNoir mood={mood} compact={compact} />
   return (
-    <svg className={`chatbot-robot ${compact ? 'chatbot-robot--compact' : ''}`} data-mood={mood} viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <svg className={`chatbot-robot ${compact ? 'chatbot-robot--compact' : ''}`} data-mood={mood} data-variant="default" viewBox="0 0 320 360" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <defs>
         <linearGradient id={`${id}-shell`} x1="67" y1="45" x2="242" y2="204" gradientUnits="userSpaceOnUse">
           <stop stopColor="#fff" /><stop offset=".28" stopColor="#f9fcfc" /><stop offset=".68" stopColor="#dce9ed" /><stop offset="1" stopColor="#94acb7" />
