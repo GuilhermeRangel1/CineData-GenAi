@@ -49,6 +49,12 @@ significa apenas a primeira versão da API; não acrescenta nenhuma funcionalida
 | `PUT` | `/api/v1/minha-conta/assistir-depois/{filme_id}` | Salva filme para assistir depois | Autenticado |
 | `DELETE` | `/api/v1/minha-conta/assistir-depois/{filme_id}` | Remove filme de assistir depois | Autenticado |
 | `GET` | `/api/v1/minha-conta/filmes-avaliados` | Lista filmes avaliados pela conta | Autenticado |
+| `GET` | `/api/v1/minha-conta/conversas` | Lista conversas salvas da conta | Autenticado |
+| `POST` | `/api/v1/minha-conta/conversas` | Cria conversa salva | Autenticado |
+| `GET` | `/api/v1/minha-conta/conversas/{conversa_id}` | Retoma conversa e mensagens | Autenticado (dona) |
+| `PATCH` | `/api/v1/minha-conta/conversas/{conversa_id}` | Renomeia conversa | Autenticado (dona) |
+| `DELETE` | `/api/v1/minha-conta/conversas/{conversa_id}` | Exclui conversa | Autenticado (dona) |
+| `POST` | `/api/v1/minha-conta/conversas/{conversa_id}/mensagens` | Salva mensagens exibidas no chat | Autenticado (dona) |
 | `GET` | `/api/v1/minha-conta/amigos` | Lista amizades aceitas | Autenticado |
 | `GET` | `/api/v1/minha-conta/amigos/solicitacoes` | Lista pedidos enviados e recebidos | Autenticado |
 | `GET` | `/api/v1/minha-conta/amigos/pesquisa` | Pesquisa pessoas para conexão | Autenticado |
@@ -148,11 +154,16 @@ o filme não existe.
 pública da conta autenticada. `DELETE` no mesmo caminho apaga somente a
 avaliação da conta e recompõe o resumo do filme.
 
-### Listas, comunidades e descoberta
+### Listas, conversas, comunidades e descoberta
 
 As rotas sob `/api/v1/minha-conta/listas` e `/assistir-depois` só expõem dados da
 conta autenticada. O perfil público contém apenas avaliações e listas públicas;
 `GET /api/v1/auth/perfil` permite ao dono ver também os próprios itens privados.
+
+As rotas sob `/api/v1/minha-conta/conversas` mantêm o histórico privado do
+chatbot. Cada conversa pertence a uma única conta; os registros armazenam título,
+datas, papel e conteúdo das mensagens, além da resposta estruturada quando ela
+existir. Conversas temporárias não chamam essas rotas e não são persistidas.
 
 As operações de comunidade que alteram a conversa exigem participação; a
 criação, edição e remoção de comunidades exige `admin`. Administradores também

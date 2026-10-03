@@ -1,10 +1,9 @@
 # Inventário da camada Gold
 
-Este documento registra o inventário físico inicial da base analítica usada
-para planejar as métricas. É uma fotografia da base local inspecionada; não
-substitui a validação das regras de negócio nem as consultas de referência, que
-continuam pendentes na etapa 1. A base deve ser consultada em modo somente
-leitura pelo futuro módulo analítico.
+Este documento registra o inventário físico do Gold usado pelo módulo GenAI.
+É uma fotografia da base local inspecionada; as decisões de negócio aplicadas
+na entrega estão em `metric-rules.md` e as consultas de referência em
+`reference-queries.sql`. O serviço consulta o arquivo somente em modo leitura.
 
 ## Integridade e tabelas
 
@@ -56,24 +55,23 @@ serviço GenAI continua abrindo o arquivo em modo somente leitura.
 - As bridges associam filmes a gêneros, pessoas e produtoras. Cada relação é
   única pelo par de chaves e aponta para as dimensões correspondentes.
 
-## Observações de qualidade a resolver na etapa 1
+## Observações de qualidade consideradas nas métricas
 
 - `orcamento_usd` está ausente em 87.719 linhas e `receita_usd` em 92.272;
-  portanto, valores de lucro armazenados não bastam para decidir quais filmes
-  entram em análises que exigem os dois componentes.
+  por isso, análises de lucro e margem usam somente filmes com os dois
+  componentes disponíveis.
 - `popularidade` está ausente em 3.615 linhas; `qtd_tmdb`, em 7.567;
-  `nota_imdb`, em 12.674; `qtd_imdb`, em 10.866. As notas e contagens precisam
-  de políticas de validade explícitas em cada métrica.
+  `nota_imdb`, em 12.674; `qtd_imdb`, em 10.866. As regras de validade ficam
+  explícitas em cada métrica.
 - Existem notas TMDB iguais a zero com diferentes quantidades de votos, então
-  zero não deve ser convertido genericamente em ausente. As distribuições e a
-  população válida devem ser confirmadas com consultas de referência.
+  zero não deve ser convertido genericamente em ausente. As consultas de
+  referência preservam esse tratamento.
 - Datas de lançamento vão de 2016-01-01 a 2029-10-13; há três filmes com data
-  posterior a 2026-10-01. A janela de cinco anos precisa excluir lançamentos
-  futuros e ser definida com limites explícitos.
+  posterior a 2026-10-01. A janela móvel de cinco anos exclui lançamentos
+  futuros e usa limites explícitos.
 - Há relações 1:N entre filme e gêneros, pessoas ou produtoras. Agregar fatos
   financeiros depois de expandir essas relações pode contar um filme várias
-  vezes; primeiro é necessário definir a granularidade de filme e validar cada
-  agregação.
+  vezes; as consultas usam a granularidade declarada em `metric-rules.md`.
 - `dim_reviews` tem um resumo por filme e suas contagens correspondem às linhas
   agrupadas em `movie_reviews` nos dados inspecionados. A média do resumo tem
   arredondamento de até aproximadamente 0,005 em relação à média bruta.
@@ -82,13 +80,13 @@ serviço GenAI continua abrindo o arquivo em modo somente leitura.
   identidade única de usuário nem essa coluna como série temporal sem evidência
   adicional.
 - Os valores observados de `nota_tmdb` e `nota_imdb` estão em escala de 0 a 10;
-  comparabilidade e tratamento de notas sem votos ainda precisam de decisão
-  explícita antes da métrica de divergência.
+  comparabilidade e tratamento de notas sem votos são definidos nas regras de
+  divergência.
 
-## Próximo trabalho da etapa 1
+## Uso na entrega
 
-Definir população, unidade de análise, colunas, nulos/zeros, filtros temporais,
-unidade monetária e desempates para cada pergunta obrigatória; então escrever e
-executar consultas SQL de referência com verificações de cardinalidade e
-amostras. Este inventário, por si só, não certifica as métricas nem seus
-resultados.
+As regras de população, nulos, escala, períodos e desempates já foram
+formalizadas em `metric-rules.md`. As 14 consultas de referência e os cenários
+de avaliação ficam em `reference-queries.sql` e `evaluation-cases.md`. Este
+inventário continua útil para atualizar essas regras se uma nova versão do Gold
+alterar o schema ou as contagens.

@@ -51,8 +51,10 @@ gerais do topo representam toda a plataforma.
 Na aba Chatbot, faça perguntas sobre os filmes e as métricas do catálogo ou
 peça ajuda para encontrar e usar as áreas do CineData. Perguntas sobre dados
 dos filmes podem mostrar uma tabela; orientações sobre o site aparecem em
-texto. Cada pergunta é independente: para mudar um filtro ou período, inclua-o
-na nova pergunta. Se quiser ideias, abra o botão **Ajuda** dentro da conversa.
+texto. Perguntas de continuação, como “e em 2020?”, usam o contexto da conversa
+atual. Usuários autenticados podem criar, retomar, renomear e excluir conversas;
+o modo temporário não salva mensagens. Se quiser ideias, abra o botão **Ajuda**
+dentro da conversa.
 
 ## Onde conferir
 

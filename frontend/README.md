@@ -26,9 +26,11 @@ proxy de desenvolvimento envia as chamadas a `http://localhost:8001`.
 O endpoint utilizado é `POST /api/v1/questions` do serviço GenAI. A chave do
 modelo é configurada no serviço, em `genai/.env`; ela não deve ser colocada em
 variáveis `VITE_*` nem enviada ao navegador. O chatbot mostra estados de
-carregamento, erro e esclarecimento, além da tabela de resultados e do contexto
-da métrica. Cada envio é uma pergunta independente; o histórico visual não é
-memória do agente.
+carregamento, erro e esclarecimento, além de tabela, gráfico, insights e
+contexto da métrica. Para perguntas de continuação, o frontend envia no máximo
+três resumos da conversa atual, sem tokens ou dados da conta. Usuários
+autenticados podem salvar, retomar, renomear e excluir conversas; o modo
+temporário não persiste mensagens.
 
 ## Verificações locais
 

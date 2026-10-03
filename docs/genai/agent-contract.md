@@ -1,54 +1,50 @@
 # Contrato interno do agente
 
-Este contrato define a fronteira entre o orquestrador do agente e qualquer
-framework/provedor de modelo. Ele não escolhe uma empresa ou modelo e não faz
-chamadas externas.
+Este contrato define a fronteira entre `AgentService`, o adaptador de modelo e
+as fontes de evidência. O modelo nunca recebe uma conexão SQLite, acesso ao
+sistema de arquivos ou uma ferramenta além de `run_sql`.
 
-## Fluxo mínimo
+## Caminhos de resposta
 
-1. O serviço recebe uma pergunta em português.
-2. O modelo recebe a pergunta e a ferramenta `run_sql`.
-3. O modelo pode solicitar exatamente uma chamada dessa ferramenta, com um
-   argumento `sql`.
-4. O serviço valida e executa o SQL pela camada Gold já protegida.
-5. O resultado tabular volta ao modelo para uma resposta final em português.
-6. A resposta do serviço mantém as linhas retornadas e a indicação de
-   truncamento.
-7. Para Q01–Q14, a resposta final precisa conter os rótulos `Resposta:`,
-   `Métrica:`, `Unidade:`, `Período:`, `População válida:` e `Limitações:`.
-8. Se faltar uma métrica ou período essencial, o modelo pode responder com
-   `CLARIFY:`; nesse caso o serviço não executa SQL e a API devolve
-   `ambiguous_question`.
-9. Perguntas sobre como usar o CineData são respondidas pelo guia versionado da
-   plataforma sem executar SQL. Perguntas mistas preservam a orientação do guia
-   separada dos resultados analíticos retornados pelo Gold. Pedidos vagos
-   recebem esclarecimento e funcionalidades não documentadas são identificadas
-   como não encontradas no guia, sem gerar SQL.
-10. Perguntas descritivas sobre filmes consultam o índice local de títulos e
-    sinopses. Quando também pedem uma medida, o índice fornece os candidatos e
-    o SQL consulta os números no Gold; a resposta identifica as duas origens.
+1. Guardrails verificam escopo, instruções adversariais e tentativas de enviar
+   SQL diretamente.
+2. Perguntas sobre o uso do CineData consultam o guia versionado da plataforma
+   e retornam texto, sem SQL e sem chamada ao provedor.
+3. Perguntas descritivas sobre filmes podem usar o índice local de títulos e
+   sinopses. Se também solicitarem uma métrica, os filmes encontrados viram
+   contexto para uma consulta SQL protegida.
+4. Perguntas analíticas chegam ao modelo com a ferramenta `run_sql`.
+5. O modelo pode solicitar uma única chamada com o argumento `sql`. O serviço
+   valida e executa a consulta no Gold e devolve as linhas ao modelo.
+6. A resposta final usa apenas as linhas retornadas. Para Q01–Q14, ela inclui
+   resposta, métrica, unidade, período, população válida e limitações.
+7. Um `CLARIFY:` impede a execução quando faltar uma métrica ou filtro
+   essencial. Resultados vazios e pedidos não suportados têm caminhos próprios.
 
-O modelo não recebe acesso direto ao arquivo, à conexão SQLite ou a outras
-ferramentas. O orquestrador também não aceita uma resposta factual sem que a
-consulta tenha sido executada e, para os casos obrigatórios, sem o formato
-semântico mínimo. Os valores tabulares que fundamentam a resposta permanecem
-disponíveis em `rows` e as colunas validadas em `metadata.columns`.
+As evidências permanecem em `rows`; `metadata.columns` registra as colunas
+validadas. A interface usa essas linhas para tabela e, quando adequado,
+gráfico. O serviço de insights recebe somente o resultado estruturado e não
+possui acesso ao Gold.
 
 ## Porta do provedor
 
-Um adaptador de provedor deve implementar apenas uma operação equivalente a:
+Todo provedor compatível implementa uma operação equivalente a:
 
 ```text
 complete(messages, tools) -> ModelTurn
 ```
 
-O adaptador converte o formato dessa porta para o SDK escolhido. O restante do
-serviço não deve importar SDK, chave, nome de modelo ou configuração de
-provedor. Os testes usam um modelo simulado e não consomem cota.
+O adaptador converte essa porta para o SDK escolhido. O orquestrador não deve
+importar SDK, chave ou configuração específica do provedor. Em falhas
+temporárias previstas, o adaptador tenta uma única vez o modelo de fallback;
+falhas de guardrail, validação SQL ou banco não acionam fallback.
 
-## Limites deste bloco
+## Contexto, cache e privacidade
 
-Memória de conversa, seleção de modelo, retries, fallback, streaming, busca
-por sinopses e integração FastAPI evoluem em blocos próprios. Uma pergunta usa
-no máximo um tool call para manter custo, rastreabilidade e controle de cota
-previsíveis.
+O frontend envia no máximo três resumos da conversa atual, sem tokens ou dados
+da conta. O contexto serve para retomar filtros e métricas em perguntas de
+continuação. O `conversation_id` é usado para separar entradas do cache, que
+expira em cinco minutos e também invalida quando o Gold ou as regras mudam.
+
+O histórico salvo, criação de conversas e suas permissões são responsabilidades
+do backend principal. O GenAI recebe apenas o contexto mínimo de cada chamada.

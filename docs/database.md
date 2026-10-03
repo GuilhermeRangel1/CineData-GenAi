@@ -61,7 +61,7 @@ definir a população desejada.
   anos antes, usando `data_lancamento`; contagens de atuação são de filmes
   distintos.
 - O Gold observado registra TMDB, IMDb e média dos usuários entre 0 e 10;
-  divergência usa diferença absoluta. “Nota média” de diretores usa `nota_tmdb`,
+  divergência usa diferença absoluta. “Nota média” de diretores usa `nota_imdb`,
   decisão uniforme para a pergunta sem fonte de nota explícita, com pelo menos
   cinco filmes distintos qualificados.
 - Popularidade usa `popularidade`; a evolução anual usa `nota_imdb` e
@@ -84,7 +84,7 @@ contas e atividade não são escritos nele.
 | --- | --- | --- |
 | Catálogo Gold | `dim_movies`, `dim_genres`, `dim_people`, `dim_companies`, `fact_movies_performance`, `dim_reviews`, `movie_reviews` | Catálogo, métricas e avaliações importadas. Avaliações de usuários da aplicação ocupam `movie_reviews` com `user_id` preenchido; as importadas não têm conta local associada. |
 | Relações do catálogo | `bridge_movie_genre`, `bridge_movie_person`, `bridge_movie_company` | Relacionamentos N:N com chaves compostas. |
-| Contas e atividade | `users`, `user_lists`, `user_list_movies`, `watch_later_movies`, `friendship_requests`, `communities`, `community_memberships`, `community_posts`, `community_comments`, `community_reactions` | Autenticação, listas, avaliações locais, amizades e recursos sociais preservados na migração. |
+| Contas e atividade | `users`, `user_lists`, `user_list_movies`, `watch_later_movies`, `friendship_requests`, `communities`, `community_memberships`, `community_posts`, `community_comments`, `community_reactions`, `chat_conversations`, `chat_messages` | Autenticação, listas, avaliações locais, amizades, conversas privadas e recursos sociais preservados na migração. |
 | Controle | `alembic_version`, `gold_database_sync` | Revisão do schema operacional e fingerprint da fonte sincronizada. |
 
 `users` guarda hashes de senha, nunca senhas em texto. Há no máximo uma
@@ -111,13 +111,13 @@ base Gold e essas avaliações.
 
 O manifesto `data/cinerocket.db.sha256` guarda o SHA-256 e o tamanho do objeto
 Gold distribuído via Git LFS. O Compose o monta somente para leitura junto ao
-banco; assim, a API identifica a versão sem reler os 581 MB a cada inicialização.
+banco; assim, a API identifica a versão sem reler cerca de 722 MB a cada inicialização.
 Ao atualizar o Gold, atualize também esse manifesto. Bases personalizadas sem
 manifesto continuam usando hash integral.
 
 A migração `0020_add_original_language` adiciona `idioma_original` ao modelo e
-ao banco operacional, e o sincronizador importa a coluna. Migrações futuras
-serão aplicadas pelo próximo início do serviço. O Gold `./data/cinerocket.db`
+ao banco operacional, e o sincronizador importa a coluna. Migrações novas são
+aplicadas no próximo início do serviço. O Gold `./data/cinerocket.db`
 é montado em
 `/workspace/cinerocket.db` somente para leitura; o banco operacional fica em
 `/app/data/rocketlab.db`, mapeado para `./data/rocketlab.db` no host. Na primeira
@@ -164,6 +164,7 @@ de perder a transação mais recente em uma falha abrupta de energia.
 | `0020_add_original_language` | Importa o idioma original dos filmes para o schema operacional. |
 | `0021_add_catalog_search_indexes` | FTS5 trigram para buscar trechos em títulos, pessoas e produtoras. |
 | `0022_cache_gold_fingerprint` | Persiste checksum e tamanho do Gold para evitar hashing repetido. |
+| `0024_add_chat_conversations` | Histórico privado do chatbot, mensagens e vínculo com a conta. |
 
 O mapa de gostos usa o catálogo operacional e o índice SQLite FTS5 de sinopses.
 Detalhes de rotas e limites estão em

@@ -1,155 +1,82 @@
 # Contrato HTTP do módulo GenAI
 
-Este documento define o contrato mínimo que a API FastAPI deverá cumprir. Ele
-é uma decisão de interface entre o módulo GenAI e os consumidores futuros,
-incluindo o frontend. A implementação dos endpoints, do agente e do provedor
-fica para blocos posteriores.
+O serviço usa o prefixo `/api/v1`, expõe `GET /health` e recebe perguntas em
+`POST /api/v1/questions`. A API não recebe SQL, chaves de provedor, tokens de
+sessão ou configuração de modelo do navegador.
 
-## Escopo da primeira versão
-
-- Prefixo versionado: `/api/v1`.
-- Endpoint principal: `POST /api/v1/questions`.
-- Endpoint operacional: `GET /health`.
-- Uma requisição representa uma pergunta independente; não há memória de
-  conversa, autenticação ou persistência no escopo mínimo.
-- O resultado vem exclusivamente da camada Gold consultada pelo serviço. A
-  implementação atual já devolve o envelope de sucesso e os metadados descritos
-  abaixo.
-
-## Pergunta
-
-`POST /api/v1/questions` recebe JSON:
+## Requisição
 
 ```json
 {
-  "question": "Quais são os 10 filmes com maior receita?"
+  "question": "E qual foi a maior em 2020?",
+  "context": [
+    {
+      "question": "Qual produtora acumulou o maior lucro total em BRL?",
+      "metric": "lucro total por produtora",
+      "unit": "BRL",
+      "period": "todo o catálogo disponível"
+    }
+  ],
+  "conversation_id": "conversa-local-123"
 }
 ```
 
-Regras do campo:
+| Campo | Regra |
+| --- | --- |
+| `question` | Obrigatório, texto não vazio, até 1.000 caracteres. |
+| `context` | Opcional, até três perguntas resumidas da conversa atual. |
+| `conversation_id` | Opcional, entre 12 e 80 caracteres; separa entradas do cache. |
 
-- `question` é obrigatório, texto não vazio e limitado a 1.000 caracteres.
-- Espaços nas extremidades podem ser removidos pela API.
-- O cliente não envia SQL, nome de tabela, chave de provedor ou configuração
-  do modelo.
+## Sucesso
 
-## Resposta de sucesso
-
-Status HTTP `200`:
+Status `200`:
 
 ```json
 {
   "status": "success",
-  "answer": "Os filmes foram ordenados pela receita registrada na camada Gold.",
-  "rows": [
-    {"title": "Exemplo", "revenue": 123456789.0}
-  ],
+  "answer": "A produtora com maior lucro em 2020 foi ...",
+  "rows": [{"produtora": "Exemplo", "lucro_total_brl": 123.45}],
+  "insights": ["..."],
   "metadata": {
-    "metric": "receita por filme",
     "source": "gold",
-    "query_id": "Q01",
+    "query_id": "Q11",
+    "metric": "lucro total por produtora",
     "unit": "BRL",
+    "period": "2020",
+    "population": "filmes com receita e orçamento informados",
+    "limitations": "...",
+    "columns": ["produtora", "lucro_total_brl"],
     "row_count": 1,
     "truncated": false,
-    "period": "todo o Gold disponível",
-    "population": "filmes com receita_brl não nula",
-    "limitations": "...",
-    "columns": ["sk_movie_id", "titulo", "receita_brl"],
-    "tool_calls": 1
+    "tool_calls": 1,
+    "cached": false
   }
 }
 ```
 
-Campos:
+`source` pode ser `gold`, `platform`, `semantic` ou `mixed`. As respostas do
+guia da plataforma não requerem linhas; perguntas descritivas podem ter origem
+`semantic`; perguntas híbridas combinam busca local e Gold em `mixed`.
 
-- `status`: sempre `success` neste formato de resposta.
-- `answer`: explicação em português, limitada aos dados retornados.
-- `rows`: lista tabular; cada item é um objeto com nomes de coluna estáveis.
-  Pode ser vazia quando a consulta válida não encontrar registros.
-- `metadata.metric`: identificador estável da métrica respondida, quando
-  reconhecido.
-- `metadata.source`: `gold` para perguntas analíticas, `platform` para respostas
-  baseadas no guia do CineData ou `mixed` quando a pergunta combina as duas
-  fontes.
-- `metadata.query_id`: identificador Q01–Q14 quando a formulação obrigatória for
-  reconhecida.
-- `metadata.unit`: unidade ou escala da métrica, quando conhecida.
-- `metadata.row_count`: quantidade de linhas retornadas ao consumidor.
-- `metadata.truncated`: indica que um limite de segurança reduziu o resultado.
-- `metadata.period`: intervalo aplicado, em texto ISO ou `null` quando não se
-  aplicar.
-- `metadata.population`: população válida usada no cálculo, quando conhecida.
-- `metadata.limitations`: limitações semânticas relevantes da métrica.
-- `metadata.columns`: colunas retornadas pela consulta validada.
-- `metadata.tool_calls`: quantidade de chamadas de ferramenta realizadas.
+## Erros e esclarecimentos
 
-O contrato não exige que o SQL gerado seja devolvido ao cliente. Para perguntas
-Q01–Q14 reconhecidas, o agente valida as colunas esperadas antes de produzir a
-resposta final. Se houver uma
-necessidade de depuração, ela deverá ser tratada por logs seguros ou metadados
-explicitamente autorizados, sem expor segredos, caminhos privados ou traceback.
+| Status | Código | Quando ocorre |
+| --- | --- | --- |
+| `400` | validação do FastAPI | Corpo ausente ou campo inválido. |
+| `422` | `ambiguous_question` | Falta métrica, período ou detalhe essencial. |
+| `422` | `guardrail_rejected` | Pedido adversarial, SQL direto ou fora do escopo. |
+| `422` | `unsupported_question` | Função não documentada no CineData. |
+| `503` | configuração ou Gold | Provedor sem chave ou Gold indisponível. |
+| `504` | `query_timeout` | Consulta excedeu o orçamento de execução. |
+| `502` | falha do agente | Erro não recuperável do provedor ou da orquestração. |
 
-## Esclarecimento necessário
-
-Status HTTP `422`:
+Esclarecimentos e erros controlados usam o envelope:
 
 ```json
 {
   "status": "clarification",
-  "error": {
-    "code": "ambiguous_question",
-    "message": "Informe o período ou a métrica desejada.",
-    "details": null
-  }
+  "error": {"code": "ambiguous_question", "message": "...", "details": null}
 }
 ```
 
-Esse estado é usado quando a pergunta não determina uma métrica ou filtro
-essencial. A API não deve executar uma consulta especulativa para preencher a
-lacuna. O modelo pode sinalizar esse estado com `CLARIFY:`; a rota devolve o
-envelope acima sem chamar `run_sql`.
-
-Perguntas vagas sobre recursos da plataforma também recebem `ambiguous_question`
-sem consulta SQL. Uma função não documentada retorna `unsupported_question`,
-explicando que ela não consta no guia atual e pedindo à pessoa que indique a
-área ou ação desejada.
-
-## Erros
-
-Todos os erros seguem o mesmo envelope:
-
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "gold_unavailable",
-    "message": "A base analítica não está disponível.",
-    "details": null
-  }
-}
-```
-
-Códigos previstos para a primeira versão:
-
-- `invalid_request` — JSON ausente ou pergunta vazia/longa demais (`400`).
-- `ambiguous_question` — informação essencial ausente (`422`).
-- `unsupported_question` — pergunta fora do escopo analítico (`422`).
-- `gold_unavailable` — arquivo Gold ausente, inválido ou inacessível (`503`).
-- `query_rejected` — SQL gerado não passou pelas regras de leitura (`422`).
-- `query_timeout` — consulta excedeu o limite definido (`504`).
-- `internal_error` — falha inesperada sem detalhes internos (`500`).
-
-As mensagens são próprias para o usuário. Caminhos absolutos, SQL bruto,
-credenciais e tracebacks nunca aparecem em `message` ou `details`.
-
-## Health check
-
-`GET /health` retorna `200` quando o processo está ativo:
-
-```json
-{"status": "ok"}
-```
-
-O health check não valida uma pergunta nem substitui uma verificação explícita
-da disponibilidade do Gold. O estado detalhado da base será definido junto da
-implementação da conexão.
+Mensagens públicas não expõem SQL bruto, caminhos, credenciais nem tracebacks.

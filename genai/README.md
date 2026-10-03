@@ -1,84 +1,98 @@
 # Módulo GenAI
 
-Módulo FastAPI isolado do CineData. Ele contém acesso read-only ao Gold, uma
-ferramenta SQL protegida, a orquestração interna do agente, um adaptador
-configurável para o Gemini e a rota HTTP de perguntas.
+Serviço FastAPI independente que sustenta o chatbot analítico do CineData. O
+serviço recebe perguntas em português, diferencia orientação sobre a plataforma
+de análise do catálogo e mantém o acesso ao Gold SQLite exclusivamente em modo
+leitura.
+
+## Fluxo
+
+```text
+pergunta → guardrails → Gemini com run_sql → validação SQL → Gold read-only
+         → resposta estruturada → tabela, gráfico e insights no frontend
+```
+
+Perguntas sobre catálogo, listas, comunidades ou mapa de gostos usam o guia
+local em `docs/platform-guide.md` e não consomem cota Gemini. Perguntas sobre
+filmes podem usar a busca local por títulos e sinopses; quando há uma métrica,
+ela é consultada no Gold após a validação SQL.
+
+## Segurança e disponibilidade
+
+- somente uma instrução `SELECT` sobre tabelas e colunas autorizadas;
+- `sqlglot`, limite de linhas, timeout e SQLite `mode=ro` protegem a execução;
+- guardrails rejeitam SQL enviado pela pessoa, pedidos fora de escopo e
+  tentativas de alterar as regras do agente;
+- o modelo principal pode recorrer uma vez ao modelo de fallback para falhas
+  temporárias de conexão, cota, timeout ou resposta 5xx;
+- respostas analíticas equivalentes ficam em cache por cinco minutos, isoladas
+  por conversa, contexto, revisão do Gold e versão das regras;
+- o serviço nunca recebe token de sessão, senha ou identificador da conta.
+
+## API
+
+`GET /health` retorna o estado do processo. `POST /api/v1/questions` recebe:
+
+```json
+{
+  "question": "Quais são os 5 filmes com maior receita em BRL?",
+  "context": [
+    {
+      "question": "Qual produtora teve maior lucro?",
+      "metric": "lucro total por produtora",
+      "unit": "BRL"
+    }
+  ],
+  "conversation_id": "identificador-local-da-conversa"
+}
+```
+
+`context` é opcional, tem no máximo três resumos da conversa atual e permite
+continuações como “e em 2020?”. `conversation_id` é um identificador local do
+frontend usado somente para separar o cache; o histórico persistente pertence
+ao backend principal. O contrato completo está em
+[docs/genai/api-contract.md](../docs/genai/api-contract.md).
+
+Uma resposta de sucesso contém `answer`, `rows`, `insights` e `metadata`.
+`metadata.source` informa se a evidência veio do Gold, do guia da plataforma,
+da busca semântica ou de uma combinação dessas fontes. Para consultas
+obrigatórias, os metadados incluem métrica, unidade, período, população e
+limitações.
 
 ## Execução local
 
-Na pasta `genai/`, crie um ambiente Python 3.11 ou superior. Para usar o
-provedor, copie `.env.example` para `.env` e configure
-`GENAI_GEMINI_API_KEY`. Instale as dependências e inicie:
+Na raiz do repositório, obtenha o Gold com `git lfs pull`. Depois, na pasta
+`genai/`, instale as dependências e execute:
 
 ```powershell
 python -m pip install -e ".[dev]"
-python -m uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload --port 8001
 ```
 
-O health check fica disponível em `http://127.0.0.1:8000/health`.
-Perguntas são enviadas para `POST http://127.0.0.1:8000/api/v1/questions` com o
-corpo `{"question": "Quantos filmes existem?"}`. A resposta contém o texto
-gerado, as linhas retornadas pela consulta, o indicador de truncamento e a
-quantidade de chamadas de ferramenta.
+O health check fica em `http://127.0.0.1:8001/health` e a API em
+`http://127.0.0.1:8001/api/v1/questions`.
 
-O caminho do Gold é configurável por `GENAI_GOLD_DATABASE_PATH`; por padrão,
-quando o comando é executado dentro de `genai/`, ele aponta para
-`../data/cinerocket.db`. A camada de dados abre o arquivo com SQLite `mode=ro`,
-valida o objeto Git LFS, a integridade e as tabelas esperadas. A rota de
-perguntas usa essa camada por meio do agente e nunca expõe a chave do provedor
-ao navegador.
+Para consultas analíticas reais, copie `.env.example` para `.env` e preencha
+`GENAI_GEMINI_API_KEY`. Sem chave, o serviço continua respondendo perguntas
+sobre a plataforma; consultas analíticas retornam erro de configuração do
+provedor. `GENAI_GEMINI_MODEL` e `GENAI_GEMINI_FALLBACK_MODEL` definem os
+modelos principal e alternativo.
 
-As consultas passam por `sqlglot` antes da execução. O executor aceita uma
-única instrução `SELECT`, restringe as tabelas Gold, aplica limite de linhas e
-tempo e mantém uma autorização SQLite read-only como segunda barreira. DML,
-DDL, múltiplas instruções, acesso externo e funções de arquivo são rejeitados.
-Consultas que atravessam tabelas de relação ou avaliações recebem orçamento de
-15 segundos; a agregação de dupla ator-diretor recebe 45 segundos. As demais
-permanecem limitadas a 5 segundos.
+## Docker Compose e testes
 
-Os testes não iniciam servidor nem fazem chamadas de rede. Para configurações
-sem provedor, um cliente simulado mantém os testes determinísticos:
+Na raiz, `docker compose up` constrói o serviço e o publica em
+`http://localhost:8001`. O Compose verifica o Gold, mantém uma cópia local em
+um volume para reduzir latência e atualiza a cópia quando a revisão do arquivo
+muda.
+
+Os testes usam modelos simulados e não fazem chamadas à Gemini:
 
 ```powershell
 python -m pytest
+python -m ruff check .
 ```
 
-O adaptador lê `GENAI_GEMINI_API_KEY` do `.env` e usa
-`GENAI_GEMINI_MODEL` ou `gemini-3.5-flash-lite` por padrão. A suíte de testes injeta
-um cliente simulado; ela nunca consome a cota do provedor.
-
-Em falhas temporárias do provedor (timeout, conexão, cota ou 5xx), o adaptador tenta
-uma vez `GENAI_GEMINI_FALLBACK_MODEL`, que usa `gemini-3.5-flash` por padrão. Falhas
-de pergunta, validação SQL, guardrails e Gold não acionam essa troca.
-
-Respostas bem-sucedidas podem ser reutilizadas por cinco minutos na mesma conversa.
-A chave inclui a pergunta, o contexto semântico, a sessão temporária, a revisão local
-do Gold e a versão das regras. A interface identifica quando uma resposta veio do cache.
-
-As perguntas obrigatórias estão catalogadas em
-[`docs/genai/evaluation-cases.md`](../docs/genai/evaluation-cases.md), com os
-identificadores Q01–Q14 e as colunas esperadas para as avaliações locais.
-Todos os casos Q01–Q14 carregam no contexto do agente a métrica, unidade,
-período, população válida e limitações que devem aparecer na resposta em
-português.
-Para esses casos, o agente rejeita uma resposta final sem os rótulos semânticos
-obrigatórios. Quando o modelo sinaliza `CLARIFY:`, a API retorna esclarecimento
-com status 422 sem executar uma consulta.
-## Execução com Docker Compose
-
-Na raiz do repositório, copie `genai/.env.example` para `genai/.env` e configure
-`GENAI_GEMINI_API_KEY`. Esse arquivo é local e não deve ser versionado. Sem a
-chave, os demais serviços iniciam, mas perguntas ao agente retornam erro de
-configuração do provedor.
-
-Execute na raiz:
-
-```powershell
-docker compose up
-```
-
-O Compose constrói os serviços a partir do código e os inicia. O GenAI fica em
-`http://localhost:8001`; o frontend em `http://localhost:8080`. O arquivo Gold
-do projeto é montado em modo somente leitura. Ao iniciar, o GenAI verifica seu
-SHA-256 e mantém uma cópia em um volume local do Docker para acelerar as
-consultas. Novas versões do Gold atualizam essa cópia automaticamente.
+As perguntas obrigatórias, regras e SQL de referência estão em
+[docs/genai/](../docs/genai/). O avaliador compara valores e colunas relevantes
+com o Gold, sem exigir que o SQL gerado seja textual e exatamente igual ao SQL
+de referência.
