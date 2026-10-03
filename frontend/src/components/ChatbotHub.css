@@ -98,8 +98,29 @@
 .chatbot-chart-label { fill: #c3d8d9; font-size: 11px; }
 .chatbot-chart-value { fill: #8fe2d5; font-size: 10px; font-weight: 650; }
 .chatbot-chart-line { fill: none; stroke: #7ee1d0; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+.chatbot-chart-area { fill: url(#chart-area); opacity: .25; }
 .chatbot-chart-point { fill: #d9fff7; stroke: #5bc6b6; stroke-width: 3; }
 .chatbot-chart-x-label { fill: #9db7bc; font-size: 10px; }
+.chatbot-chart-card--financeiro .chatbot-chart-bar { fill: #70d9b5; }
+.chatbot-chart-card--notas .chatbot-chart-line { stroke: #79b9ff; }
+.chatbot-chart-card--notas .chatbot-chart-point { fill: #d8edff; stroke: #609ee9; }
+.chatbot-chart-card--popularidade .chatbot-chart-bar { fill: #af8aed; }
+.chatbot-chart-card--catalogo .chatbot-chart-bar { fill: #f0b96f; }
+.chatbot-chart-card--pessoas .chatbot-chart-bar { fill: #6fc7df; }
+.chatbot-chart-card--divergencia .chatbot-chart-bar, .chatbot-chart-card--divergencia .chatbot-scatter-point { fill: #ed7d9e; }
+.chatbot-donut-wrap { display: grid; grid-template-columns: minmax(200px, .7fr) 1fr; align-items: center; gap: 12px; }
+.chatbot-chart--donut { min-width: 0; max-width: 300px; margin: 0 auto; }
+.chatbot-donut-track { fill: none; stroke: #d8eef012; stroke-width: 22; }
+.chatbot-donut-segment { fill: none; stroke-width: 22; transform: rotate(-90deg); transform-origin: 112px 110px; }
+.chatbot-donut-total { fill: #edf7f6; font-size: 15px; font-weight: 700; }
+.chatbot-donut-caption { fill: #91acb2; font-size: 10px; }
+.chatbot-chart-legend { display: grid; gap: 7px; padding: 0; margin: 0; list-style: none; }
+.chatbot-chart-legend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: #c9d9da; font-size: 10px; }
+.chatbot-chart-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.chatbot-chart-legend strong { color: #ecf5f4; font-size: 10px; font-variant-numeric: tabular-nums; }
+.chatbot-scatter-reference { stroke: #ed9ab166; stroke-width: 1.5; stroke-dasharray: 5 5; }
+.chatbot-scatter-point { fill: #ed7d9e; stroke: #ffdfeb; stroke-width: 2; opacity: .86; }
+.chatbot-scatter-axis { fill: #9db7bc; font-size: 10px; }
 .chatbot-insights { margin: 0 0 16px; padding: 13px 15px; border-left: 2px solid #7ee1d0; border-radius: 0 10px 10px 0; background: #7ee1d00a; }
 .chatbot-insights > span { color: #8ee8d8; font-size: 9px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 .chatbot-insights ul { display: grid; gap: 6px; padding: 0; margin: 9px 0 0; list-style: none; }
@@ -217,6 +238,7 @@
   .chatbot-result { padding: 12px; }
   .chatbot-result-heading { align-items: flex-start; flex-direction: column; }
   .chatbot-chart-card { padding: 12px; overflow-x: auto; }
+  .chatbot-donut-wrap { grid-template-columns: 1fr; }
   .chatbot-result-table { font-size: 11px; }
   .chatbot-result-table th, .chatbot-result-table td { padding: 10px; }
   .chatbot-loading-bubble { gap: 8px; padding: 10px; }
