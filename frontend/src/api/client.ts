@@ -28,6 +28,7 @@ import type {
   ResumoAnalytics,
   MapaGostos,
   ContextoConversaGenAi,
+  ProgressoGenAi,
   RespostaGenAi,
   ConversaDetalhe,
   ConversaResumo,
@@ -84,28 +85,6 @@ async function requisitar<T>(caminho: string, init?: RequestInit): Promise<T> {
     throw await obterErroDaResposta(resposta)
   }
   if (resposta.status === 204) return undefined as T
-  return resposta.json() as Promise<T>
-}
-
-async function requisitarGenAi<T>(caminho: string, init?: RequestInit): Promise<T> {
-  let resposta: Response
-  try {
-    resposta = await fetch(`${genAiApiBaseUrl}${caminho}`, {
-      ...init,
-      headers: {
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-        ...init?.headers,
-      },
-    })
-  } catch {
-    throw new ErroDaApi(
-      'Não consegui conectar ao chatbot. Verifique se o serviço está disponível e tente novamente.',
-      0,
-      'network_error',
-    )
-  }
-
-  if (!resposta.ok) throw await obterErroDaResposta(resposta)
   return resposta.json() as Promise<T>
 }
 
@@ -250,15 +229,68 @@ export function obterMapaGostosEmCache(
   return entrada && entrada.expiraEm > Date.now() ? entrada.valor as MapaGostos : null
 }
 
-export function perguntarGenAi(
+type EventoGenAi =
+  | ({ type: 'progress' } & ProgressoGenAi)
+  | { type: 'result'; data: RespostaGenAi }
+  | { type: 'error'; status?: number; error?: { code?: string; message?: string } }
+
+export async function perguntarGenAi(
   pergunta: string,
   contexto: ContextoConversaGenAi[] = [],
   conversationId?: string,
+  onProgress?: (progress: ProgressoGenAi) => void,
 ): Promise<RespostaGenAi> {
-  return requisitarGenAi<RespostaGenAi>('/questions', {
-    method: 'POST',
-    body: JSON.stringify({ question: pergunta, context: contexto, conversation_id: conversationId }),
-  })
+  let resposta: Response
+  try {
+    resposta = await fetch(`${genAiApiBaseUrl}/questions/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+      body: JSON.stringify({ question: pergunta, context: contexto, conversation_id: conversationId }),
+    })
+  } catch {
+    throw new ErroDaApi(
+      'Não consegui conectar ao chatbot. Verifique se o serviço está disponível e tente novamente.',
+      0,
+      'network_error',
+    )
+  }
+
+  if (!resposta.ok) throw await obterErroDaResposta(resposta)
+  if (!resposta.headers.get('content-type')?.includes('application/x-ndjson')) {
+    return resposta.json() as Promise<RespostaGenAi>
+  }
+  if (!resposta.body) throw new ErroDaApi('O chatbot encerrou a resposta antes de concluir.', 0, 'stream_error')
+
+  const reader = resposta.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let resultado: RespostaGenAi | null = null
+
+  const processarLinha = (linha: string) => {
+    if (!linha.trim()) return
+    const evento = JSON.parse(linha) as EventoGenAi
+    if (evento.type === 'progress') onProgress?.({ stage: evento.stage, message: evento.message })
+    if (evento.type === 'result') resultado = evento.data
+    if (evento.type === 'error') {
+      throw new ErroDaApi(
+        evento.error?.message ?? 'Não foi possível concluir a pergunta.',
+        evento.status ?? 500,
+        evento.error?.code ?? null,
+      )
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    buffer += decoder.decode(value, { stream: !done })
+    const linhas = buffer.split('\n')
+    buffer = linhas.pop() ?? ''
+    linhas.forEach(processarLinha)
+    if (done) break
+  }
+  processarLinha(buffer)
+  if (!resultado) throw new ErroDaApi('O chatbot encerrou a resposta antes de concluir.', 0, 'stream_error')
+  return resultado
 }
 
 export function listarConversas(signal?: AbortSignal): Promise<ConversaResumo[]> {

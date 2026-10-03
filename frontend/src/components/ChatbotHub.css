@@ -194,6 +194,7 @@
 .chatbot-loading-bubble { display: flex; align-items: center; flex-wrap: wrap; gap: 15px; padding: 13px 16px; border: 1px solid #b4dcd222; border-radius: 4px 14px 14px; background: #16252d; }
 .chatbot-loading-dots { display: inline-flex; align-items: center; gap: 5px; height: 15px; }
 .chatbot-loading-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--chat-accent); }
+.chatbot-loading-status { color: #bdd4d5; font-size: 11px; line-height: 1.45; animation: chatbot-status-enter .25s ease both; }
 .chatbot-error { margin: 10px 0 16px; padding: 13px 16px; max-height: 140px; overflow-y: auto; border: 1px solid #e4ad8650; border-radius: 10px; background: #3c2e252e; color: #f0c6aa; font-size: 12px; line-height: 1.7; }
 .chatbot-error-wrap { display: flex; align-items: center; gap: 12px; }
 .chatbot-error-wrap .chatbot-error { flex: 1; }
@@ -250,8 +251,9 @@
 @keyframes robot-nod { 0%, 100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(4deg) translateY(4px); } }
 @keyframes robot-twinkle { 0%, 100% { opacity: .3; } 50% { opacity: .8; } }
 @keyframes chatbot-dot { 0%, 50%, 100% { transform: translateY(0); opacity: .4; } 22% { transform: translateY(-5px); opacity: 1; } }
+@keyframes chatbot-status-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .chatbot-motion-on .robot-float, .chatbot-motion-on .robot-shadow, .chatbot-motion-on .robot-eye, .chatbot-motion-on .robot-arm, .chatbot-motion-on .robot-gaze, .chatbot-motion-on .robot-heart, .chatbot-motion-on .robot-head { animation: none !important; }
+  .chatbot-motion-on .robot-float, .chatbot-motion-on .robot-shadow, .chatbot-motion-on .robot-eye, .chatbot-motion-on .robot-arm, .chatbot-motion-on .robot-gaze, .chatbot-motion-on .robot-heart, .chatbot-motion-on .robot-head, .chatbot-loading-status { animation: none !important; }
 }
 @media (max-width: 1100px) {
   .chatbot-chat-area { grid-template-columns: minmax(175px, .25fr) minmax(0, 1fr); }

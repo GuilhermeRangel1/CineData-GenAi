@@ -130,6 +130,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
   const [erro, setErro] = useState('')
   const [perguntaFalhou, setPerguntaFalhou] = useState('')
   const [carregando, setCarregando] = useState(false)
+  const [progresso, setProgresso] = useState('')
   const [focado, setFocado] = useState(false)
   const [ajudaAberta, setAjudaAberta] = useState(false)
   const [gesto, setGesto] = useState<'happy' | 'waving' | null>(null)
@@ -194,10 +195,16 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
     setErro('')
     setAjudaAberta(false)
     setGesto(null)
+    setProgresso('Entendendo sua pergunta…')
     setCarregando(true)
 
     try {
-      const resposta = await perguntarGenAi(conteudo, contextoDaConversa(mensagens), idConversa.current)
+      const resposta = await perguntarGenAi(
+        conteudo,
+        contextoDaConversa(mensagens),
+        idConversa.current,
+        (etapa) => setProgresso(etapa.message),
+      )
       setMensagens((atuais) => [...atuais, { role: 'assistant', conteudo: resposta.answer, resposta }])
       setGesto('happy')
       setPerguntaFalhou('')
@@ -235,6 +242,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
       }
     } finally {
       setCarregando(false)
+      setProgresso('')
     }
   }
 

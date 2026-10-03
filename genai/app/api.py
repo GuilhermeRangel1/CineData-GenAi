@@ -1,11 +1,13 @@
 """Rotas públicas da aplicação GenAI."""
 
+import asyncio
+import json
 import logging
 from functools import lru_cache
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentService, AgentUnsupported
@@ -77,6 +79,12 @@ class QuestionResponse(BaseModel):
     rows: list[dict[str, Any]]
     insights: list[str]
     metadata: QuestionMetadata
+
+
+def _stream_event(event_type: str, **payload: Any) -> str:
+    """Serializa um evento NDJSON pequeno para consumo incremental no navegador."""
+
+    return json.dumps({"type": event_type, **payload}, ensure_ascii=False) + "\n"
 
 
 class _UnconfiguredModel:
@@ -247,4 +255,98 @@ def answer_question(
             tool_calls=response.tool_calls,
             cached=cached_response is not None,
         ),
+    )
+
+
+@v1_router.post("/questions/stream", tags=["questions"])
+async def stream_answer_question(
+    payload: QuestionRequest,
+    service: AgentService = Depends(get_agent_service),  # noqa: B008
+) -> StreamingResponse:
+    """Entrega progresso e resultado no mesmo fluxo sem expor detalhes internos."""
+
+    async def events():
+        yield _stream_event(
+            "progress",
+            stage="understanding",
+            message="Entendendo sua pergunta…",
+        )
+        # Garante que o primeiro estado seja perceptível também em respostas
+        # locais muito rápidas, sem transformar o processamento em espera.
+        await asyncio.sleep(0.16)
+        yield _stream_event(
+            "progress",
+            stage="searching",
+            message="Buscando as informações certas…",
+        )
+        await asyncio.sleep(0.16)
+
+        try:
+            response = await asyncio.to_thread(answer_question, payload, service)
+        except HTTPException as exc:
+            yield _stream_event(
+                "error",
+                status=exc.status_code,
+                error={
+                    "code": "service_error",
+                    "message": str(exc.detail),
+                    "details": None,
+                },
+            )
+            return
+        except Exception:
+            logger.exception("Falha inesperada no fluxo de progresso GenAI.")
+            yield _stream_event(
+                "error",
+                status=500,
+                error={
+                    "code": "stream_error",
+                    "message": "Não foi possível concluir a pergunta.",
+                    "details": None,
+                },
+            )
+            return
+
+        if isinstance(response, JSONResponse):
+            content = json.loads(bytes(response.body).decode("utf-8"))
+            yield _stream_event(
+                "error",
+                status=response.status_code,
+                error=content.get(
+                    "error",
+                    {
+                        "code": "request_error",
+                        "message": "Não foi possível concluir a pergunta.",
+                        "details": None,
+                    },
+                ),
+            )
+            return
+
+        if response.metadata.cached:
+            stage = "cache"
+            message = "Resposta recente encontrada…"
+        elif response.metadata.source == "platform":
+            stage = "guide"
+            message = "Preparando a orientação do CineData…"
+        elif response.metadata.source in {"semantic", "mixed"}:
+            stage = "hybrid"
+            message = "Relacionando catálogo e sinopses…"
+        else:
+            stage = "preparing"
+            message = "Organizando os dados encontrados…"
+
+        yield _stream_event("progress", stage=stage, message=message)
+        # Mantém a etapa final perceptível mesmo quando o proxy entrega os
+        # últimos eventos quase juntos, sem acrescentar atraso relevante.
+        await asyncio.sleep(0.12)
+        yield _stream_event("result", data=response.model_dump(mode="json"))
+
+    return StreamingResponse(
+        events(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )

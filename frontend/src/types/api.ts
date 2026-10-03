@@ -30,6 +30,11 @@ export interface RespostaGenAi {
   metadata: MetadadosGenAi
 }
 
+export interface ProgressoGenAi {
+  stage: 'understanding' | 'searching' | 'cache' | 'guide' | 'hybrid' | 'preparing'
+  message: string
+}
+
 export interface ContextoConversaGenAi {
   question: string
   metric?: string | null
