@@ -70,10 +70,10 @@ export function Catalog({
     }, 300)
     return () => clearTimeout(timer)
   }, [search])
-  const loader = useCallback(
-    (signal: AbortSignal) => {
+  const criarParametros = useCallback(
+    (pagina: number) => {
       const params = new URLSearchParams({
-        pagina: String(page),
+        pagina: String(pagina),
         tamanho_pagina: '12',
         ordenar_por:
           order === 'recent' ? 'ano_lancamento' : order === 'title' ? 'titulo' : 'relevancia',
@@ -86,13 +86,22 @@ export function Catalog({
         const normalizado = key === 'nota_minima' ? value.trim().replace(',', '.') : value.trim()
         if (normalizado) params.set(key, normalizado)
       }
-      return listarFilmes(params, signal)
+      return params
     },
-    [page, query, genre, order, appliedAdvanced],
+    [query, genre, order, appliedAdvanced],
   )
-  const { data, loading, error, retry } = useResource(loader, revision)
+  const loader = useCallback(
+    (signal: AbortSignal) => listarFilmes(criarParametros(page), signal),
+    [criarParametros, page],
+  )
+  const { data, loading, error, retry, isPreviousData } = useResource(loader, revision, true)
+  useEffect(() => {
+    if (!data || isPreviousData || loading || page >= data.meta.total_paginas) return
+    void listarFilmes(criarParametros(page + 1)).catch(() => undefined)
+  }, [criarParametros, data, isPreviousData, loading, page])
   if (data && page > Math.max(1, data.meta.total_paginas))
     setPage(Math.max(1, data.meta.total_paginas))
+  const paginaExibida = isPreviousData ? (data?.meta.pagina ?? page) : page
   function changePage(value: number) {
     setPage(value)
     document.getElementById('catalogo')?.scrollIntoView({ block: 'start' })
@@ -257,7 +266,7 @@ export function Catalog({
               Tentar novamente
             </button>
           </div>
-        ) : loading ? (
+        ) : loading && !data ? (
           <div className="movie-grid">
             {Array.from({ length: 6 }, (_, i) => (
               <div className="poster skeleton" key={i} />
@@ -297,17 +306,17 @@ export function Catalog({
             <nav className="pagination" aria-label="Paginação do catálogo">
               <button
                 className="button button-outline"
-                disabled={page === 1}
+                disabled={loading || page === 1}
                 onClick={() => changePage(page - 1)}
               >
                 <Icon name="left" /> Anterior
               </button>
               <span>
-                Página <strong>{page}</strong> de {data.meta.total_paginas.toLocaleString('pt-BR')}
+                Página <strong>{paginaExibida}</strong> de {data.meta.total_paginas.toLocaleString('pt-BR')}
               </span>
               <button
                 className="button button-outline"
-                disabled={page >= data.meta.total_paginas}
+                disabled={loading || page >= data.meta.total_paginas}
                 onClick={() => changePage(page + 1)}
               >
                 Próxima <Icon name="arrow" />

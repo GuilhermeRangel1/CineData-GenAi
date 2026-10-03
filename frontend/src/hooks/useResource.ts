@@ -3,7 +3,11 @@ import { ErroDaApi } from '../api/client'
 
 // The caller memoizes the loader. Aborting protects searches and closing dialogs
 // from late responses replacing newer results.
-export function useResource<T>(loader: (signal: AbortSignal) => Promise<T>, revision = 0) {
+export function useResource<T>(
+  loader: (signal: AbortSignal) => Promise<T>,
+  revision = 0,
+  keepPreviousData = false,
+) {
   const [attempt, setAttempt] = useState(0)
   const [state, setState] = useState<{
     loader: typeof loader
@@ -39,7 +43,12 @@ export function useResource<T>(loader: (signal: AbortSignal) => Promise<T>, revi
   }, [loader, attempt, revision])
   const current =
     state.loader === loader && state.attempt === attempt && state.revision === revision
-      ? state
-      : { data: null, loading: true, error: '' }
+      ? { ...state, isPreviousData: false }
+      : {
+          data: keepPreviousData ? state.data : null,
+          loading: true,
+          error: '',
+          isPreviousData: keepPreviousData && state.data !== null,
+        }
   return { ...current, retry: () => setAttempt((value) => value + 1) }
 }

@@ -92,9 +92,10 @@ describe('Catálogo conectado', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: 'Animação' }))
     await waitFor(() => {
-      const params = new URL(fetcher.mock.lastCall![0]).searchParams
-      expect(params.get('pagina')).toBe('1')
-      expect(params.get('genero')).toBe('Animation')
+      const paginasComGenero = fetcher.mock.calls.map(([url]) => new URL(url).searchParams).filter(
+        (params) => params.get('genero') === 'Animation',
+      )
+      expect(paginasComGenero.some((params) => params.get('pagina') === '1')).toBe(true)
     })
     await userEvent.type(screen.getByRole('searchbox'), 'Castelo')
     await waitFor(() =>
@@ -104,6 +105,25 @@ describe('Catálogo conectado', () => {
     await waitFor(() =>
       expect(new URL(fetcher.mock.lastCall![0]).searchParams.get('ordenar_por')).toBe('titulo'),
     )
+  })
+
+  it('antecipa a próxima página e a usa sem uma nova requisição ao avançar', async () => {
+    limparCacheDaApiParaTeste()
+    const fetcher = vi.fn((url: string) => {
+      const page = Number(new URL(url).searchParams.get('pagina'))
+      return response(result([{ ...movie, titulo: `Página ${page}` }], page, 36))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    render(<View />)
+
+    await screen.findByRole('heading', { name: 'Página 1' })
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+    expect(new URL(fetcher.mock.calls[1]![0]).searchParams.get('pagina')).toBe('2')
+
+    await userEvent.click(screen.getByRole('button', { name: /Próxima/ }))
+    expect(await screen.findByRole('heading', { name: 'Página 2' })).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    expect(new URL(fetcher.mock.calls[2]![0]).searchParams.get('pagina')).toBe('3')
   })
 
   it('envia filtros avançados sem perder os filtros principais', async () => {
