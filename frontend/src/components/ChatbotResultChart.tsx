@@ -38,15 +38,66 @@ function numero(value: unknown): number | null {
   return null
 }
 
-function especificacao(metadata: MetadadosGenAi): EspecificacaoGrafico | null {
+function temaParaColuna(column: string): TemaGrafico {
+  if (/(?:receita|orcamento|lucro|margem)/.test(column)) return 'financeiro'
+  if (/(?:nota|media)/.test(column)) return 'notas'
+  if (/(?:popularidade|relevancia)/.test(column)) return 'popularidade'
+  if (/(?:ator|diretor|pessoa)/.test(column)) return 'pessoas'
+  return 'catalogo'
+}
+
+function especificacao(metadata: MetadadosGenAi, rows: Array<Record<string, unknown>>): EspecificacaoGrafico | null {
   if (metadata.query_id && ESPECIFICACOES[metadata.query_id]) return ESPECIFICACOES[metadata.query_id]
+  if (metadata.columns.includes('titulo') && metadata.columns.includes('receita_brl')) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'receita_brl', titulo: 'Receita por filme', tema: 'financeiro' }
+  }
+  if (metadata.columns.includes('titulo') && metadata.columns.includes('orcamento_brl')) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'orcamento_brl', titulo: 'Orçamento por filme', tema: 'financeiro' }
+  }
+  if (metadata.columns.includes('titulo') && metadata.columns.includes('orcamento_usd')) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'orcamento_usd', titulo: 'Orçamento por filme', tema: 'financeiro' }
+  }
+  if (metadata.columns.includes('titulo') && metadata.columns.includes('lucro_brl')) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'lucro_brl', titulo: 'Lucro por filme', tema: 'financeiro' }
+  }
+  if (metadata.columns.includes('titulo') && metadata.columns.includes('margem')) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'margem', titulo: 'Margem de lucro por filme', tema: 'financeiro' }
+  }
+  if (metadata.columns.includes('titulo') && metadata.columns.includes('popularidade')) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'popularidade', titulo: 'Popularidade por filme', tema: 'popularidade' }
+  }
   if (metadata.metric === 'quantidade de filmes por ator') {
     return { tipo: 'barras', colunaRotulo: 'nome_pessoa', colunaValor: 'total_filmes', titulo: 'Filmes por ator', tema: 'pessoas' }
   }
   if (metadata.metric === 'quantidade de filmes por produtora') {
     return { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: 'total_filmes', titulo: 'Filmes por produtora', tema: 'catalogo' }
   }
-  return null
+  const numericColumns = metadata.columns.filter((column) =>
+    !/^(?:id|id_.*|.*_id|ano_lancamento)$/i.test(column)
+    && rows.some((row) => numero(row[column]) !== null),
+  )
+  const valueColumn = numericColumns.find((column) =>
+    /(?:receita|orcamento|lucro|margem|nota|media|popularidade|relevancia|qtd|total|divergencia|duracao)/i.test(column),
+  ) ?? numericColumns[0]
+  if (!valueColumn) return null
+
+  const labelColumn = metadata.columns.find((column) =>
+    /^(?:titulo|nome_.+|ator|diretor|ano_lancamento|nome_genero|nome_produtora)$/i.test(column)
+    && rows.some((row) => row[column] !== null && row[column] !== undefined),
+  ) ?? metadata.columns.find((column) =>
+    column !== valueColumn
+    && !/^(?:id|id_.*|.*_id|sinopse)$/i.test(column)
+    && rows.some((row) => typeof row[column] === 'string' && row[column].trim()),
+  )
+  if (!labelColumn) return null
+
+  return {
+    tipo: 'barras',
+    colunaRotulo: labelColumn,
+    colunaValor: valueColumn,
+    titulo: `${rotuloColuna(valueColumn, metadata)} por ${rotuloColuna(labelColumn, metadata)}`,
+    tema: temaParaColuna(valueColumn),
+  }
 }
 
 function rotuloCurto(value: string) {
@@ -154,7 +205,7 @@ function GraficoDeDispersao({ rows, spec, metadata }: { rows: Array<Record<strin
 }
 
 export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenAi; rows: Array<Record<string, unknown>> }) {
-  const spec = especificacao(metadata)
+  const spec = especificacao(metadata, rows)
   if (!spec) return null
   const pontos = rows.flatMap((row) => {
     const valor = numero(row[spec.colunaValor])
@@ -178,7 +229,7 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
 }
 
 export function temGraficoDeResultado(metadata: MetadadosGenAi, rows: Array<Record<string, unknown>>) {
-  const spec = especificacao(metadata)
+  const spec = especificacao(metadata, rows)
   if (!spec) return false
   return rows.filter((row) => numero(row[spec.colunaValor]) !== null && row[spec.colunaRotulo] != null).length > 1
 }
