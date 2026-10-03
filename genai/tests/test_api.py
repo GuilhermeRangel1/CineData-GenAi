@@ -32,7 +32,7 @@ def test_frontend_origin_is_allowed_for_question_preflight(client: TestClient) -
 
 def test_question_returns_agent_response(client: TestClient) -> None:
     class FakeAgent:
-        def answer(self, question: str) -> AgentResponse:
+        def answer(self, question: str, context=()) -> AgentResponse:
             assert question == "Quantos filmes existem?"
             return AgentResponse(
                 answer="Existem 95.645 filmes.",
@@ -75,7 +75,7 @@ def test_question_returns_agent_response(client: TestClient) -> None:
 
 def test_question_response_preserves_platform_source(client: TestClient) -> None:
     class PlatformAgent:
-        def answer(self, question: str) -> AgentResponse:
+        def answer(self, question: str, context=()) -> AgentResponse:
             return AgentResponse(
                 answer="Use os filtros do catálogo.",
                 rows=(),
@@ -98,6 +98,35 @@ def test_question_response_preserves_platform_source(client: TestClient) -> None
     assert response.json()["metadata"]["tool_calls"] == 0
 
 
+def test_question_forwards_a_limited_semantic_conversation_context(client: TestClient) -> None:
+    class ContextAgent:
+        def answer(self, question: str, context=()) -> AgentResponse:
+            assert question == "E em 2020?"
+            assert len(context) == 1
+            assert context[0].question == "Qual é a nota IMDb média por ano?"
+            assert context[0].metric == "nota IMDb média por ano"
+            return AgentResponse(answer="Resposta.", rows=(), truncated=False, tool_calls=0)
+
+    app.dependency_overrides[get_agent_service] = lambda: ContextAgent()
+    try:
+        response = client.post(
+            "/api/v1/questions",
+            json={
+                "question": "E em 2020?",
+                "context": [{
+                    "question": "Qual é a nota IMDb média por ano?",
+                    "metric": "nota IMDb média por ano",
+                    "unit": "pontos IMDb",
+                    "period": "todo o Gold disponível",
+                }],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+
+
 def test_question_rejects_empty_question(client: TestClient) -> None:
     app.dependency_overrides[get_agent_service] = lambda: object()
     try:
@@ -110,7 +139,7 @@ def test_question_rejects_empty_question(client: TestClient) -> None:
 
 def test_question_returns_clarification_envelope(client: TestClient) -> None:
     class ClarifyingAgent:
-        def answer(self, question: str) -> AgentResponse:
+        def answer(self, question: str, context=()) -> AgentResponse:
             raise AgentClarification("Informe o período da análise.")
 
     app.dependency_overrides[get_agent_service] = lambda: ClarifyingAgent()
@@ -135,7 +164,7 @@ def test_question_returns_clarification_envelope(client: TestClient) -> None:
 
 def test_question_returns_unsupported_platform_envelope(client: TestClient) -> None:
     class UnsupportedAgent:
-        def answer(self, question: str) -> AgentResponse:
+        def answer(self, question: str, context=()) -> AgentResponse:
             raise AgentUnsupported(
                 "Não encontrei essa funcionalidade no guia atual do CineData. "
                 "Você pode dizer qual área ou ação da plataforma quer conhecer?"
@@ -156,7 +185,7 @@ def test_question_returns_unsupported_platform_envelope(client: TestClient) -> N
 
 def test_question_returns_guardrail_rejection_envelope(client: TestClient) -> None:
     class GuardedAgent:
-        def answer(self, question: str) -> AgentResponse:
+        def answer(self, question: str, context=()) -> AgentResponse:
             raise AgentGuardrail("Reformule a pergunta sem comandos SQL.")
 
     app.dependency_overrides[get_agent_service] = lambda: GuardedAgent()
@@ -178,7 +207,7 @@ def test_question_returns_guardrail_rejection_envelope(client: TestClient) -> No
 
 def test_question_returns_query_timeout_envelope(client: TestClient) -> None:
     class TimingOutAgent:
-        def answer(self, question: str) -> AgentResponse:
+        def answer(self, question: str, context=()) -> AgentResponse:
             raise QueryTimeoutError("internal timeout detail")
 
     app.dependency_overrides[get_agent_service] = lambda: TimingOutAgent()

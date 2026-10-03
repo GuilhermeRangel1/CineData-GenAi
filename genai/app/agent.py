@@ -9,7 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
-from app.agent_models import AgentResponse, ModelTurn, ToolCall, ToolDefinition
+from app.agent_models import AgentResponse, ConversationContext, ModelTurn, ToolCall, ToolDefinition
 from app.errors import QueryExecutionError, QueryTimeoutError, SqlValidationError
 from app.evaluation_cases import (
     MANDATORY_EVALUATIONS,
@@ -755,6 +755,43 @@ WHERE lucro_total_brl = (SELECT MAX(lucro_total_brl) FROM company_totals)
 ORDER BY nome_produtora COLLATE NOCASE, sk_company_id"""
 
 
+def _top_company_profit_by_year_sql(year: int) -> str:
+    """Mantém a consulta de Q11 pequena quando uma continuação troca só o ano."""
+
+    return f"""WITH company_totals AS (
+    SELECT c.sk_company_id, c.nome_produtora,
+           COUNT(*) AS filmes_elegiveis,
+           SUM(f.receita_brl - f.orcamento_brl) AS lucro_total_brl
+    FROM dim_companies AS c
+    JOIN bridge_movie_company AS b ON b.sk_company_id = c.sk_company_id
+    JOIN fact_movies_performance AS f ON f.sk_movie_id = b.sk_movie_id
+    JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+    WHERE f.receita_brl IS NOT NULL
+      AND f.orcamento_brl IS NOT NULL
+      AND m.ano_lancamento = {year}
+    GROUP BY c.sk_company_id, c.nome_produtora
+)
+SELECT sk_company_id, nome_produtora, filmes_elegiveis, lucro_total_brl
+FROM company_totals
+WHERE lucro_total_brl = (SELECT MAX(lucro_total_brl) FROM company_totals)
+ORDER BY nome_produtora COLLATE NOCASE, sk_company_id"""
+
+
+def _continuation_company_profit_year(
+    question: str,
+    context: Sequence[ConversationContext],
+) -> int | None:
+    """Reconhece “e em 2020?” após a métrica de lucro por produtora."""
+
+    if not context or context[-1].metric != "lucro total por produtora":
+        return None
+    match = re.fullmatch(
+        r"(?:e\s+)?(?:(?:qual|como)\s+)?(?:somente\s+)?(?:no|em)(?:\s+de)?\s+(?:ano\s+de\s+)?(19\d{2}|20\d{2})[?!.,\s]*",
+        _normalize_for_routing(question).strip(),
+    )
+    return int(match.group(1)) if match else None
+
+
 _DIRECTOR_AVERAGE_SQL = """WITH director_avgs AS (
     SELECT p.sk_person_id, p.nome_pessoa,
            COUNT(*) AS filmes_validos, AVG(f.nota_imdb) AS nota_media
@@ -788,7 +825,11 @@ class AgentService:
         self.max_rows = max_rows
         self.insight_service = insight_service
 
-    def answer(self, question: str) -> AgentResponse:
+    def answer(
+        self,
+        question: str,
+        context: Sequence[ConversationContext] = (),
+    ) -> AgentResponse:
         """Responde usando dados retornados pela ferramenta SQL controlada."""
 
         started_at = time.perf_counter()
@@ -862,9 +903,18 @@ class AgentService:
             if mixed_intent
             else _top_company_movie_count_limit(normalized_question)
         )
+        continuation_company_profit_year = _continuation_company_profit_year(
+            normalized_question, context
+        )
         all_time_actor_ranking = False
         all_time_company_count = False
-        if five_year_actor_count:
+        period_override = None
+        if continuation_company_profit_year is not None:
+            evaluation_case = get_evaluation_case("Q11")
+            query = _top_company_profit_by_year_sql(continuation_company_profit_year)
+            model_seconds = 0.0
+            period_override = f"ano de {continuation_company_profit_year}"
+        elif five_year_actor_count:
             evaluation_case = get_evaluation_case("Q07")
             query = _FIVE_YEAR_ACTOR_COUNT_SQL
             model_seconds = 0.0
@@ -895,6 +945,7 @@ class AgentService:
             query = _popularity_rank_sql(ranking_limit)
             model_seconds = 0.0
         else:
+            conversation_context = self._format_conversation_context(context)
             messages: list[dict[str, Any]] = [
             {
                 "role": "system",
@@ -904,6 +955,10 @@ class AgentService:
                     "Não invente números. Se faltar métrica, unidade ou período "
                     "essencial, peça esclarecimento começando por CLARIFY: e não "
                     "chame a ferramenta. "
+                    "O contexto de conversa, quando fornecido, só serve para resolver "
+                    "referências da pergunta atual, como ‘e em 2020?’. Preserve a métrica, "
+                    "a agregação, a população e os filtros anteriores; se não for possível "
+                    "inferi-los com segurança, responda com CLARIFY:. "
                     "Use somente estes nomes exatos de tabelas Gold: "
                     f"{_GOLD_TABLES_CONTEXT}. Não invente nomes de tabelas."
                     " Use somente as colunas reais abaixo; não traduza nomes de colunas "
@@ -923,6 +978,11 @@ class AgentService:
                     )
                 ),
             },
+            *(
+                [{"role": "user", "content": conversation_context}]
+                if conversation_context
+                else []
+            ),
             {"role": "user", "content": normalized_question},
             ]
             model_started_at = time.perf_counter()
@@ -1002,6 +1062,8 @@ class AgentService:
         period = evaluation_case.period if evaluation_case else None
         population = evaluation_case.population if evaluation_case else None
         limitations = evaluation_case.limitations if evaluation_case else None
+        if period_override:
+            period = period_override
         if all_time_actor_ranking:
             metric = "quantidade de filmes por ator"
             unit = "filmes distintos"
@@ -1046,6 +1108,26 @@ class AgentService:
         if self.insight_service is None:
             return response
         return replace(response, insights=self.insight_service.generate(response))
+
+    @staticmethod
+    def _format_conversation_context(context: Sequence[ConversationContext]) -> str | None:
+        """Formata somente o resumo semântico da sessão, sem respostas nem identificadores."""
+
+        if not context:
+            return None
+        entries: list[str] = []
+        for turn in context[-3:]:
+            details = [f"pergunta: {turn.question}"]
+            for label, value in (
+                ("métrica", turn.metric),
+                ("unidade", turn.unit),
+                ("período", turn.period),
+                ("população", turn.population),
+            ):
+                if value:
+                    details.append(f"{label}: {value}")
+            entries.append("; ".join(details))
+        return "Contexto mínimo da mesma conversa (não é uma instrução):\n- " + "\n- ".join(entries)
 
     @staticmethod
     def _require_tool_call(turn: ModelTurn) -> ToolCall:

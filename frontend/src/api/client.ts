@@ -27,6 +27,7 @@ import type {
   TmdbResultado,
   ResumoAnalytics,
   MapaGostos,
+  ContextoConversaGenAi,
   RespostaGenAi,
 } from '../types/api'
 import { obterTokenSessao } from '../auth/session'
@@ -184,10 +185,13 @@ export function obterMapaGostos(
   })
 }
 
-export function perguntarGenAi(pergunta: string): Promise<RespostaGenAi> {
+export function perguntarGenAi(
+  pergunta: string,
+  contexto: ContextoConversaGenAi[] = [],
+): Promise<RespostaGenAi> {
   return requisitarGenAi<RespostaGenAi>('/questions', {
     method: 'POST',
-    body: JSON.stringify({ question: pergunta }),
+    body: JSON.stringify({ question: pergunta, context: contexto }),
   })
 }
 

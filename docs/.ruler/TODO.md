@@ -182,9 +182,9 @@ continuam apenas em tabela.
 
 ## 10. Memória de conversa
 
-- [ ] Definir o contexto mínimo para perguntas de continuação, como “e em
+- [x] Definir o contexto mínimo para perguntas de continuação, como “e em
       2020?”, sem mudar silenciosamente a métrica ou os filtros anteriores.
-- [ ] Limitar e permitir limpar o histórico; separar sessões e não incluir
+- [x] Limitar e permitir limpar o histórico; separar sessões e não incluir
       segredos ou dados pessoais desnecessários no contexto enviado ao modelo.
 
 **Critério de saída:** uma pergunta de continuação usa o contexto correto, uma

@@ -49,4 +49,15 @@ class AgentResponse:
     insights: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class ConversationContext:
+    """Resumo mínimo de uma pergunta anterior enviado pela sessão atual."""
+
+    question: str
+    metric: str | None = None
+    unit: str | None = None
+    period: str | None = None
+    population: str | None = None
+
+
 ToolName = Literal["run_sql"]

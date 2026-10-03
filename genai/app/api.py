@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentService, AgentUnsupported
+from app.agent_models import ConversationContext
 from app.config import get_settings
 from app.errors import GoldDatabaseError, ProviderConfigurationError, QueryTimeoutError
 from app.gemini_adapter import GeminiToolCallingModel
@@ -21,10 +22,21 @@ v1_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+class ConversationTurn(BaseModel):
+    """Contexto resumido no navegador e descartado após a requisição."""
+
+    question: str = Field(min_length=1, max_length=1000)
+    metric: str | None = Field(default=None, max_length=160)
+    unit: str | None = Field(default=None, max_length=100)
+    period: str | None = Field(default=None, max_length=160)
+    population: str | None = Field(default=None, max_length=300)
+
+
 class QuestionRequest(BaseModel):
     """Entrada pública para uma pergunta analítica."""
 
     question: str = Field(min_length=1, max_length=1000)
+    context: list[ConversationTurn] = Field(default_factory=list, max_length=3)
 
     @field_validator("question")
     @classmethod
@@ -105,7 +117,19 @@ def answer_question(
     """Responde uma pergunta usando o agente e a base Gold read-only."""
 
     try:
-        response = service.answer(payload.question)
+        response = service.answer(
+            payload.question,
+            tuple(
+                ConversationContext(
+                    question=turn.question.strip(),
+                    metric=turn.metric,
+                    unit=turn.unit,
+                    period=turn.period,
+                    population=turn.population,
+                )
+                for turn in payload.context
+            ),
+        )
     except GoldDatabaseError as exc:
         raise HTTPException(status_code=503, detail="A base Gold não está disponível.") from exc
     except ProviderConfigurationError as exc:

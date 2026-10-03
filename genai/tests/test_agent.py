@@ -6,7 +6,7 @@ from datetime import date, timedelta
 import pytest
 
 from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentService, AgentUnsupported
-from app.agent_models import ModelTurn, ToolCall
+from app.agent_models import ConversationContext, ModelTurn, ToolCall
 from app.gold_database import EXPECTED_TABLES, GoldDatabase
 from app.sql_executor import GoldQueryExecutor
 
@@ -134,9 +134,12 @@ def _create_actor_director_gold_fixture(path) -> None:
 def _create_company_gold_fixture(path) -> None:
     with sqlite3.connect(path) as connection:
         for table in EXPECTED_TABLES - {
-            "dim_companies", "bridge_movie_company", "fact_movies_performance"
+            "dim_movies", "dim_companies", "bridge_movie_company", "fact_movies_performance"
         }:
             connection.execute(f'CREATE TABLE "{table}" (id INTEGER, title TEXT)')
+        connection.execute(
+            "CREATE TABLE dim_movies (sk_movie_id TEXT PRIMARY KEY, ano_lancamento INTEGER)"
+        )
         connection.execute(
             "CREATE TABLE dim_companies (sk_company_id TEXT, nome_produtora TEXT)"
         )
@@ -147,6 +150,10 @@ def _create_company_gold_fixture(path) -> None:
         connection.execute(
             "CREATE TABLE fact_movies_performance (sk_movie_id TEXT PRIMARY KEY, "
             "receita_brl REAL, orcamento_brl REAL, lucro_brl REAL)"
+        )
+        connection.executemany(
+            "INSERT INTO dim_movies VALUES (?, ?)",
+            (("m1", 2020), ("m2", 2017), ("m3", 2017)),
         )
         connection.executemany(
             "INSERT INTO dim_companies VALUES (?, ?)",
@@ -201,6 +208,33 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     assert "receita por filme" in model.calls[0][0][0]["content"]
     assert "mais bem avaliado pelo IMDb" in model.calls[0][0][0]["content"]
     assert "nunca como a quantidade qtd_imdb" in model.calls[0][0][0]["content"]
+
+
+def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel(
+        [ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT id, title FROM dim_movies"}))]
+    )
+
+    AgentService(model, GoldQueryExecutor(GoldDatabase(database_path))).answer(
+        "E em 2020?",
+        context=(
+            ConversationContext(
+                question="Qual é a nota IMDb média por ano de lançamento?",
+                metric="nota IMDb média por ano",
+                unit="pontos IMDb",
+                period="todo o Gold disponível",
+            ),
+        ),
+    )
+
+    messages = model.calls[0][0]
+    context_message = next(message["content"] for message in messages if "Contexto mínimo" in message["content"])
+    assert "nota IMDb média por ano" in context_message
+    assert "pontos IMDb" in context_message
+    assert "sk_movie_id" not in context_message
+    assert messages[-1] == {"role": "user", "content": "E em 2020?"}
 
 
 def test_platform_question_uses_guide_without_model_or_sql(tmp_path) -> None:
@@ -478,6 +512,26 @@ def test_top_company_profit_uses_valid_population_once_and_keeps_ties(tmp_path) 
     ]
     assert all(row["lucro_total_brl"] == 60.0 for row in response.rows)
     assert response.query_id == "Q11"
+
+
+def test_company_profit_follow_up_replaces_the_previous_year(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_company_gold_fixture(database_path)
+    model = FakeModel([])
+    service = AgentService(model, GoldQueryExecutor(GoldDatabase(database_path)))
+    context = (ConversationContext(
+        question="E qual somente no ano de 2020?",
+        metric="lucro total por produtora",
+        unit="BRL",
+        period="ano de 2020",
+    ),)
+
+    response = service.answer("E no de 2017?", context=context)
+
+    assert model.calls == []
+    assert response.query_id == "Q11"
+    assert response.period == "ano de 2017"
+    assert [row["nome_produtora"] for row in response.rows] == ["Produtora B"]
 
 
 def test_top_company_profit_does_not_discard_filters(tmp_path) -> None:

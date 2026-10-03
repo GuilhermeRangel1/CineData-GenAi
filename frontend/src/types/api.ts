@@ -29,6 +29,14 @@ export interface RespostaGenAi {
   metadata: MetadadosGenAi
 }
 
+export interface ContextoConversaGenAi {
+  question: string
+  metric?: string | null
+  unit?: string | null
+  period?: string | null
+  population?: string | null
+}
+
 export interface ErroGenAi {
   status: 'clarification' | 'error'
   error: {

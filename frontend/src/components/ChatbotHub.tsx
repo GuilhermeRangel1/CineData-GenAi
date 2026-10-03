@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ErroDaApi, perguntarGenAi } from '../api/client'
-import type { MensagemConversa, RespostaGenAi } from '../types/api'
+import type { ContextoConversaGenAi, MensagemConversa, RespostaGenAi } from '../types/api'
 import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
 import { ChatbotResultChart, temGraficoDeResultado } from './ChatbotResultChart'
 import { colunasVisiveis, formatarCelula, observacaoResultado, rotuloColuna, tituloResultado } from './chatbotPresentation'
@@ -79,6 +79,22 @@ const FALAS: Record<RobotMood, string> = {
 
 type MensagemAssistente = MensagemConversa & { resposta?: RespostaGenAi }
 
+function contextoDaConversa(mensagens: MensagemAssistente[]): ContextoConversaGenAi[] {
+  const contexto = mensagens.flatMap((mensagem, indice) => {
+    const perguntaAnterior = mensagens[indice - 1]
+    if (mensagem.role !== 'assistant' || !mensagem.resposta || perguntaAnterior?.role !== 'user') return []
+    const { metadata } = mensagem.resposta
+    return [{
+      question: perguntaAnterior.conteudo,
+      metric: metadata.metric,
+      unit: metadata.unit,
+      period: metadata.period,
+      population: metadata.population,
+    }]
+  })
+  return contexto.length ? [contexto.at(-1)!] : []
+}
+
 function SendIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -136,7 +152,7 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
     setCarregando(true)
 
     try {
-      const resposta = await perguntarGenAi(conteudo)
+      const resposta = await perguntarGenAi(conteudo, contextoDaConversa(mensagens))
       setMensagens((atuais) => [...atuais, { role: 'assistant', conteudo: resposta.answer, resposta }])
       setGesto('happy')
       setPerguntaFalhou('')
@@ -158,6 +174,17 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
   function enviarFormulario(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     void enviar()
+  }
+
+  function limparConversa() {
+    if (carregando) return
+    setMensagens([])
+    setTexto('')
+    setErro('')
+    setPerguntaFalhou('')
+    setAjudaAberta(false)
+    setGesto(null)
+    entrada.current?.focus({ preventScroll: true })
   }
 
   return (
@@ -189,15 +216,18 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
           <div className="chatbot-chat-column">
           <div className="chatbot-conversation-heading">
             <div><span className="chatbot-mini-mark" aria-hidden="true">✦</span><h2>Conversa</h2></div>
-            <button
-              ref={botaoAjuda}
-              className="chatbot-help-trigger"
-              type="button"
-              aria-expanded={ajudaAberta}
-              aria-controls={ajudaAberta ? 'chatbot-help-panel' : undefined}
-              onClick={() => setAjudaAberta((aberta) => !aberta)}
-              onKeyDown={(event) => { if (event.key === 'Escape') setAjudaAberta(false) }}
-            >Ajuda</button>
+            <div className="chatbot-conversation-actions">
+              {mensagens.length > 0 && <button className="chatbot-clear-trigger" type="button" onClick={limparConversa} disabled={carregando}>Limpar conversa</button>}
+              <button
+                ref={botaoAjuda}
+                className="chatbot-help-trigger"
+                type="button"
+                aria-expanded={ajudaAberta}
+                aria-controls={ajudaAberta ? 'chatbot-help-panel' : undefined}
+                onClick={() => setAjudaAberta((aberta) => !aberta)}
+                onKeyDown={(event) => { if (event.key === 'Escape') setAjudaAberta(false) }}
+              >Ajuda</button>
+            </div>
           </div>
           {ajudaAberta && (
             <div
@@ -288,7 +318,7 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
             </button>
           </form>
 
-          <p className="chatbot-privacy-note">Perguntas independentes · Histórico temporário</p>
+          <p className="chatbot-privacy-note">Histórico temporário nesta página · Você pode limpá-lo a qualquer momento</p>
           </div>
         </section>
       </div>

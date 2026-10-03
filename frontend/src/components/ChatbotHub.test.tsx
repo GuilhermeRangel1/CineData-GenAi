@@ -40,7 +40,7 @@ describe('ChatbotHub GenAI', () => {
       expect.stringContaining('/api/v1/questions'),
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ question: 'Quais são os 10 filmes com maior receita em BRL?' }),
+        body: JSON.stringify({ question: 'Quais são os 10 filmes com maior receita em BRL?', context: [] }),
       }),
     )
   })
@@ -126,5 +126,40 @@ describe('ChatbotHub GenAI', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Oii!')
     expect(screen.getByRole('main')).toHaveClass('chatbot-motion-on')
     expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('envia somente o resumo semântico das respostas anteriores e permite limpar a conversa', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        status: 'success', answer: 'Dados encontrados.', rows: [], insights: [],
+        metadata: { metric: 'nota IMDb média por ano', unit: 'pontos IMDb', period: 'todo o Gold disponível', population: 'filmes válidos', columns: [], row_count: 0, truncated: false, tool_calls: 1 },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        status: 'success', answer: 'Dados de 2020.', rows: [], insights: [],
+        metadata: { columns: [], row_count: 0, truncated: false, tool_calls: 1 },
+      })))
+    vi.stubGlobal('fetch', fetcher)
+    const user = userEvent.setup()
+    render(<ChatbotHub />)
+
+    const input = screen.getByLabelText('Escreva sua mensagem')
+    await user.type(input, 'Qual é a nota IMDb média por ano?')
+    await user.click(screen.getByRole('button', { name: 'Enviar mensagem' }))
+    await screen.findByText(/Não encontrei resultados/)
+    await user.type(input, 'E em 2020?')
+    await user.click(screen.getByRole('button', { name: 'Enviar mensagem' }))
+
+    expect(fetcher).toHaveBeenLastCalledWith(
+      expect.stringContaining('/api/v1/questions'),
+      expect.objectContaining({
+        body: JSON.stringify({
+          question: 'E em 2020?',
+          context: [{ question: 'Qual é a nota IMDb média por ano?', metric: 'nota IMDb média por ano', unit: 'pontos IMDb', period: 'todo o Gold disponível', population: 'filmes válidos' }],
+        }),
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Limpar conversa' }))
+    expect(screen.getByText('O que vamos descobrir?')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Limpar conversa' })).not.toBeInTheDocument()
   })
 })
