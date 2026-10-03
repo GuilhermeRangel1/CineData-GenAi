@@ -212,9 +212,9 @@ atualização do Gold ou mudança de contexto não devolve dados antigos.
 
 ## 13. Avaliação ampliada
 
-- [ ] Ampliar os casos Q01–Q14 com variações de linguagem, filtros, empates,
+- [x] Ampliar os casos Q01–Q14 com variações de linguagem, filtros, empates,
       ambiguidades, resultados vazios e perguntas sobre a plataforma.
-- [ ] Comparar números e regras com consultas de referência; medir também
+- [x] Comparar números e regras com consultas de referência; medir também
       cobertura, erros e tempo sem exigir SQL textual idêntico.
 
 **Critério de saída:** a avaliação detecta respostas incorretas e regressões

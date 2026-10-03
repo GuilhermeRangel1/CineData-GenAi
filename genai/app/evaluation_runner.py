@@ -5,17 +5,113 @@ import json
 import math
 import re
 import sqlite3
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from app.evaluation_cases import EvaluationCase
+from app.evaluation_scenarios import EvaluationScenario
 
 _QUERY_HEADER = re.compile(r"^--\s*(Q\d+):", re.MULTILINE)
 
 
 class EvaluationMismatch(ValueError):
     """Resultado do agente diferente da expectativa derivada do Gold."""
+
+
+@dataclass(frozen=True)
+class ScenarioMeasurement:
+    """Resultado observável de um cenário executado sem rede."""
+
+    name: str
+    passed: bool
+    duration_ms: float
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class EvaluationReport:
+    """Resumo de cobertura, falhas e tempo da avaliação local."""
+
+    total: int
+    passed: int
+    failed: int
+    total_duration_ms: float
+    measurements: tuple[ScenarioMeasurement, ...]
+
+    @property
+    def coverage(self) -> float:
+        return self.passed / self.total if self.total else 0.0
+
+
+def evaluate_scenarios(
+    scenarios: Sequence[EvaluationScenario],
+    execute: Callable[[str], Any],
+    reference_rows: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+) -> EvaluationReport:
+    """Executa cenários com mock e compara números, comportamento e duração."""
+
+    measurements: list[ScenarioMeasurement] = []
+    for scenario in scenarios:
+        started_at = time.perf_counter()
+        try:
+            result = execute(scenario.question)
+            _assert_scenario_outcome(scenario, result, reference_rows or {})
+        except Exception as exc:  # Captura regressões no relatório, sem esconder a causa.
+            measurements.append(
+                ScenarioMeasurement(
+                    name=scenario.name,
+                    passed=False,
+                    duration_ms=(time.perf_counter() - started_at) * 1000,
+                    error=str(exc),
+                )
+            )
+        else:
+            measurements.append(
+                ScenarioMeasurement(
+                    name=scenario.name,
+                    passed=True,
+                    duration_ms=(time.perf_counter() - started_at) * 1000,
+                )
+            )
+    passed = sum(measurement.passed for measurement in measurements)
+    return EvaluationReport(
+        total=len(measurements),
+        passed=passed,
+        failed=len(measurements) - passed,
+        total_duration_ms=sum(measurement.duration_ms for measurement in measurements),
+        measurements=tuple(measurements),
+    )
+
+
+def _assert_scenario_outcome(
+    scenario: EvaluationScenario,
+    result: Any,
+    reference_rows: Mapping[str, Sequence[Mapping[str, Any]]],
+) -> None:
+    """Valida comportamentos sem depender de SQL textual ou do provedor."""
+
+    if scenario.outcome == "clarification":
+        if result != "clarification":
+            raise EvaluationMismatch("O cenário deveria pedir esclarecimento.")
+        return
+    if scenario.outcome == "platform":
+        if result != "platform":
+            raise EvaluationMismatch("O cenário deveria responder com orientação da plataforma.")
+        return
+    if scenario.outcome == "empty":
+        if not isinstance(result, Sequence) or isinstance(result, (str, bytes)) or result:
+            raise EvaluationMismatch("O cenário deveria retornar uma lista vazia.")
+        return
+    if not isinstance(result, Sequence) or isinstance(result, (str, bytes)):
+        raise EvaluationMismatch("O cenário analítico deveria retornar linhas tabulares.")
+    if scenario.reference_query_id:
+        expected = reference_rows.get(scenario.reference_query_id)
+        if expected is None:
+            raise EvaluationMismatch("Faltam linhas de referência para o cenário analítico.")
+        compare_rows(result, expected)
 
 
 def assert_expected_columns(

@@ -44,3 +44,10 @@ distintos, os valores são comparados na ordem retornada. O script
 de referência como modelo simulado, sem rede, para validar o executor e o
 comparador antes de qualquer teste manual com Gemini. Além dos valores, o
 script verifica as colunas obrigatórias de cada caso.
+
+## Cenários ampliados
+
+Além das formulações canônicas, `genai/app/evaluation_scenarios.py` cobre
+reformulações de linguagem, filtro por ano, empates, resultado vazio,
+ambiguidade e perguntas sobre recursos da plataforma. Esses cenários usam
+mocks e expectativas de comportamento; não fazem chamadas reais ao provedor.

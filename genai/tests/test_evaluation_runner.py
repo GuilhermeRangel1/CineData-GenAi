@@ -10,8 +10,10 @@ from app.evaluation_runner import (
     EvaluationMismatch,
     assert_expected_columns,
     compare_rows,
+    evaluate_scenarios,
     load_reference_queries,
 )
+from app.evaluation_scenarios import EvaluationScenario
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -61,3 +63,33 @@ def test_compare_rows_rejects_different_values() -> None:
             [{"value": 11.0}],
             [{"value": 10.0}],
         )
+
+
+def test_expanded_evaluation_report_measures_success_errors_and_coverage() -> None:
+    scenarios = (
+        EvaluationScenario("analitico", "Pergunta A", "success", "Q01"),
+        EvaluationScenario("vazio", "Pergunta B", "empty"),
+        EvaluationScenario("ambiguo", "Pergunta C", "clarification"),
+        EvaluationScenario("plataforma", "Pergunta D", "platform"),
+        EvaluationScenario("regressao", "Pergunta E", "success", "Q01"),
+    )
+    answers = {
+        "Pergunta A": [{"titulo": "A", "receita_brl": 10.0}],
+        "Pergunta B": [],
+        "Pergunta C": "clarification",
+        "Pergunta D": "platform",
+        "Pergunta E": [{"titulo": "A", "receita_brl": 11.0}],
+    }
+
+    report = evaluate_scenarios(
+        scenarios,
+        lambda question: answers[question],
+        {"Q01": [{"titulo": "A", "receita_brl": 10.0}]},
+    )
+
+    assert report.total == 5
+    assert report.passed == 4
+    assert report.failed == 1
+    assert report.coverage == 0.8
+    assert report.total_duration_ms >= 0
+    assert report.measurements[-1].error
