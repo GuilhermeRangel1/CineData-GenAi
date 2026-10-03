@@ -83,6 +83,14 @@ class ListaNaoEncontradaError(ErroDominio):
     mensagem = "Lista não encontrada."
 
 
+class ConversationNotFoundError(ErroDominio):
+    """A conversa não existe ou pertence a outra conta."""
+
+    status_code = 404
+    codigo = "CONVERSA_NAO_ENCONTRADA"
+    mensagem = "Conversa não encontrada."
+
+
 class FilmeJaEstaNaListaError(ErroDominio):
     """Evita que a mesma lista contenha o mesmo filme mais de uma vez."""
 

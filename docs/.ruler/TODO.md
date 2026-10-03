@@ -232,16 +232,20 @@ em título e sinopse; perguntas mistas adicionam a evidência descritiva ao cont
 da consulta SQL e informam que os números vieram do Gold. O índice é refeito ao
 detectar uma atualização do arquivo Gold e os caminhos são verificados localmente.
 
-## 15. Privacidade e conversa temporária
+## 15. Histórico de conversas e privacidade
 
-- [ ] Adicionar um modo de conversa temporária que mantenha o contexto apenas
-      durante a sessão aberta e permita apagar a conversa a qualquer momento.
-- [ ] Evitar que dados pessoais, tokens ou identificadores da conta sejam
-      enviados ao modelo; anonimizar ou remover esses dados quando forem
-      necessários para uma resposta.
-- [ ] Informar de forma simples quando a conversa temporária estiver ativa e
-      quais dados são usados para responder.
+- [x] Persistir conversas de usuários autenticados, com título, data, mensagens
+      e vínculo ao perfil.
+- [x] Permitir criar, retomar, renomear e excluir conversas pelo histórico do
+      chatbot.
+- [x] Criar modo de conversa temporária, disponível para usuários autenticados
+      e visitantes, sem salvar mensagens ou aparecer no histórico.
+- [x] Garantir que o contexto enviado ao modelo contenha apenas mensagens da
+      conversa atual e nunca inclua tokens, dados pessoais desnecessários ou
+      identificadores da conta.
+- [x] Informar de forma simples quando a conversa temporária estiver ativa e
+      permitir encerrá-la ou limpá-la imediatamente.
 
-**Critério de saída:** a pessoa pode iniciar uma conversa temporária, encerrar
-e limpar seu contexto sem persistência indevida; o modelo recebe somente os
-dados necessários e nenhum segredo ou identificador pessoal.
+**Critério de saída:** usuários autenticados podem retomar e excluir conversas
+salvas; visitantes usam conversa temporária; o modo temporário não persiste
+mensagens nem aparece no histórico.

@@ -20,6 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql.schema import Table
 
 from app.db.base import Base, GoldDatabaseSync
+from app.conversations import models as conversation_models  # noqa: F401  Registra o histórico privado.
 from app.movies import models as movie_models  # noqa: F401  Registra as tabelas do catálogo.
 from app.users import models as user_models  # noqa: F401  Registra as tabelas de contas.
 from app.communities import models as community_models  # noqa: F401  Registra as tabelas sociais.

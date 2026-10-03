@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ErroDaApi, perguntarGenAi } from '../api/client'
-import type { ContextoConversaGenAi, MensagemConversa, RespostaGenAi } from '../types/api'
+import {
+  anexarMensagensConversa,
+  criarConversa,
+  ErroDaApi,
+  listarConversas,
+  obterConversa,
+  perguntarGenAi,
+  removerConversa,
+  renomearConversa,
+} from '../api/client'
+import type { ContextoConversaGenAi, ConversaResumo, MensagemConversa, RespostaGenAi } from '../types/api'
 import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
 import { ChatbotResultChart, temGraficoDeResultado } from './ChatbotResultChart'
 import { colunasVisiveis, formatarCelula, observacaoResultado, rotuloColuna, tituloResultado } from './chatbotPresentation'
@@ -107,7 +116,7 @@ function SendIcon() {
   )
 }
 
-export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
+export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdmin?: boolean; isAuthenticated?: boolean }) {
   const [mensagens, setMensagens] = useState<MensagemAssistente[]>([])
   const [texto, setTexto] = useState('')
   const [erro, setErro] = useState('')
@@ -116,6 +125,14 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
   const [focado, setFocado] = useState(false)
   const [ajudaAberta, setAjudaAberta] = useState(false)
   const [gesto, setGesto] = useState<'happy' | 'waving' | null>(null)
+  const [conversasSalvas, setConversasSalvas] = useState<ConversaResumo[]>([])
+  const [conversaAtiva, setConversaAtiva] = useState<string | null>(null)
+  const [tituloConversaAtiva, setTituloConversaAtiva] = useState('')
+  const [modoTemporario, setModoTemporario] = useState(!isAuthenticated)
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false)
+  const [abrindoConversa, setAbrindoConversa] = useState(false)
+  const [erroHistorico, setErroHistorico] = useState('')
+  const [versaoHistorico, setVersaoHistorico] = useState(0)
   const conversa = useRef<HTMLDivElement>(null)
   const entrada = useRef<HTMLTextAreaElement>(null)
   const botaoAjuda = useRef<HTMLButtonElement>(null)
@@ -123,13 +140,32 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
   const estado: RobotMood = carregando ? 'thinking' : gesto ?? (erro ? 'error' : focado || texto ? 'listening' : 'idle')
 
   useEffect(() => {
-    const painel = conversa.current
-    if (!painel) return
-    if (carregando) {
-      painel.scrollTop = painel.scrollHeight
+    if (!isAuthenticated) {
+      setConversasSalvas([])
+      setConversaAtiva(null)
+      setTituloConversaAtiva('')
+      setModoTemporario(true)
+      setErroHistorico('')
       return
     }
-    painel.querySelector<HTMLElement>('[data-chatbot-result]:last-of-type')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    let active = true
+    setCarregandoHistorico(true)
+    setErroHistorico('')
+    setModoTemporario(false)
+    void listarConversas().then((items) => {
+      if (active) setConversasSalvas(items)
+    }).catch(() => {
+      if (active) setErroHistorico('Não foi possível carregar suas conversas.')
+    }).finally(() => {
+      if (active) setCarregandoHistorico(false)
+    })
+    return () => { active = false }
+  }, [isAuthenticated, versaoHistorico])
+
+  useEffect(() => {
+    const painel = conversa.current
+    if (!painel) return
+    painel.scrollTop = painel.scrollHeight
   }, [mensagens, carregando])
 
   useEffect(() => {
@@ -137,10 +173,6 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
     const timer = window.setTimeout(() => setGesto(null), 3200)
     return () => window.clearTimeout(timer)
   }, [gesto])
-
-  useEffect(() => {
-    if (!carregando && mensagens.length) entrada.current?.focus({ preventScroll: true })
-  }, [carregando, mensagens.length])
 
   async function enviar(mensagem = texto, adicionarAoHistorico = true) {
     const conteudo = mensagem.trim()
@@ -161,6 +193,28 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
       setMensagens((atuais) => [...atuais, { role: 'assistant', conteudo: resposta.answer, resposta }])
       setGesto('happy')
       setPerguntaFalhou('')
+      if (isAuthenticated && !modoTemporario) {
+        let id = conversaAtiva
+        try {
+          if (!id) {
+            const conversaCriada = await criarConversa(conteudo.slice(0, 120))
+            id = conversaCriada.id
+            setConversaAtiva(id)
+            setTituloConversaAtiva(conversaCriada.titulo)
+          }
+          const conversaAtualizada = await anexarMensagensConversa(id, [
+            { role: 'user', content: conteudo },
+            { role: 'assistant', content: resposta.answer, response_data: resposta },
+          ])
+          setConversasSalvas((atuais) => [
+            { id: conversaAtualizada.id, titulo: conversaAtualizada.titulo, created_at: conversaAtualizada.created_at, updated_at: conversaAtualizada.updated_at },
+            ...atuais.filter((conversa) => conversa.id !== conversaAtualizada.id),
+          ])
+          setErroHistorico('')
+        } catch {
+          setErroHistorico('A resposta foi exibida, mas não pôde ser salva no histórico.')
+        }
+      }
     } catch (falha) {
       if (falha instanceof ErroDaApi && falha.codigo === 'ambiguous_question') {
         setErro(`Preciso de um detalhe para continuar: ${falha.message}`)
@@ -193,6 +247,60 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
     entrada.current?.focus({ preventScroll: true })
   }
 
+  function iniciarConversa(temporaria: boolean) {
+    if (carregando) return
+    limparConversa()
+    setConversaAtiva(null)
+    setTituloConversaAtiva('')
+    setModoTemporario(temporaria || !isAuthenticated)
+  }
+
+  async function abrirConversa(id: string) {
+    if (carregando || id === conversaAtiva) return
+    const resumo = conversasSalvas.find((conversaSalva) => conversaSalva.id === id)
+    setAbrindoConversa(true)
+    setErro('')
+    try {
+      const conversaSalva = await obterConversa(id)
+      setMensagens(conversaSalva.mensagens.map((mensagem) => ({
+        role: mensagem.role,
+        conteudo: mensagem.content,
+        resposta: mensagem.response_data ?? undefined,
+      })))
+      setConversaAtiva(id)
+      setTituloConversaAtiva(conversaSalva.titulo)
+      setModoTemporario(false)
+      idConversa.current = criarIdConversa()
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível abrir esta conversa.')
+      setTituloConversaAtiva(resumo?.titulo ?? '')
+    } finally {
+      setAbrindoConversa(false)
+    }
+  }
+
+  async function excluirConversa(id: string) {
+    if (carregando) return
+    try {
+      await removerConversa(id)
+      setConversasSalvas((atuais) => atuais.filter((conversa) => conversa.id !== id))
+      if (conversaAtiva === id) iniciarConversa(false)
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível excluir esta conversa.')
+    }
+  }
+
+  async function editarTitulo(conversa: ConversaResumo) {
+    const titulo = window.prompt('Nome da conversa', conversa.titulo)?.trim()
+    if (!titulo || titulo === conversa.titulo) return
+    try {
+      const atualizada = await renomearConversa(conversa.id, titulo)
+      setConversasSalvas((atuais) => atuais.map((item) => item.id === atualizada.id ? atualizada : item))
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível renomear esta conversa.')
+    }
+  }
+
   return (
     <main className="chatbot-page chatbot-motion-on" id="chatbot">
       <header className="chatbot-header">
@@ -217,13 +325,27 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
             </button>
           </div>
           <p className="sr-only" role="status">{FALAS[estado]}</p>
+          {isAuthenticated && (
+            <section className="chatbot-history" aria-label="Conversas salvas">
+              <div><strong>Suas conversas</strong><button type="button" onClick={() => iniciarConversa(false)} disabled={carregando}>+</button></div>
+              {carregandoHistorico ? <p>Carregando conversas…</p> : erroHistorico ? <p className="chatbot-history-error">{erroHistorico} <button type="button" onClick={() => setVersaoHistorico((versao) => versao + 1)}>Tentar novamente</button></p> : conversasSalvas.length === 0 ? <p>Nenhuma conversa salva ainda.</p> : (
+                <ul>{conversasSalvas.map((conversaSalva) => (
+                  <li key={conversaSalva.id} className={conversaAtiva === conversaSalva.id ? 'is-active' : undefined}>
+                    <button type="button" onClick={() => void abrirConversa(conversaSalva.id)} disabled={carregandoHistorico}>{conversaSalva.titulo}</button>
+                    <span><button type="button" aria-label={`Renomear ${conversaSalva.titulo}`} onClick={() => void editarTitulo(conversaSalva)}>✎</button><button type="button" aria-label={`Excluir ${conversaSalva.titulo}`} onClick={() => void excluirConversa(conversaSalva.id)}>×</button></span>
+                  </li>
+                ))}</ul>
+              )}
+            </section>
+          )}
           <div className="chatbot-companion-footer"><span aria-hidden="true">✦</span></div>
           </aside>
           <div className="chatbot-chat-column">
-          <div className="chatbot-conversation-heading">
-            <div><span className="chatbot-mini-mark" aria-hidden="true">✦</span><h2>Conversa</h2></div>
+            <div className="chatbot-conversation-heading">
+            <div><span className="chatbot-mini-mark" aria-hidden="true">✦</span><h2>{abrindoConversa ? 'Abrindo conversa…' : tituloConversaAtiva || 'Conversa'}</h2></div>
             <div className="chatbot-conversation-actions">
-              {mensagens.length > 0 && <button className="chatbot-clear-trigger" type="button" onClick={limparConversa} disabled={carregando}>Limpar conversa</button>}
+              <button className="chatbot-clear-trigger" type="button" onClick={() => iniciarConversa(!isAuthenticated)} disabled={carregando}>Nova conversa</button>
+              <button className={`chatbot-temporary-trigger ${modoTemporario ? 'is-active' : ''}`} type="button" onClick={() => iniciarConversa(true)} disabled={carregando}>Temporária</button>
               <button
                 ref={botaoAjuda}
                 className="chatbot-help-trigger"
@@ -260,7 +382,14 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
               ))}
             </div>
           )}
-          {mensagens.length === 0 ? (
+          {abrindoConversa ? (
+            <div className="chatbot-opening" role="status">Carregando mensagens salvas…</div>
+          ) : mensagens.length === 0 && conversaAtiva ? (
+            <div className="chatbot-opening">
+              <strong>{tituloConversaAtiva || 'Conversa salva'}</strong>
+              <span>Esta conversa ainda não tem mensagens salvas.</span>
+            </div>
+          ) : mensagens.length === 0 ? (
             <div className="chatbot-welcome">
               <span className="chatbot-welcome-symbol" aria-hidden="true">✳</span>
               <h3>O que vamos descobrir?</h3>
@@ -324,7 +453,7 @@ export function ChatbotHub({ isAdmin = false }: { isAdmin?: boolean }) {
             </button>
           </form>
 
-          <p className="chatbot-privacy-note">Histórico temporário nesta página · Você pode limpá-lo a qualquer momento</p>
+          <p className="chatbot-privacy-note">{modoTemporario ? 'Conversa temporária · as mensagens não serão salvas.' : 'Conversa salva na sua conta · você pode retomá-la quando quiser.'}</p>
           </div>
         </section>
       </div>

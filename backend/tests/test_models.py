@@ -1,4 +1,5 @@
 from app.communities import models as community_models  # noqa: F401  Registra os modelos ORM.
+from app.conversations import models as conversation_models  # noqa: F401  Registra os modelos ORM.
 from app.db.base import Base
 from app.movies import models  # noqa: F401  Registra os modelos ORM.
 from app.users import models as user_models  # noqa: F401  Registra os modelos ORM.
@@ -27,6 +28,8 @@ def test_movie_schema_registers_expected_tables() -> None:
         "community_comments",
         "community_reactions",
         "gold_database_sync",
+        "chat_conversations",
+        "chat_messages",
     }
 
     assert set(Base.metadata.tables) == expected_tables
@@ -49,3 +52,16 @@ def test_user_schema_stores_only_a_password_hash() -> None:
     assert {"id", "email", "nome", "password_hash", "role"} <= set(table.columns.keys())
     assert "password" not in table.columns
     assert table.primary_key.columns.keys() == ["id"]
+
+
+def test_chat_schema_keeps_messages_ordered_inside_each_conversation() -> None:
+    conversations = Base.metadata.tables["chat_conversations"]
+    messages = Base.metadata.tables["chat_messages"]
+
+    assert {"id", "user_id", "titulo", "created_at", "updated_at"} <= set(
+        conversations.columns.keys()
+    )
+    assert {"conversation_id", "position", "role", "content", "response_data"} <= set(
+        messages.columns.keys()
+    )
+    assert messages.primary_key.columns.keys() == ["id"]

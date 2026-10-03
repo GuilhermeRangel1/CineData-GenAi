@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.conversations import models as conversation_models  # noqa: F401  Registra as tabelas no metadata.
 from app.communities import (
     models as community_models,  # noqa: F401  Registra as tabelas no metadata.
 )

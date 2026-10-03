@@ -175,7 +175,7 @@ function App() {
           onOpenMovie={setSelected}
         />
       ) : page === 'chatbot' ? (
-        <ChatbotHub isAdmin={session?.usuario.role === 'admin'} />
+        <ChatbotHub isAdmin={session?.usuario.role === 'admin'} isAuthenticated={Boolean(session)} />
       ) : page === 'analytics' ? (
         <AnalyticsDashboard onOpenMovie={setSelected} />
       ) : page === 'taste-map' ? (

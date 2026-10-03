@@ -103,6 +103,11 @@ class User(Base):
     lists: Mapped[list["UserList"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", order_by="UserList.created_at.desc()"
     )
+    conversations: Mapped[list["ChatConversation"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="ChatConversation.updated_at.desc()",
+    )
 
 
 class UserList(Base):
@@ -167,3 +172,8 @@ class FriendshipRequest(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+# Registra o outro lado de ``User.conversations`` mesmo nos processos que usam
+# somente modelos antigos, como a preparação de trailers no Docker Compose.
+from app.conversations.models import ChatConversation  # noqa: E402, F401

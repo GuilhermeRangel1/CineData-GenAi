@@ -115,7 +115,6 @@ export function Catalog({
     setPage(Math.max(1, meta.total_paginas))
   function changePage(value: number) {
     setPage(value)
-    document.getElementById('catalogo')?.scrollIntoView({ block: 'start' })
   }
   return (
     <section className="catalog-section" id="catalogo" aria-labelledby="catalog-title">

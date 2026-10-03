@@ -52,6 +52,25 @@ export interface MensagemConversa {
   conteudo: string
 }
 
+export interface ConversaResumo {
+  id: string
+  titulo: string
+  created_at: string
+  updated_at: string
+}
+
+export interface MensagemConversaSalva {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  response_data: RespostaGenAi | null
+  created_at: string
+}
+
+export interface ConversaDetalhe extends ConversaResumo {
+  mensagens: MensagemConversaSalva[]
+}
+
 export interface MetadadosPagina {
   pagina: number
   tamanho_pagina: number

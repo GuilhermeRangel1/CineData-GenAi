@@ -29,6 +29,8 @@ import type {
   MapaGostos,
   ContextoConversaGenAi,
   RespostaGenAi,
+  ConversaDetalhe,
+  ConversaResumo,
 } from '../types/api'
 import { carregarSessao, obterTokenSessao } from '../auth/session'
 
@@ -256,6 +258,39 @@ export function perguntarGenAi(
   return requisitarGenAi<RespostaGenAi>('/questions', {
     method: 'POST',
     body: JSON.stringify({ question: pergunta, context: contexto, conversation_id: conversationId }),
+  })
+}
+
+export function listarConversas(signal?: AbortSignal): Promise<ConversaResumo[]> {
+  return requisitar<ConversaResumo[]>('/minha-conta/conversas', { signal, cache: 'no-store' })
+}
+
+export function criarConversa(titulo: string): Promise<ConversaDetalhe> {
+  return requisitar<ConversaDetalhe>('/minha-conta/conversas', {
+    method: 'POST', body: JSON.stringify({ titulo }),
+  })
+}
+
+export function obterConversa(id: string): Promise<ConversaDetalhe> {
+  return requisitar<ConversaDetalhe>(`/minha-conta/conversas/${encodeURIComponent(id)}`, { cache: 'no-store' })
+}
+
+export function renomearConversa(id: string, titulo: string): Promise<ConversaResumo> {
+  return requisitar<ConversaResumo>(`/minha-conta/conversas/${encodeURIComponent(id)}`, {
+    method: 'PATCH', body: JSON.stringify({ titulo }),
+  })
+}
+
+export function removerConversa(id: string): Promise<void> {
+  return requisitar<void>(`/minha-conta/conversas/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export function anexarMensagensConversa(
+  id: string,
+  mensagens: Array<{ role: 'user' | 'assistant'; content: string; response_data?: RespostaGenAi }>,
+): Promise<ConversaDetalhe> {
+  return requisitar<ConversaDetalhe>(`/minha-conta/conversas/${encodeURIComponent(id)}/mensagens`, {
+    method: 'POST', body: JSON.stringify({ mensagens }),
   })
 }
 
