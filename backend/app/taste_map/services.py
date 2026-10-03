@@ -70,7 +70,8 @@ PALAVRAS_SEM_SINAL = frozenset(
         "um",
     }
 )
-LIMITE_CANDIDATOS = 2500
+LIMITE_CANDIDATOS_MINIMO = 400
+LIMITE_CANDIDATOS_MAXIMO = 900
 LIMITE_TERMOS_SINOPSE = 32
 
 
@@ -136,10 +137,13 @@ class MapaGostosService:
         busca: str | None = None,
         excluir: set[str] | None = None,
     ) -> MapaGostos:
-        avaliacoes = await self._avaliacoes_do_usuario(usuario.id)
-        avaliadas = self._avaliadas_distintas(avaliacoes)
-        total_avaliados = len(avaliadas)
-        if not avaliadas:
+        ids_avaliados = set(
+            await self._session.scalars(
+                select(MovieReview.sk_movie_id).where(MovieReview.user_id == usuario.id)
+            )
+        )
+        total_avaliados = len(ids_avaliados)
+        if not ids_avaliados:
             return MapaGostos(
                 nos=[],
                 arestas=[],
@@ -150,12 +154,15 @@ class MapaGostosService:
 
         # Prioriza o que a pessoa mais gostou e ainda deixa espaço para descobrir.
         max_avaliadas = max(1, limite_nos // 2)
-        avaliadas = avaliadas[:max_avaliadas]
+        avaliadas = self._avaliadas_distintas(
+            await self._avaliacoes_do_usuario(usuario.id, limit=max_avaliadas)
+        )
         filmes_origem = [avaliacao.movie for avaliacao in avaliadas if avaliacao.movie is not None]
         candidatos = await self._catalogo_candidato(
             filmes_origem,
-            {avaliacao.sk_movie_id for avaliacao in avaliacoes},
+            ids_avaliados,
             excluir or set(),
+            limite_candidatos=self._limite_candidatos(limite_nos - len(avaliadas)),
         )
         recomendacoes, arestas = self._construir_conexoes(
             avaliadas,
@@ -177,7 +184,16 @@ class MapaGostosService:
             vizinhos_por_filme=vizinhos_por_filme,
         )
 
-    async def _avaliacoes_do_usuario(self, user_id: str) -> list[MovieReview]:
+    @staticmethod
+    def _limite_candidatos(limite_recomendacoes: int) -> int:
+        """Mantém candidatos suficientes sem hidratar milhares de filmes para um mapa curto."""
+
+        return min(
+            LIMITE_CANDIDATOS_MAXIMO,
+            max(LIMITE_CANDIDATOS_MINIMO, limite_recomendacoes * 50),
+        )
+
+    async def _avaliacoes_do_usuario(self, user_id: str, *, limit: int) -> list[MovieReview]:
         resultado = await self._session.execute(
             select(MovieReview)
             .where(MovieReview.user_id == user_id)
@@ -187,6 +203,7 @@ class MapaGostosService:
                 selectinload(MovieReview.movie).selectinload(DimMovie.performance),
             )
             .order_by(MovieReview.nota.desc(), MovieReview.created_at.desc())
+            .limit(limit)
         )
         return list(resultado.scalars())
 
@@ -195,12 +212,15 @@ class MapaGostosService:
         filmes_origem: list[DimMovie],
         ids_avaliados: set[str],
         excluir: set[str],
+        *,
+        limite_candidatos: int,
     ) -> list[DimMovie]:
         """Busca uma amostra ampla por sinais no SQL antes de carregar relações.
 
         O catálogo inteiro não é hidratado no ORM: gêneros, pessoas e termos de
         sinopse geram uma pontuação preliminar no banco. A similaridade completa
-        e explicável continua sendo calculada em Python para os melhores 2.500.
+        e explicável continua sendo calculada em Python para uma amostra proporcional
+        ao número de recomendações que o mapa precisa exibir.
         """
 
         generos_origem = {genero.sk_genre_id for filme in filmes_origem for genero in filme.genres}
@@ -218,22 +238,34 @@ class MapaGostosService:
         sinais = []
 
         if generos_origem:
-            sinais.append(
+            genero_scores = (
                 select(
                     bridge_movie_genre.c.sk_movie_id.label("movie_id"),
                     (func.count() * 3).label("score"),
                 )
                 .where(bridge_movie_genre.c.sk_genre_id.in_(generos_origem))
                 .group_by(bridge_movie_genre.c.sk_movie_id)
+                .order_by(func.count().desc())
+                .limit(limite_candidatos)
+                .subquery()
+            )
+            sinais.append(
+                select(genero_scores.c.movie_id, genero_scores.c.score)
             )
         if pessoas_origem:
-            sinais.append(
+            pessoa_scores = (
                 select(
                     bridge_movie_person.c.sk_movie_id.label("movie_id"),
                     (func.count() * 4).label("score"),
                 )
                 .where(bridge_movie_person.c.sk_person_id.in_(pessoas_origem))
                 .group_by(bridge_movie_person.c.sk_movie_id)
+                .order_by(func.count().desc())
+                .limit(limite_candidatos)
+                .subquery()
+            )
+            sinais.append(
+                select(pessoa_scores.c.movie_id, pessoa_scores.c.score)
             )
         if termos_sinopse:
             consulta_fts = " OR ".join(f'"{termo}"' for termo in termos_sinopse)
@@ -249,7 +281,7 @@ class MapaGostosService:
                 )
                 .where(text("movie_synopsis_fts MATCH :consulta_fts"))
                 .order_by(text("bm25(movie_synopsis_fts)"))
-                .limit(LIMITE_CANDIDATOS)
+                .limit(limite_candidatos)
                 .params(consulta_fts=consulta_fts)
                 .subquery()
             )
@@ -269,7 +301,7 @@ class MapaGostosService:
             .where(DimMovie.id_filme.not_in(excluir))
             .group_by(pontuacoes.c.movie_id)
             .order_by(func.sum(pontuacoes.c.score).desc(), DimMovie.titulo, DimMovie.sk_movie_id)
-            .limit(LIMITE_CANDIDATOS)
+            .limit(limite_candidatos)
             .subquery()
         )
         try:
@@ -280,7 +312,12 @@ class MapaGostosService:
             if "no such table: movie_synopsis_fts" not in str(error).casefold():
                 raise
             ids_candidatos = await self._catalogo_candidato_sem_fts(
-                filmes_origem, ids_avaliados, excluir, generos_origem, pessoas_origem
+                filmes_origem,
+                ids_avaliados,
+                excluir,
+                generos_origem,
+                pessoas_origem,
+                limite_candidatos=limite_candidatos,
             )
         if not ids_candidatos:
             return []
@@ -303,27 +340,41 @@ class MapaGostosService:
         excluir: set[str],
         generos_origem: set[str],
         pessoas_origem: set[str],
+        *,
+        limite_candidatos: int,
     ) -> list[str]:
         """Fallback para bancos de teste ainda sem a migration FTS5."""
 
         sinais = []
         if generos_origem:
-            sinais.append(
+            genero_scores = (
                 select(
                     bridge_movie_genre.c.sk_movie_id.label("movie_id"),
                     (func.count() * 3).label("score"),
                 )
                 .where(bridge_movie_genre.c.sk_genre_id.in_(generos_origem))
                 .group_by(bridge_movie_genre.c.sk_movie_id)
+                .order_by(func.count().desc())
+                .limit(limite_candidatos)
+                .subquery()
+            )
+            sinais.append(
+                select(genero_scores.c.movie_id, genero_scores.c.score)
             )
         if pessoas_origem:
-            sinais.append(
+            pessoa_scores = (
                 select(
                     bridge_movie_person.c.sk_movie_id.label("movie_id"),
                     (func.count() * 4).label("score"),
                 )
                 .where(bridge_movie_person.c.sk_person_id.in_(pessoas_origem))
                 .group_by(bridge_movie_person.c.sk_movie_id)
+                .order_by(func.count().desc())
+                .limit(limite_candidatos)
+                .subquery()
+            )
+            sinais.append(
+                select(pessoa_scores.c.movie_id, pessoa_scores.c.score)
             )
         termos = sorted(
             {termo for filme in filmes_origem for termo in self._vetor_sinopse(filme.sinopse)}
@@ -347,7 +398,7 @@ class MapaGostosService:
             .where(DimMovie.id_filme.not_in(excluir))
             .group_by(pontuacoes.c.movie_id)
             .order_by(func.sum(pontuacoes.c.score).desc(), DimMovie.titulo)
-            .limit(LIMITE_CANDIDATOS)
+            .limit(limite_candidatos)
         )
         return list(await self._session.scalars(ranking))
 
