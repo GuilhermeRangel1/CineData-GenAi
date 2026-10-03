@@ -222,13 +222,15 @@ com dados locais e mocks; chamadas reais permanecem manuais e reduzidas.
 
 ## 14. Agente híbrido SQL e busca semântica
 
-- [ ] Preparar um índice das sinopses e de outros textos autorizados, com forma
+- [x] Preparar um índice das sinopses e de outros textos autorizados, com forma
       de atualizar o índice quando o catálogo mudar.
-- [ ] Encaminhar perguntas descritivas para busca semântica e quantitativas
+- [x] Encaminhar perguntas descritivas para busca semântica e quantitativas
       para SQL; combinar evidências quando a pergunta exigir as duas fontes.
 
-**Critério de saída:** respostas descritivas apontam os filmes encontrados,
-números vêm de SQL e a origem de cada informação fica clara para a pessoa.
+**Critério de saída atendido:** perguntas descritivas retornam filmes encontrados
+em título e sinopse; perguntas mistas adicionam a evidência descritiva ao contexto
+da consulta SQL e informam que os números vieram do Gold. O índice é refeito ao
+detectar uma atualização do arquivo Gold e os caminhos são verificados localmente.
 
 ## 15. Privacidade e conversa temporária
 

@@ -20,6 +20,7 @@ from app.gold_database import EXPECTED_TABLES
 from app.insight_service import InsightService
 from app.question_guard import rejection_message
 from app.sql_executor import GoldQueryExecutor
+from app.semantic_search import SynopsisSearchIndex
 from app.sql_guard import validate_sql
 
 
@@ -97,6 +98,11 @@ _ANALYTICAL_INTENT = re.compile(
     r"diverg[eê]ncia|margem(?:\s+m[eé]dia)?|m[eé]dia\s+de)\b|"
     r"\bator(?:es)?\b.{0,35}\b(?:mais|maior|numero)\b|"
     r"\b(?:mais|maior|numero)\b.{0,35}\bator(?:es)?\b",
+    re.IGNORECASE,
+)
+_DESCRIPTIVE_MOVIE_INTENT = re.compile(
+    r"\b(?:filmes?\s+(?:sobre|onde|que (?:tenham|falam))|"
+    r"(?:quero|procuro|encontre|mostre)\s+filmes?\s+(?:sobre|com|onde|que (?:tenham|falam)))\b",
     re.IGNORECASE,
 )
 
@@ -819,11 +825,13 @@ class AgentService:
         executor: GoldQueryExecutor,
         max_rows: int = 100,
         insight_service: InsightService | None = None,
+        semantic_search: SynopsisSearchIndex | None = None,
     ):
         self.model = model
         self.executor = executor
         self.max_rows = max_rows
         self.insight_service = insight_service
+        self.semantic_search = semantic_search
 
     def answer(
         self,
@@ -848,6 +856,7 @@ class AgentService:
             )
         platform_intent, analytical_intent = _question_sources(normalized_question)
         mixed_intent = platform_intent and analytical_intent
+        semantic_matches = ()
         if platform_intent and not analytical_intent:
             if _is_vague_platform_question(normalized_question):
                 raise AgentClarification(
@@ -876,6 +885,51 @@ class AgentService:
                 tool_calls=0,
                 source="platform",
             )
+        if (
+            self.semantic_search is not None
+            and not analytical_intent
+            and _DESCRIPTIVE_MOVIE_INTENT.search(_normalize_for_routing(normalized_question))
+        ):
+            matches = self.semantic_search.search(normalized_question)
+            rows = tuple(
+                {
+                    "titulo": match.title,
+                    "sinopse": match.synopsis,
+                    "relevancia": round(match.score, 4),
+                }
+                for match in matches
+            )
+            return AgentResponse(
+                answer=(
+                    "Encontrei filmes pelas sinopses do catálogo."
+                    if rows
+                    else "Não encontrei filmes com essa descrição nas sinopses disponíveis."
+                ),
+                rows=rows,
+                truncated=False,
+                tool_calls=0,
+                columns=("titulo", "sinopse", "relevancia"),
+                metric="correspondência entre descrição e sinopse",
+                unit="pontuação de relevância",
+                period="todo o Gold disponível",
+                population="filmes com sinopse disponível",
+                limitations="a busca usa termos de título e sinopse; não infere temas ausentes desses textos",
+                source="semantic",
+            )
+        if (
+            self.semantic_search is not None
+            and analytical_intent
+            and _DESCRIPTIVE_MOVIE_INTENT.search(_normalize_for_routing(normalized_question))
+        ):
+            semantic_matches = self.semantic_search.search(normalized_question)
+            if not semantic_matches:
+                return AgentResponse(
+                    answer="Não encontrei filmes com essa descrição nas sinopses disponíveis.",
+                    rows=(),
+                    truncated=False,
+                    tool_calls=0,
+                    source="semantic",
+                )
         evaluation_case = find_evaluation_case(normalized_question)
         ranking_limit = None if mixed_intent else _popularity_rank_limit(normalized_question)
         director_average = (
@@ -946,6 +1000,16 @@ class AgentService:
             model_seconds = 0.0
         else:
             conversation_context = self._format_conversation_context(context)
+            semantic_context = (
+                "Filmes encontrados pela busca nas sinopses para esta pergunta híbrida: "
+                + ", ".join(
+                    f"{match.title} (sk_movie_id {match.movie_id})" for match in semantic_matches
+                )
+                + ". Para a parte quantitativa, restrinja a consulta a esses filmes e obtenha "
+                "os números somente do Gold."
+                if semantic_matches
+                else None
+            )
             messages: list[dict[str, Any]] = [
             {
                 "role": "system",
@@ -981,6 +1045,11 @@ class AgentService:
             *(
                 [{"role": "user", "content": conversation_context}]
                 if conversation_context
+                else []
+            ),
+            *(
+                [{"role": "user", "content": semantic_context}]
+                if semantic_context
                 else []
             ),
             {"role": "user", "content": normalized_question},
@@ -1056,6 +1125,12 @@ class AgentService:
                 f"Orientação sobre o CineData (guia da plataforma):\n{platform_answer}\n\n"
                 f"Análise dos filmes (Gold): {analytical_answer}"
             )
+        elif semantic_matches:
+            titles = ", ".join(match.title for match in semantic_matches)
+            final_answer = (
+                f"A busca nas sinopses encontrou: {titles}. "
+                "Na tabela, você confere os dados desses filmes."
+            )
 
         metric = evaluation_case.metric if evaluation_case else None
         unit = evaluation_case.unit if evaluation_case else None
@@ -1103,7 +1178,7 @@ class AgentService:
             period=period,
             population=population,
             limitations=limitations,
-            source="mixed" if mixed_intent else "gold",
+            source="mixed" if mixed_intent or semantic_matches else "gold",
         )
         if self.insight_service is None:
             return response

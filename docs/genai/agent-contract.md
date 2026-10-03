@@ -24,6 +24,9 @@ chamadas externas.
    separada dos resultados analíticos retornados pelo Gold. Pedidos vagos
    recebem esclarecimento e funcionalidades não documentadas são identificadas
    como não encontradas no guia, sem gerar SQL.
+10. Perguntas descritivas sobre filmes consultam o índice local de títulos e
+    sinopses. Quando também pedem uma medida, o índice fornece os candidatos e
+    o SQL consulta os números no Gold; a resposta identifica as duas origens.
 
 O modelo não recebe acesso direto ao arquivo, à conexão SQLite ou a outras
 ferramentas. O orquestrador também não aceita uma resposta factual sem que a
@@ -46,6 +49,6 @@ provedor. Os testes usam um modelo simulado e não consomem cota.
 ## Limites deste bloco
 
 Memória de conversa, seleção de modelo, retries, fallback, streaming, busca
-semântica e integração FastAPI ficam para blocos posteriores. Uma pergunta usa
-no máximo um tool call nesta primeira versão para manter custo, rastreabilidade
-e controle de cota previsíveis.
+por sinopses e integração FastAPI evoluem em blocos próprios. Uma pergunta usa
+no máximo um tool call para manter custo, rastreabilidade e controle de cota
+previsíveis.

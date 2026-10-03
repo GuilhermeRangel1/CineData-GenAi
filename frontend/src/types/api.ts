@@ -8,7 +8,7 @@ export interface ErroApi {
 }
 
 export interface MetadadosGenAi {
-  source: 'gold' | 'platform' | 'mixed'
+  source: 'gold' | 'platform' | 'semantic' | 'mixed'
   query_id: string | null
   metric: string | null
   unit: string | null

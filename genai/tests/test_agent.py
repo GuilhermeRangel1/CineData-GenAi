@@ -9,6 +9,7 @@ from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentServi
 from app.agent_models import ConversationContext, ModelTurn, ToolCall
 from app.gold_database import EXPECTED_TABLES, GoldDatabase
 from app.sql_executor import GoldQueryExecutor
+from app.semantic_search import SynopsisSearchIndex
 
 
 def _create_gold_fixture(path) -> None:
@@ -252,6 +253,102 @@ def test_platform_question_uses_guide_without_model_or_sql(tmp_path) -> None:
     assert "Filtros" in response.answer and "avançados" in response.answer
     assert "gênero" in response.answer
     assert model.calls == []
+
+
+def test_descriptive_movie_question_uses_synopsis_index_without_model_or_sql(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
+        )
+        connection.execute(
+            "INSERT INTO dim_movies VALUES ('m1', 'Horizonte', 'Astronauta investiga sinal no espaço.')"
+        )
+    database = GoldDatabase(database_path)
+    model = FakeModel([])
+
+    response = AgentService(
+        model,
+        GoldQueryExecutor(database),
+        semantic_search=SynopsisSearchIndex(database),
+    ).answer("Mostre filmes sobre astronautas no espaço")
+
+    assert response.source == "semantic"
+    assert response.rows[0]["titulo"] == "Horizonte"
+    assert response.tool_calls == 0
+    assert model.calls == []
+
+
+def test_hybrid_question_supplies_synopsis_evidence_and_uses_gold_for_numbers(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
+        )
+        connection.execute(
+            "INSERT INTO dim_movies VALUES ('m1', 'Horizonte', 'Astronauta investiga sinal no espaço.')"
+        )
+    database = GoldDatabase(database_path)
+    model = FakeModel(
+        [
+            ModelTurn(
+                tool_call=ToolCall(
+                    "run_sql",
+                    {"sql": "SELECT sk_movie_id, titulo FROM dim_movies"},
+                )
+            )
+        ]
+    )
+
+    response = AgentService(
+        model,
+        GoldQueryExecutor(database),
+        semantic_search=SynopsisSearchIndex(database),
+    ).answer("Quais filmes sobre astronautas no espaço têm maior receita?")
+
+    assert response.source == "mixed"
+    assert response.rows == (({"sk_movie_id": "m1", "titulo": "Horizonte"}),)
+    assert "busca nas sinopses encontrou: Horizonte" in response.answer
+    assert "Na tabela, você confere os dados desses filmes" in response.answer
+    assert response.tool_calls == 1
+    semantic_context = next(
+        message["content"]
+        for message in model.calls[0][0]
+        if "busca nas sinopses" in message["content"]
+    )
+    assert "Horizonte (sk_movie_id m1)" in semantic_context
+
+
+def test_analytical_question_with_filmes_com_does_not_use_synopsis_search(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
+        )
+        connection.execute(
+            "INSERT INTO dim_movies VALUES ('m1', 'Receita De Caranguejo', 'Uma história qualquer.')"
+        )
+    database = GoldDatabase(database_path)
+    model = FakeModel(
+        [
+            ModelTurn(
+                tool_call=ToolCall(
+                    "run_sql",
+                    {"sql": "SELECT sk_movie_id, titulo, 10.0 AS receita_brl FROM dim_movies"},
+                )
+            )
+        ]
+    )
+
+    response = AgentService(
+        model,
+        GoldQueryExecutor(database),
+        semantic_search=SynopsisSearchIndex(database),
+    ).answer("Quais são os filmes com maior receita em BRL?")
+
+    assert response.source == "gold"
+    assert response.tool_calls == 1
+    assert "sinopses" not in response.answer
 
 
 def test_platform_answer_explains_account_and_admin_requirements(tmp_path) -> None:

@@ -61,6 +61,8 @@ const ROTULOS: Record<string, string> = {
   qtd_tmdb: 'Votos no TMDB',
   qtd_avaliacoes_usuarios: 'Avaliações do público',
   divergencia: 'Diferença de notas',
+  sinopse: 'Sinopse',
+  relevancia: 'Relevância',
 }
 
 const GENEROS: Record<string, string> = {

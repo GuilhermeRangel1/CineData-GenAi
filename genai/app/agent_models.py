@@ -45,7 +45,7 @@ class AgentResponse:
     period: str | None = None
     population: str | None = None
     limitations: str | None = None
-    source: Literal["gold", "platform", "mixed"] = "gold"
+    source: Literal["gold", "platform", "semantic", "mixed"] = "gold"
     insights: tuple[str, ...] = ()
 
 

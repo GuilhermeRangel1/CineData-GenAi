@@ -17,6 +17,7 @@ from app.gold_database import GoldDatabase
 from app.insight_service import InsightService
 from app.response_cache import ResponseCache, gold_version, make_cache_key
 from app.sql_executor import GoldQueryExecutor
+from app.semantic_search import SynopsisSearchIndex
 
 router = APIRouter()
 v1_router = APIRouter()
@@ -54,7 +55,7 @@ class QuestionRequest(BaseModel):
 class QuestionMetadata(BaseModel):
     """Metadados semânticos e operacionais da consulta executada."""
 
-    source: Literal["gold", "platform", "mixed"] = "gold"
+    source: Literal["gold", "platform", "semantic", "mixed"] = "gold"
     query_id: str | None = None
     metric: str | None = None
     unit: str | None = None
@@ -106,7 +107,12 @@ def get_agent_service() -> AgentService:
         complex_timeout_seconds=settings.gold_complex_timeout_seconds,
         pair_query_timeout_seconds=settings.gold_pair_query_timeout_seconds,
     )
-    return AgentService(model, executor, insight_service=InsightService(model))
+    return AgentService(
+        model,
+        executor,
+        insight_service=InsightService(model),
+        semantic_search=SynopsisSearchIndex(database),
+    )
 
 
 @lru_cache(maxsize=1)
