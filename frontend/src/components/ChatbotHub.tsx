@@ -157,10 +157,14 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
       setErroHistorico('')
       return
     }
+    setModoTemporario(false)
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
     let active = true
     setCarregandoHistorico(true)
     setErroHistorico('')
-    setModoTemporario(false)
     void listarConversas().then((items) => {
       if (active) setConversasSalvas(items)
     }).catch(() => {
@@ -341,10 +345,9 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
             </button>
           </div>
           <p className="sr-only" role="status">{FALAS[estado]}</p>
-          {isAuthenticated && (
-            <section className="chatbot-history" aria-label="Conversas salvas">
-              <div><strong>Suas conversas</strong><button className="chatbot-history-create" type="button" aria-label="Criar nova conversa" title="Nova conversa" onClick={() => iniciarConversa(false)} disabled={carregando}><span aria-hidden="true" /></button></div>
-              {carregandoHistorico ? <p>Carregando conversas…</p> : erroHistorico ? <p className="chatbot-history-error">{erroHistorico} <button type="button" onClick={() => setVersaoHistorico((versao) => versao + 1)}>Tentar novamente</button></p> : conversasSalvas.length === 0 ? <p>Nenhuma conversa salva ainda.</p> : (
+            <section className="chatbot-history" aria-label={isAuthenticated ? 'Conversas salvas' : 'Nova conversa'}>
+              <div><strong>{isAuthenticated ? 'Suas conversas' : 'Conversa temporária'}</strong><button className="chatbot-history-create" type="button" aria-label="Criar nova conversa" title="Nova conversa" onClick={() => iniciarConversa(false)} disabled={carregando}><span aria-hidden="true" /></button></div>
+              {!isAuthenticated ? <p>Entre na sua conta para salvar conversas.</p> : carregandoHistorico ? <p>Carregando conversas…</p> : erroHistorico ? <p className="chatbot-history-error">{erroHistorico} <button type="button" onClick={() => setVersaoHistorico((versao) => versao + 1)}>Tentar novamente</button></p> : conversasSalvas.length === 0 ? <p>Nenhuma conversa salva ainda.</p> : (
                 <ul>{conversasSalvas.map((conversaSalva) => (
                   <li key={conversaSalva.id} className={conversaAtiva === conversaSalva.id ? 'is-active' : undefined}>
                     <button type="button" onClick={() => void abrirConversa(conversaSalva.id)} disabled={carregandoHistorico}>{conversaSalva.titulo}</button>
@@ -353,7 +356,6 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
                 ))}</ul>
               )}
             </section>
-          )}
           <div className="chatbot-companion-footer"><span aria-hidden="true">✦</span></div>
           </aside>
           <div className="chatbot-chat-column">
@@ -470,7 +472,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
                 }
               }}
               rows={2}
-              maxLength={2000}
+              maxLength={1000}
               disabled={carregando}
             />
             <button type="submit" aria-label="Enviar mensagem" disabled={carregando || !texto.trim()}>

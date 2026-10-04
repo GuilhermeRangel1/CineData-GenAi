@@ -169,17 +169,18 @@ function GraficoDeRosca({ pontos, spec }: { pontos: PontoGrafico[]; spec: Especi
   const dados = pontos.filter((ponto) => ponto.valor >= 0).slice(0, 7)
   const total = dados.reduce((soma, ponto) => soma + ponto.valor, 0)
   if (!total) return <GraficoDeBarras pontos={pontos} spec={spec} />
-  let acumulado = 0
   const circunferencia = 2 * Math.PI * 54
+  const segmentos = dados.map((ponto, indice) => ({
+    ponto,
+    indice,
+    tamanho: (ponto.valor / total) * circunferencia,
+    deslocamento: -dados.slice(0, indice).reduce((soma, anterior) => soma + anterior.valor, 0)
+      / total * circunferencia,
+  }))
   return (
     <svg className="chatbot-chart chatbot-chart--donut" viewBox="0 0 720 260" role="img" aria-label={`${spec.titulo}. A tabela abaixo contém todos os valores.`}>
       <circle className="chatbot-donut-track" cx="158" cy="130" r="54" />
-      {dados.map((ponto, indice) => {
-        const tamanho = (ponto.valor / total) * circunferencia
-        const deslocamento = -acumulado
-        acumulado += tamanho
-        return <circle key={ponto.rotulo} className="chatbot-donut-segment" cx="158" cy="130" r="54" transform="rotate(-90 158 130)" stroke={CORES_ROSCA[indice]} strokeDasharray={`${tamanho} ${circunferencia - tamanho}`} strokeDashoffset={deslocamento} />
-      })}
+      {segmentos.map(({ ponto, indice, tamanho, deslocamento }) => <circle key={ponto.rotulo} className="chatbot-donut-segment" cx="158" cy="130" r="54" transform="rotate(-90 158 130)" stroke={CORES_ROSCA[indice]} strokeDasharray={`${tamanho} ${circunferencia - tamanho}`} strokeDashoffset={deslocamento} />)}
       <text className="chatbot-donut-total" x="158" y="125" textAnchor="middle">{formatarCelula(spec.colunaValor, total)}</text>
       <text className="chatbot-donut-caption" x="158" y="143" textAnchor="middle">no recorte</text>
       {dados.map((ponto, indice) => {

@@ -280,15 +280,24 @@ export async function perguntarGenAi(
     }
   }
 
-  while (true) {
-    const { done, value } = await reader.read()
-    buffer += decoder.decode(value, { stream: !done })
-    const linhas = buffer.split('\n')
-    buffer = linhas.pop() ?? ''
-    linhas.forEach(processarLinha)
-    if (done) break
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done })
+      const linhas = buffer.split('\n')
+      buffer = linhas.pop() ?? ''
+      linhas.forEach(processarLinha)
+      if (done) break
+    }
+    processarLinha(buffer)
+  } catch (error) {
+    if (error instanceof ErroDaApi) throw error
+    if (error instanceof SyntaxError)
+      throw new ErroDaApi('O chatbot enviou uma resposta inválida. Tente novamente.', 0, 'stream_error')
+    throw new ErroDaApi('A conexão com o chatbot foi interrompida. Tente novamente.', 0, 'network_error')
+  } finally {
+    reader.releaseLock()
   }
-  processarLinha(buffer)
   if (!resultado) throw new ErroDaApi('O chatbot encerrou a resposta antes de concluir.', 0, 'stream_error')
   return resultado
 }

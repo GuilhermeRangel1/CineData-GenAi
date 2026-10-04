@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { atualizarFilme, listarFilmes, obterFilme } from './client'
+import { ErroDaApi, atualizarFilme, listarFilmes, obterFilme, perguntarGenAi } from './client'
 import { movie } from '../test/movie'
 import type { Pagina } from '../types/api'
 
@@ -41,5 +41,38 @@ describe('Cache do cliente da API', () => {
 
     expect(fetcher).toHaveBeenCalledTimes(3)
     expect(fetcher.mock.calls[1][1]).toMatchObject({ method: 'PATCH' })
+  })
+})
+
+describe('Streaming do chatbot', () => {
+  it('recompõe eventos divididos entre pacotes e devolve o resultado', async () => {
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('{"type":"progress","stage":"searching","message":"Buscando'))
+        controller.enqueue(encoder.encode('…"}\n{"type":"result","data":{"answer":"Pronto","rows":[],"insights":[],"metadata":{"columns":[],"row_count":0,"truncated":false,"tool_calls":0}}}\n'))
+        controller.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stream, {
+      headers: { 'Content-Type': 'application/x-ndjson' },
+    })))
+    const progress = vi.fn()
+
+    const response = await perguntarGenAi('Oi', [], 'conversa-1234', progress)
+
+    expect(response.answer).toBe('Pronto')
+    expect(progress).toHaveBeenCalledWith({ stage: 'searching', message: 'Buscando…' })
+  })
+
+  it('transforma um evento inválido em erro legível', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{invalid}\n', {
+      headers: { 'Content-Type': 'application/x-ndjson' },
+    })))
+
+    await expect(perguntarGenAi('Oi')).rejects.toMatchObject({
+      codigo: 'stream_error',
+      message: 'O chatbot enviou uma resposta inválida. Tente novamente.',
+    } satisfies Partial<ErroDaApi>)
   })
 })

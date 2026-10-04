@@ -131,7 +131,7 @@ describe('ChatbotHub GenAI', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
 
-  it('envia somente o resumo semântico das respostas anteriores e permite limpar a conversa', async () => {
+  it('envia somente o resumo semântico das respostas anteriores e permite iniciar outra conversa', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         status: 'success', answer: 'Dados encontrados.', rows: [], insights: [],
@@ -158,8 +158,8 @@ describe('ChatbotHub GenAI', () => {
       context: [{ question: 'Qual é a nota IMDb média por ano?', metric: 'nota IMDb média por ano', unit: 'pontos IMDb', period: 'todo o Gold disponível', population: 'filmes válidos' }],
       conversation_id: expect.any(String),
     })
-    await user.click(screen.getByRole('button', { name: 'Limpar conversa' }))
+    await user.click(screen.getByRole('button', { name: 'Criar nova conversa' }))
     expect(screen.getByText('O que vamos descobrir?')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Limpar conversa' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Criar nova conversa' })).toBeInTheDocument()
   })
 })

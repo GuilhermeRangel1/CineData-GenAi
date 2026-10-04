@@ -46,12 +46,6 @@ export function ChatbotRobotNoir({ mood, compact }: { mood: RobotMood; compact: 
           <path d="M160 209v74" fill="none" stroke="#a1afb0" strokeOpacity=".25" strokeWidth="1.5" />
           <circle cx="160" cy="242" r="18" fill="#0b141b" stroke="#718388" strokeWidth="2" />
           <circle className="robot-heart" cx="160" cy="242" r="11" fill={`url(#${id}-heart)`} />
-          <g fill="#26383c" stroke="#26383c" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="160" cy="241" r="2.6" stroke="none" />
-            <path d="M154.5 249c1.5-3.4 9.5-3.4 11 0v1h-11Z" stroke="none" />
-            <path d="M156.4 237.8c.8-2.8 2.1-4.2 3.6-4.2s2.8 1.4 3.6 4.2Z" fill="none" strokeWidth="1.5" />
-            <path d="M153 238.5c2.1-.9 4.4-1.3 7-1.3s4.9.4 7 1.3c-1.5 1.2-3.8 1.8-7 1.8s-5.5-.6-7-1.8Z" stroke="none" />
-          </g>
           <path d="M121 216c1 36 10 63 27 78" fill="none" stroke="#a8b7b5" strokeOpacity=".23" strokeWidth="3" strokeLinecap="round" />
           <path d="M176 279h13" fill="none" stroke="#a5b3b4" strokeOpacity=".45" strokeWidth="2" strokeLinecap="round" />
         </g>
