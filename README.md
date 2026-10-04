@@ -3,24 +3,32 @@
 Entrega da atividade de GenAI do Rocket Lab 2026.2. O projeto implementa um
 agente analítico em Python que responde perguntas sobre filmes em linguagem
 natural usando Gemini, tool calling e a camada Gold SQLite em modo somente
-leitura. A plataforma CineData fornece a interface e o contexto de produto para
-esse assistente.
+leitura. O CineData fornece a interface para enviar as consultas e visualizar
+os resultados.
 
 ## Assistente GenAI
 
 O chatbot é o núcleo desta entrega. Ele recebe uma pergunta em português,
-identifica se ela é uma dúvida sobre o CineData ou uma consulta ao catálogo e
-retorna uma resposta adequada ao tipo de pedido.
+identifica se ela pede uma métrica, um ranking, uma comparação ou filmes por
+descrição e retorna a evidência correspondente.
+
+O agente usa consultas preparadas nos casos reconhecidos ou pede ao Gemini que
+acione a ferramenta `run_sql`. Perguntas descritivas podem procurar termos em
+títulos e sinopses; se também pedirem uma métrica, os filmes encontrados servem
+de recorte para uma consulta analítica.
 
 ```mermaid
-flowchart LR
-    Q[Pergunta em português] --> G{Guardrails}
-    G -->|Uso do produto| H[Guia local do CineData]
-    G -->|Consulta analítica| A[AgentService]
-    A --> M[Gemini com tool calling]
-    M --> V[Validador SQL]
-    V --> X[Executor SQLite read-only]
-    X --> R[Resposta, tabela, gráfico e insight]
+flowchart TB
+    Q[Pergunta em português] --> G[Guardrails]
+    G --> R{Tipo de consulta}
+    R -->|Filmes por descrição| S[Busca em títulos e sinopses]
+    R -->|Métricas e rankings| A[Agente analítico]
+    S -.->|Se também pedir uma métrica| A
+    A --> M[SQL preparado ou Gemini com tool calling]
+    M --> V[Validação e execução somente leitura]
+    S --> F[Resposta no chatbot]
+    V --> F
+    F --> O[Texto, tabela, gráfico e insights]
 ```
 
 O caminho analítico é composto por:
@@ -33,70 +41,38 @@ O caminho analítico é composto por:
 - `insight_service.py`: interpreta resultados numéricos para a interface;
 - `evaluation_runner.py`: avalia as perguntas de referência contra o Gold.
 
-O serviço expõe `POST /api/v1/questions` em `http://localhost:8001`. O frontend
-chama essa rota por `/genai/api/v1`, sem expor a chave Gemini ao navegador.
+Para usar a entrega, abra o CineData em `http://localhost:8080` e entre na aba
+**Chatbot**. O navegador chama `/genai/api/v1`; o Nginx encaminha essa rota ao
+serviço GenAI internamente, sem expor a chave Gemini. A porta `8001` é apenas a
+porta local do serviço para desenvolvimento, health check e diagnóstico. Há
+também `POST /api/v1/questions/stream`, que entrega eventos de progresso e a
+resposta final no mesmo fluxo. O backend operacional guarda o histórico de
+contas autenticadas; o serviço GenAI recebe apenas o contexto resumido da
+conversa corrente.
 
-## CineData como interface do agente
-
-### Descoberta e comunidade
-
-- busca por título, pessoa ou produtora, filtros básicos e avançados, ordenação
-  e paginação com pré-carregamento;
-- detalhes de filmes, capas, sinopse, elenco, direção, produtoras e trailer;
-- cadastro, login JWT, perfil, avatar, avaliações, listas e filmes para assistir;
-- amizades, comunidades, publicações, comentários, reações e moderação;
-- mapa de gostos com recomendações por gêneros, elenco, direção, sinopses, ano
-  e métricas do catálogo;
-- painel administrativo com catálogo, comunidades, analytics e integração TMDB
-  opcional.
-
-### Chatbot
-
-O chatbot responde perguntas sobre os recursos do CineData e consultas em
-linguagem natural sobre os dados do catálogo. A interface inclui exemplos no
-botão **Ajuda**, respostas em texto, tabelas, gráficos e insights.
-
-- explica catálogo, filtros, listas, amigos, comunidades, mapa de gostos e,
-  para administradores, analytics;
-- responde cumprimentos e perguntas curtas sobre o produto sem chamar o modelo;
-- cria gráficos de barras, linhas, rosca e dispersão para respostas numéricas;
-- mantém conversas salvas por conta, com criação, retomada, renomeação e exclusão;
-- oferece modo temporário, que não persiste mensagens nem aparece no histórico;
-- usa cache de respostas e fallback de modelo em falhas temporárias do provedor.
-
-O modelo recebe apenas o resumo semântico necessário da conversa atual. Tokens,
-identificadores pessoais e dados da conta não são enviados ao provedor.
-
-### Comportamento da resposta
+## Como uma consulta é respondida
 
 Para perguntas analíticas, o agente responde somente com o que foi retornado
-pela consulta. Quando uma métrica essencial estiver ausente, pede
-esclarecimento antes de executar SQL. Resultados tabulares recebem nomes de
-colunas voltados ao produto, sem expor chaves técnicas como `sk_movie_id` ou
-`sk_person_id`.
+pela consulta. Quando faltar uma métrica, período ou filtro essencial, ele pede
+o detalhe antes de executar SQL. As tabelas recebem nomes compreensíveis, sem
+expor chaves técnicas como `sk_movie_id` ou `sk_person_id`.
 
-Quando houver dados comparáveis, a interface escolhe um gráfico compatível e
-mantém a tabela como detalhe consultável. Rankings financeiros, por exemplo,
-podem virar barras; séries por ano usam linhas; participações podem usar rosca
-e duas medidas de nota podem usar dispersão. O insight é complementar à tabela
-e não inventa fatos fora dela.
+Quando há dados comparáveis, a interface acrescenta o gráfico adequado e mantém
+a tabela como detalhe consultável. Rankings financeiros usam barras, séries por
+ano usam linhas, participações usam rosca e duas medidas de nota usam dispersão.
+Os insights complementam os valores, sem inventar fatos fora deles.
 
-### Segurança, qualidade e disponibilidade
+Uma pergunta de continuação preserva o contexto analítico. Após “Qual produtora
+acumulou o maior lucro total em BRL?”, “E em 2020?” mantém a métrica e aplica o
+ano. Uma conversa nova começa sem essa referência. O modelo recebe somente até
+três resumos da conversa atual; tokens e dados da conta não são enviados ao
+provedor.
 
-- perguntas fora do escopo, instruções para ignorar regras e tentativas de
-  manipular a consulta são recusadas pelos guardrails;
-- o SQL passa por `sqlglot`, aceita somente um `SELECT` e permite apenas o
-  schema Gold autorizado;
-- o arquivo Gold é aberto com SQLite `mode=ro`; DDL, DML, múltiplas instruções
-  e funções de arquivo possuem uma segunda barreira de bloqueio;
-- limite de linhas, timeout e limites especiais para joins complexos evitam
-  bloquear o serviço;
-- resultados válidos permanecem no cache por cinco minutos, separados por
-  conversa, contexto, versão do Gold e versão das regras;
-- em falhas temporárias de conexão, timeout, cota ou resposta 5xx, o adaptador
-  tenta uma vez o modelo de fallback;
-- avaliações locais comparam números e dados esperados do Gold, sem exigir
-  igualdade textual da consulta SQL gerada.
+Antes de chegar ao banco, a consulta passa por guardrails e por `sqlglot`: só um
+`SELECT` sobre tabelas e colunas autorizadas pode ser executado. O SQLite abre
+em `mode=ro`, enquanto limites de linhas, timeout e joins complexos evitam
+sobrecarga. Cache, fallback e avaliações locais mantêm a resposta rápida e
+confiável.
 
 ## Arquitetura
 
@@ -128,13 +104,22 @@ Somente uma instrução `SELECT` nas tabelas e colunas autorizadas pode ser
 executada. DDL, DML, múltiplas instruções e acesso a arquivos são rejeitados.
 As respostas informam métrica, unidade, período, população válida e limitações.
 
-| Grupo | Consultas de referência |
-| --- | --- |
-| Q01-Q03 - Finanças | Top 10 por receita, lucro médio por gênero e maiores margens. |
-| Q04-Q06 - Popularidade e notas | Top 5 populares, divergência TMDB/IMDb e média IMDb anual. |
-| Q07-Q09 - Elenco e equipe | Ator com mais filmes, diretores com maior média e dupla ator-diretor. |
-| Q10-Q12 - Gêneros e produtoras | Filmes por gênero, lucro por produtora e margem por gênero. |
-| Q13-Q14 - Avaliações | Filmes mais avaliados e divergência entre usuários e IMDb. |
+| Caso | Pergunta que o agente cobre | Regra relevante |
+| --- | --- | --- |
+| Q01 | Quais são os 10 filmes com maior receita em BRL? | Considera receita informada e usa desempate estável. |
+| Q02 | Qual é o lucro médio em BRL por gênero? | Lucro é receita menos orçamento; filme com vários gêneros participa uma vez em cada gênero. |
+| Q03 | Quais filmes têm as maiores margens de lucro? | Margem é lucro dividido pela receita; receita precisa ser positiva. |
+| Q04 | Quais são os 5 filmes mais populares? | Popularidade é uma pontuação do catálogo, não contagem de visualizações. |
+| Q05 | Em quais filmes há maior divergência entre TMDB e IMDb? | Compara notas válidas e mostra também os votos para contextualizar a diferença. |
+| Q06 | Qual é a nota IMDb média por ano de lançamento? | Média simples dos filmes com nota e votos válidos em cada ano. |
+| Q07 | Qual ator participou de mais filmes nos últimos cinco anos? | Conta filmes distintos na janela móvel de lançamento. |
+| Q08 | Quais diretores têm a maior nota IMDb média? | Exige pelo menos cinco filmes com nota e votos válidos por diretor. |
+| Q09 | Qual dupla de ator e diretor trabalhou junta em mais filmes? | Conta filmes em comum nos créditos disponíveis. |
+| Q10 | Quantos filmes existem associados a cada gênero? | Conta cada filme uma vez dentro de cada gênero. |
+| Q11 | Qual produtora acumulou o maior lucro total em BRL? | Soma o lucro integral dos filmes associados a cada produtora. |
+| Q12 | Qual gênero tem a maior margem média de lucro? | Faz a média das margens dos filmes elegíveis, não a margem dos totais agregados. |
+| Q13 | Quais filmes têm mais avaliações de usuários? | Usa a contagem resumida de avaliações por filme. |
+| Q14 | Qual filme tem a maior divergência entre usuários e IMDb? | Compara a média dos usuários e a nota IMDb quando ambas têm votos válidos. |
 
 Além das consultas estruturadas, a busca híbrida usa títulos e sinopses para
 encontrar filmes por descrição e combina esse recorte com SQL quando necessário.
@@ -145,26 +130,114 @@ em [docs/genai/evaluation-cases.md](docs/genai/evaluation-cases.md) e
 validam os valores retornados e as colunas relevantes, não a forma textual do
 SQL produzido pelo modelo.
 
+Cada caso também registra métrica, unidade, período, população válida e
+limitações. Isso evita, por exemplo, tratar uma pontuação de popularidade como
+visualizações ou comparar notas sem informar quantos votos as sustentam. As
+fórmulas e os filtros completos estão em
+[regras de métricas](docs/genai/metric-rules.md).
+
 ## Caminhos demonstráveis no chatbot
 
 | Objetivo | Pergunta para testar | Caminho esperado |
 | --- | --- | --- |
-| Ranking financeiro | `Quais são os 5 filmes com maior receita em BRL?` | Gemini, SQL protegido, tabela, gráfico e insight. |
-| Continuação contextual | `E qual foi a maior em 2020?` | Reaproveita a métrica e altera somente o período. |
+| Ranking financeiro | `Quais são os 5 filmes com maior receita em BRL?` | SQL validado, tabela, gráfico e insight quando houver dados suficientes. |
+| Continuação contextual | Pergunte `Qual produtora acumulou o maior lucro total em BRL?` e depois `E em 2020?` | Mantém a métrica por produtora e aplica o ano à conversa atual. |
 | Busca híbrida | `Quais filmes têm histórias sobre viagem no tempo e qual teve maior receita?` | Busca sinopse, restringe candidatos e consulta os valores. |
-| Ajuda do produto | `Como funcionam as comunidades do CineData?` | Guia local, resposta em texto e sem chamada ao Gemini. |
-| Privacidade | Ative **Conversa temporária** e envie uma pergunta. | Responde normalmente sem salvar no histórico. |
+| Comparação de notas | `Em quais filmes há maior divergência entre TMDB e IMDb?` | Compara as duas notas, apresenta tabela e gráfico de dispersão. |
+| Participação por gênero | `Quantos filmes existem associados a cada gênero?` | Conta os filmes por gênero e apresenta gráfico de rosca com insights. |
 
-## Extras implementados
+## Extras propostos na atividade
 
-| Extra | Aplicação no projeto |
-| --- | --- |
-| Guardrails | Recusa SQL direto, instruções adversariais e pedidos fora de escopo. |
-| Gráficos e insights | Escolhe visualização compatível com o resultado e gera até três achados baseados nas linhas retornadas. |
-| Memória e histórico | Contexto mínimo para continuidade, conversas privadas persistentes e modo temporário. |
-| Fallback e cache | Troca de modelo em falhas temporárias e reutilização segura de respostas por cinco minutos. |
-| Avaliação ampliada | Variações das perguntas Q01–Q14, filtros, empates, vazios, ambiguidade e orientações sobre a plataforma. |
-| Busca híbrida | Índice local de títulos e sinopses combinado com SQL quando a pergunta também pede uma métrica. |
+O enunciado sugere ampliar o agente com as capacidades abaixo. Elas foram
+integradas ao chatbot e podem ser demonstradas na própria interface.
+
+### Guardrails
+
+O serviço verifica a pergunta antes de consultar o modelo e recusa pedidos fora
+do escopo do CineData, SQL enviado diretamente e tentativas de alterar as
+instruções do agente. Se houver uma consulta analítica, outra camada valida o
+SQL gerado:
+permite um único `SELECT` nas tabelas autorizadas, limita resultados e bloqueia
+escrita, acesso a arquivos e consultas excessivamente custosas. O SQLite é
+aberto somente para leitura, mesmo depois da validação.
+
+### Interface visual
+
+O agente funciona dentro do chatbot do CineData. A pessoa envia perguntas em
+português e recebe texto, tabelas com nomes de colunas compreensíveis, avisos de
+esclarecimento e mensagens de erro. O botão **Ajuda** oferece perguntas prontas,
+inclusive as 14 consultas obrigatórias, organizadas por tema e sem mostrar SQL
+ou identificadores internos.
+
+### Capturas da interface
+
+Evolução da nota média do IMDb, com os controles de exportação de CSV e PNG:
+
+![Chatbot exibindo gráfico de linha da nota IMDb média por ano](docs/images/genai/chatbot-grafico-linha.png)
+
+Distribuição dos filmes por gênero, com insights gerados a partir dos resultados:
+
+![Chatbot exibindo gráfico de rosca e insights sobre filmes por gênero](docs/images/genai/chatbot-grafico-rosca-insights.png)
+
+Painel Ajuda, que reúne as consultas obrigatórias organizadas por tema:
+
+![Painel Ajuda do chatbot com perguntas sugeridas](docs/images/genai/chatbot-ajuda-consultas.png)
+
+### Gráficos
+
+Resultados que permitem comparação ganham uma visualização gerada a partir das
+mesmas linhas da tabela: barras para rankings, linha para evolução no tempo,
+rosca para participações e dispersão para comparar duas notas. A tabela continua
+disponível para conferir os valores. Um serviço separado recebe os dados já
+consultados e escreve até três insights; ele não executa novas consultas.
+
+### Memória de conversa
+
+Até três resumos da conversa atual ajudam a interpretar perguntas de
+continuação. Em “E em 2020?”, por exemplo, o agente mantém a métrica anterior e
+altera o período. Uma nova conversa começa sem esse contexto; o histórico salvo
+de cada conta e o modo temporário são extensões dessa experiência.
+
+### Fallback entre modelos
+
+Em falhas transitórias do provedor, como timeout, indisponibilidade ou cota, o
+adaptador pode tentar uma vez um modelo alternativo configurado com a mesma
+chave. Erros de pergunta, SQL ou banco não acionam essa troca. O modelo que
+respondeu fica registrado nos logs do serviço, sem expor a chave ao navegador.
+
+### Cache de respostas
+
+Respostas equivalentes podem ser reutilizadas por cinco minutos na memória do
+serviço, reduzindo chamadas ao modelo e tempo de espera. A chave considera a
+pergunta, a conversa, o contexto, a revisão do banco analítico e a versão das
+regras. Assim, uma continuação diferente ou dados atualizados não recebem uma
+resposta antiga; o cache desaparece quando o serviço reinicia.
+
+### Avaliação
+
+Além de comparar as 14 consultas obrigatórias com resultados de referência,
+os cenários locais cobrem variações de linguagem, filtros, empates, ausência de
+dados e ambiguidades. Modelos simulados permitem
+verificar regras, valores e formato das respostas sem gastar cota Gemini. Essa
+avaliação detecta regressões conhecidas; perguntas livres ainda dependem do
+comportamento do modelo e dos dados disponíveis.
+
+### Agente híbrido: busca em sinopses e SQL
+
+Perguntas descritivas procuram filmes em títulos e sinopses por similaridade
+textual calculada localmente, sem serviço externo de embeddings. Se a mesma
+pergunta pedir um número, os filmes encontrados orientam uma consulta SQL
+validada no banco analítico. Por exemplo, “Quais filmes falam de viagem no tempo
+e qual teve maior receita?” combina a seleção por descrição com a comparação de
+receitas, mantendo a origem dos dados identificada na resposta.
+
+### Ampliações próprias do CineData
+
+Além desses extras, o projeto inclui histórico privado com conversas salvas e
+modo temporário; exportação de tabelas em CSV e gráficos em PNG; progresso
+durante o processamento; e roteamento entre modelos conforme a complexidade da
+pergunta. Essas capacidades complementam os extras acima, mas não são requisitos
+extras separados do enunciado.
 
 ## Bancos de dados
 
@@ -233,13 +306,16 @@ pode levar alguns minutos. Para executar em segundo plano:
 docker compose up -d
 ```
 
-| Serviço | Endereço |
-| --- | --- |
-| CineData | http://localhost:8080 |
-| API CineData | http://localhost:8000 |
-| OpenAPI | http://localhost:8000/docs |
-| GenAI | http://localhost:8001 |
-| Saúde GenAI | http://localhost:8001/health |
+Quando os serviços estiverem saudáveis, abra **http://localhost:8080** e use a
+aba **Chatbot** para realizar as consultas da entrega. Essa é a única porta que
+uma pessoa avaliando o projeto precisa acessar.
+
+Endereços disponíveis:
+
+- **CineData e chatbot:** http://localhost:8080
+- **API do CineData:** http://localhost:8000
+- **Documentação técnica da API:** http://localhost:8000/docs
+- **Saúde do serviço GenAI:** http://localhost:8001/health
 
 Conta de demonstração local:
 
@@ -256,27 +332,28 @@ recomeçar o banco operacional, remova `data/rocketlab.db`; não remova o Gold.
 
 ### Modelos Gemini
 
-Não é preciso criar `genai/.env` para iniciar a plataforma. Sem chave, o
-chatbot continua respondendo dúvidas sobre o CineData, enquanto perguntas
-analíticas informam que o provedor precisa ser configurado.
+Não é preciso criar `genai/.env` para iniciar a interface. Sem chave, consultas
+analíticas no chatbot informam que o provedor precisa ser configurado.
 
-Para habilitar o Gemini, copie o arquivo de exemplo e preencha a chave:
+Para habilitar consultas analíticas, copie o arquivo de exemplo e preencha
+somente a chave:
 
 ```powershell
 Copy-Item genai/.env.example genai/.env
 ```
 
-`genai/.env` aceita modelo principal e fallback:
+Os demais valores do `genai/.env` já têm padrão. A mesma chave atende ao modelo
+leve, ao modelo para perguntas complexas e ao fallback:
 
 ```dotenv
 GENAI_GEMINI_API_KEY=sua_chave
 GENAI_GEMINI_MODEL=gemini-3.5-flash-lite
+GENAI_GEMINI_COMPLEX_MODEL=gemini-3.5-flash
 GENAI_GEMINI_FALLBACK_MODEL=gemini-3.5-flash
 ```
 
-Sem a chave, catálogo e recursos sociais continuam disponíveis. Perguntas sobre
-o uso do CineData recebem ajuda local; perguntas analíticas retornam erro de
-configuração do provedor.
+Sem a chave, as demais áreas do CineData continuam disponíveis; as consultas
+analíticas retornam um erro de configuração do provedor.
 
 ## Execução sem Docker
 
@@ -313,42 +390,55 @@ npm run dev
 O frontend de desenvolvimento abre em `http://localhost:5173` e usa o proxy do
 Vite para encaminhar o GenAI local.
 
-## Configuração
+## Configuração por ambiente
 
-| Variável | Serviço | Finalidade |
-| --- | --- | --- |
-| `GENAI_GEMINI_API_KEY` | GenAI | Chave do Gemini. |
-| `GENAI_GEMINI_MODEL` | GenAI | Modelo principal. |
-| `GENAI_GEMINI_FALLBACK_MODEL` | GenAI | Modelo para falha temporária. |
-| `DATABASE_URL` | Backend | URL do banco operacional. |
-| `GOLD_DATABASE_PATH` | Backend | Localização do Gold para sincronização. |
-| `JWT_SECRET_KEY` | Backend | Assinatura da sessão. |
-| `INITIAL_ADMIN_*` | Backend | Conta administrativa inicial. |
-| `TMDB_API_TOKEN` | Backend | Integração administrativa TMDB. |
-| `VITE_API_BASE_URL` | Frontend | Endereço da API. |
-| `VITE_GENAI_API_BASE_URL` | Frontend | Endereço do GenAI. |
+Para executar a demonstração com Docker Compose, o único valor que a pessoa
+precisa fornecer é `GENAI_GEMINI_API_KEY` em `genai/.env`, caso queira usar as
+consultas em linguagem natural. O Compose já define banco, rotas, conta de
+demonstração e endereços do frontend; não é necessário criar `backend/.env` nem
+`frontend/.env` nesse fluxo.
+
+| Variável | Quando configurar |
+| --- | --- |
+| `GENAI_GEMINI_API_KEY` | Necessária apenas para consultas analíticas reais. |
+| `GENAI_GEMINI_MODEL`, `GENAI_GEMINI_COMPLEX_MODEL`, `GENAI_GEMINI_FALLBACK_MODEL` | Opcional. Use somente para trocar os modelos padrão. |
+| `TMDB_API_TOKEN` | Opcional. Habilita a busca administrativa no TMDB. |
+| `JWT_SECRET_KEY`, `INITIAL_ADMIN_*` | Somente ao mudar a configuração local padrão ou publicar o projeto. |
+| `DATABASE_URL`, `GOLD_DATABASE_PATH`, `VITE_API_BASE_URL`, `VITE_GENAI_API_BASE_URL` | Somente na execução manual, fora do Docker Compose. |
 
 ## Testes
 
-Os testes do agente usam clientes simulados e não consomem cota Gemini.
+Os testes do agente usam clientes simulados e não consomem cota Gemini. As
+consultas Q01–Q14 também podem ser comparadas com o banco configurado no
+Compose, usando SQL de referência como modelo simulado:
 
 ```powershell
-Set-Location backend
+docker compose run --rm --no-deps -v "${PWD}:/project:ro" -e PYTHONPATH=/project/genai --entrypoint sh genai -c "cd /project && python genai/scripts/evaluate_agent_snapshot.py"
+```
+
+Para executar as suítes de desenvolvimento sem Docker, a partir da raiz:
+
+```powershell
+Push-Location backend
 .\.venv\Scripts\python -m pytest
 .\.venv\Scripts\ruff check .
+Pop-Location
 ```
 
 ```powershell
-Set-Location genai
+Push-Location genai
 python -m pytest
+python -m ruff check .
+Pop-Location
 ```
 
 ```powershell
-Set-Location frontend
+Push-Location frontend
 npm ci
 npm run test
 npm run lint
 npm run build
+Pop-Location
 ```
 
 ## Documentação complementar
@@ -361,6 +451,7 @@ npm run build
 - [Regras de métricas](docs/genai/metric-rules.md)
 - [Consultas SQL de referência](docs/genai/reference-queries.sql)
 - [Casos de avaliação Q01–Q14](docs/genai/evaluation-cases.md)
+- [Revisão final da entrega GenAI](docs/genai/review-final.md)
 - [Detalhes do módulo GenAI](genai/README.md)
 
 ## Limitações conhecidas
@@ -368,6 +459,10 @@ npm run build
 - SQLite e execução local atendem à demonstração; produção concorrente exige
   banco servidor e infraestrutura dedicada.
 - A qualidade das respostas analíticas depende do Gemini e dos dados Gold.
+- A busca por sinopses usa similaridade de termos, que pode não encontrar uma
+  ideia quando ela não aparece nos títulos ou textos disponíveis.
+- A avaliação local confirma os casos de referência; perguntas livres ainda
+  dependem do SQL produzido pelo modelo configurado.
 - O cache de respostas é temporário e fica na memória do serviço GenAI.
 - O mapa de gostos usa o catálogo local e não recomenda filmes fora da base.
 - Imagens, trailers e TMDB dependem dos serviços de origem e da conexão.
