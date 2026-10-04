@@ -157,6 +157,7 @@ function GraficoDeLinha({ pontos, spec }: { pontos: PontoGrafico[]; spec: Especi
       <polyline className="chatbot-chart-line" points={linha} />
       {pontos.map((ponto, indice) => <g key={ponto.rotulo}>
         <circle className="chatbot-chart-point" cx={x(indice)} cy={y(ponto.valor)} r="4" />
+        <text className="chatbot-chart-point-value" x={x(indice)} y={y(ponto.valor) < 37 ? y(ponto.valor) + 22 : y(ponto.valor) - 10} textAnchor="middle">{formatarCelula(spec.colunaValor, ponto.valor)}</text>
         <text className="chatbot-chart-x-label" x={x(indice)} y={altura - 18} textAnchor="middle">{rotuloCurto(ponto.rotulo)}</text>
       </g>)}
     </svg>
@@ -182,13 +183,13 @@ function GraficoDeRosca({ pontos, spec }: { pontos: PontoGrafico[]; spec: Especi
       <circle className="chatbot-donut-track" cx="158" cy="130" r="54" />
       {segmentos.map(({ ponto, indice, tamanho, deslocamento }) => <circle key={ponto.rotulo} className="chatbot-donut-segment" cx="158" cy="130" r="54" transform="rotate(-90 158 130)" stroke={CORES_ROSCA[indice]} strokeDasharray={`${tamanho} ${circunferencia - tamanho}`} strokeDashoffset={deslocamento} />)}
       <text className="chatbot-donut-total" x="158" y="125" textAnchor="middle">{formatarCelula(spec.colunaValor, total)}</text>
-      <text className="chatbot-donut-caption" x="158" y="143" textAnchor="middle">no recorte</text>
+      <text className="chatbot-donut-caption" x="158" y="143" textAnchor="middle">{dados.length} gêneros</text>
       {dados.map((ponto, indice) => {
         const y = 44 + indice * 28
         return <g key={`legenda-${ponto.rotulo}`}>
           <circle cx="302" cy={y - 4} r="4" fill={CORES_ROSCA[indice]} />
           <text className="chatbot-donut-legend-label" x="316" y={y}>{rotuloCurto(ponto.rotulo)}</text>
-          <text className="chatbot-donut-legend-value" x="682" y={y} textAnchor="end">{Math.round((ponto.valor / total) * 100)}%</text>
+          <text className="chatbot-donut-legend-value" x="682" y={y} textAnchor="end">{formatarCelula(spec.colunaValor, ponto.valor)} filmes · {Math.round((ponto.valor / total) * 100)}%</text>
         </g>
       })}
     </svg>
@@ -222,7 +223,7 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
   const [erroExportacao, setErroExportacao] = useState('')
   if (!spec) return null
   const specForExport = spec
-  const maxPontos = spec.tipo === 'linha' ? 16 : 8
+  const maxPontos = spec.tipo === 'linha' ? 16 : spec.tipo === 'rosca' ? 7 : 8
   const pontos = rows.flatMap((row) => {
     const valor = numero(row[spec.colunaValor])
     if (valor === null || row[spec.colunaRotulo] === undefined || row[spec.colunaRotulo] === null) return []

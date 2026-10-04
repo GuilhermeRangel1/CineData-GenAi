@@ -188,6 +188,7 @@ export function rotuloColuna(column: string, metadata: MetadadosGenAi): string {
 export function formatarCelula(column: string, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'number') {
+    if (column === 'ano_lancamento') return String(value)
     if (column.endsWith('_brl')) return moedaBrl.format(value)
     if (column.endsWith('_usd')) return moedaUsd.format(value)
     if (column === 'margem' || column === 'margem_media') return percentual.format(value)

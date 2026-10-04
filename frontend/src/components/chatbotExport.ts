@@ -69,6 +69,7 @@ function estilosDoGrafico() {
     .chatbot-chart-line { fill: none; stroke: #79b9ff; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
     .chatbot-chart-area { opacity: .25; }
     .chatbot-chart-point { fill: #d8edff; stroke: #609ee9; stroke-width: 3; }
+    .chatbot-chart-point-value { fill: #d9fff7; font-size: 10px; font-weight: 700; paint-order: stroke; stroke: #0f2027; stroke-width: 3px; stroke-linejoin: round; }
     .chatbot-chart-x-label, .chatbot-scatter-axis { fill: #9db7bc; font-size: 10px; }
     .chatbot-donut-track { fill: none; stroke: #d8eef0; stroke-opacity: .08; stroke-width: 22; }
     .chatbot-donut-segment { fill: none; stroke-width: 22; }

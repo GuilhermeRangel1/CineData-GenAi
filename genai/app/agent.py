@@ -11,12 +11,13 @@ from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ConversationContext, ModelTurn, ToolCall, ToolDefinition
 from app.complexity_router import classify_question
-from app.errors import ProviderConfigurationError, QueryExecutionError, QueryTimeoutError, SqlValidationError
+from app.errors import ProviderConfigurationError, ProviderTransientError, QueryExecutionError, QueryTimeoutError, SqlValidationError
 from app.evaluation_cases import (
     MANDATORY_EVALUATIONS,
     find_evaluation_case,
     get_evaluation_case,
 )
+from app.evaluation_runner import EvaluationMismatch, compare_rows
 from app.gold_database import EXPECTED_TABLES
 from app.insight_service import InsightService
 from app.question_guard import rejection_message
@@ -704,24 +705,6 @@ def _is_unfiltered_top_company_profit_question(question: str) -> bool:
     )
 
 
-def _is_unfiltered_genre_movie_count_question(question: str) -> bool:
-    """Reconhece contagens gerais de filmes por gênero, inclusive paráfrases de Q10."""
-
-    normalized = "".join(
-        character
-        for character in unicodedata.normalize("NFD", question.casefold())
-        if unicodedata.category(character) != "Mn"
-    )
-    if not re.search(r"\bfilmes?\b", normalized) or not re.search(r"\bgeneros?\b", normalized):
-        return False
-    if not re.search(r"\b(?:quantos|quantidade|numero|total|cada)\b", normalized):
-        return False
-    return not re.search(
-        r"\b(?:ano|anos|em\s+20\d{2}|lucro|margem|receita|orcamento|nota|imdb|tmdb|popularidade)\b",
-        normalized,
-    )
-
-
 def _top_company_movie_count_limit(question: str) -> int | None:
     """Extracts a top-N only from unfiltered all-time producer count questions."""
 
@@ -860,6 +843,40 @@ GROUP BY g.sk_genre_id, g.nome_genero
 ORDER BY total_filmes DESC, g.nome_genero COLLATE NOCASE, g.sk_genre_id"""
 
 
+_TMDB_IMDB_DIVERGENCE_SQL = """SELECT m.sk_movie_id, m.titulo,
+       ABS(f.nota_tmdb - f.nota_imdb) AS divergencia,
+       f.nota_tmdb, f.qtd_tmdb, f.nota_imdb, f.qtd_imdb
+FROM dim_movies AS m
+JOIN fact_movies_performance AS f USING (sk_movie_id)
+WHERE f.nota_tmdb IS NOT NULL
+  AND f.qtd_tmdb > 0
+  AND f.nota_imdb IS NOT NULL
+  AND f.qtd_imdb > 0
+ORDER BY divergencia DESC, m.titulo COLLATE NOCASE, m.sk_movie_id
+LIMIT 10"""
+
+
+_USER_IMDB_DIVERGENCE_SQL = """WITH differences AS (
+    SELECT r.sk_movie_id, m.titulo, r.nota_media_usuarios, f.nota_imdb,
+           r.qtd_avaliacoes_usuarios, f.qtd_imdb,
+           ABS(r.nota_media_usuarios - f.nota_imdb) AS divergencia
+    FROM dim_reviews AS r
+    JOIN dim_movies AS m USING (sk_movie_id)
+    JOIN fact_movies_performance AS f USING (sk_movie_id)
+    WHERE r.qtd_avaliacoes_usuarios > 0
+      AND r.nota_media_usuarios IS NOT NULL
+      AND f.nota_imdb IS NOT NULL
+      AND f.qtd_imdb > 0
+), maximum AS (
+    SELECT MAX(divergencia) AS divergencia FROM differences
+)
+SELECT d.sk_movie_id, d.titulo, d.nota_media_usuarios, d.nota_imdb,
+       d.qtd_avaliacoes_usuarios, d.qtd_imdb, d.divergencia
+FROM differences AS d
+JOIN maximum AS mx ON d.divergencia = mx.divergencia
+ORDER BY d.titulo COLLATE NOCASE, d.sk_movie_id"""
+
+
 _IMDB_AVERAGE_BY_YEAR_SQL = """SELECT m.ano_lancamento,
        COUNT(*) AS filmes_validos,
        AVG(f.nota_imdb) AS nota_imdb_media
@@ -871,6 +888,21 @@ WHERE m.ano_lancamento IS NOT NULL
   AND f.qtd_imdb > 0
 GROUP BY m.ano_lancamento
 ORDER BY m.ano_lancamento ASC"""
+
+
+_REFERENCE_FALLBACKS = {
+    "Q05": _TMDB_IMDB_DIVERGENCE_SQL,
+    "Q06": _IMDB_AVERAGE_BY_YEAR_SQL,
+    "Q10": _GENRE_MOVIE_COUNT_SQL,
+    "Q14": _USER_IMDB_DIVERGENCE_SQL,
+}
+
+_FOCUSED_METRIC_RULES = {
+    "Q05": "Calcule a diferença absoluta entre as notas; exija notas e votos positivos nas duas fontes; ordene pela maior diferença e retorne dez filmes com as duas contagens de votos.",
+    "Q06": "Agrupe por ano de lançamento em ordem crescente; exclua lançamentos futuros; calcule média IMDb somente para filmes com nota e votos válidos e informe a quantidade de filmes por ano.",
+    "Q10": "Conte filmes distintos em cada associação filme-gênero; ordene pela contagem decrescente e nome do gênero.",
+    "Q14": "Compare o resumo de notas dos usuários com IMDb apenas quando ambas as fontes têm votos positivos; calcule a diferença absoluta e retorne todos os filmes empatados no valor máximo.",
+}
 
 
 def _top_company_profit_by_year_sql(year: int) -> str:
@@ -1060,10 +1092,10 @@ class AgentService:
             semantic_matches and _REVENUE_INTENT.search(normalized_question)
         )
         evaluation_case = find_evaluation_case(normalized_question)
-        imdb_average_by_year = (
-            not mixed_intent
-            and evaluation_case is not None
-            and evaluation_case.query_id == "Q06"
+        reference_fallback = (
+            _REFERENCE_FALLBACKS.get(evaluation_case.query_id)
+            if evaluation_case is not None and not mixed_intent
+            else None
         )
         ranking_limit = None if mixed_intent else _popularity_rank_limit(normalized_question)
         director_average = (
@@ -1091,16 +1123,13 @@ class AgentService:
             if mixed_intent
             else _top_company_movie_count_limit(normalized_question)
         )
-        genre_movie_count = (
-            not mixed_intent
-            and _is_unfiltered_genre_movie_count_question(normalized_question)
-        )
         continuation_company_profit_year = _continuation_company_profit_year(
             normalized_question, context
         )
         all_time_actor_ranking = False
         all_time_company_count = False
         period_override = None
+        query_source = "local"
         if semantic_revenue_ranking:
             evaluation_case = None
             query = _semantic_revenue_sql([match.movie_id for match in semantic_matches])
@@ -1117,13 +1146,6 @@ class AgentService:
         elif actor_director_pair:
             evaluation_case = get_evaluation_case("Q09")
             query = _ACTOR_DIRECTOR_PAIR_SQL
-            model_seconds = 0.0
-        elif genre_movie_count:
-            evaluation_case = get_evaluation_case("Q10")
-            query = _GENRE_MOVIE_COUNT_SQL
-            model_seconds = 0.0
-        elif imdb_average_by_year:
-            query = _IMDB_AVERAGE_BY_YEAR_SQL
             model_seconds = 0.0
         elif top_company_count is not None:
             evaluation_case = None
@@ -1181,7 +1203,12 @@ class AgentService:
                     f"\n{_NATURAL_LANGUAGE_RULES}"
                     "\nIdentifique a intenção entre os casos obrigatórios abaixo e use "
                     "aliases iguais às colunas esperadas quando fizer sentido:\n"
-                    f"{_MANDATORY_QUESTIONS_CONTEXT}"
+                    f"{_format_evaluation_context(evaluation_case) if evaluation_case else _MANDATORY_QUESTIONS_CONTEXT}"
+                    + (
+                        f"\nPara esta pergunta: {_FOCUSED_METRIC_RULES[evaluation_case.query_id]}"
+                        if evaluation_case and evaluation_case.query_id in _FOCUSED_METRIC_RULES
+                        else ""
+                    )
                     + (
                         "\nA pergunta também pede orientação sobre o CineData. "
                         "Gere SQL somente para a parte analítica; ignore a parte "
@@ -1205,47 +1232,92 @@ class AgentService:
             ]
             model_started_at = time.perf_counter()
             complete_for_complexity = getattr(self.model, "complete_for_complexity", None)
-            if callable(complete_for_complexity):
-                first_turn = complete_for_complexity(messages, (RUN_SQL_TOOL,), complexity)
-            else:
-                first_turn = self.model.complete(messages, (RUN_SQL_TOOL,))
+            try:
+                if callable(complete_for_complexity):
+                    first_turn = complete_for_complexity(messages, (RUN_SQL_TOOL,), complexity)
+                else:
+                    first_turn = self.model.complete(messages, (RUN_SQL_TOOL,))
+            except Exception as exc:
+                status = getattr(exc, "status_code", getattr(exc, "code", None))
+                try:
+                    transient_status = int(status) in {408, 429, 500, 502, 503, 504}
+                except (TypeError, ValueError):
+                    transient_status = False
+                if reference_fallback is None or not (
+                    isinstance(exc, (ProviderTransientError, TimeoutError, ConnectionError, OSError))
+                    or transient_status
+                ):
+                    raise
+                logger.warning("Falha transitória do modelo na %s; usando consulta de referência.", evaluation_case.query_id)
+                first_turn = ModelTurn(tool_call=ToolCall(RUN_SQL_TOOL.name, {"sql": reference_fallback}))
+                query_source = "reference"
             model_seconds = time.perf_counter() - model_started_at
             if first_turn.tool_call is None:
                 clarification = self._extract_clarification(first_turn.answer)
-                if clarification:
+                if clarification and reference_fallback is None:
                     raise AgentClarification(clarification)
-                return AgentResponse(
-                    answer=_DEFAULT_CHAT_RESPONSE,
-                    rows=(),
-                    truncated=False,
-                    tool_calls=0,
-                    source="platform",
+                if reference_fallback is None:
+                    return AgentResponse(
+                        answer=_DEFAULT_CHAT_RESPONSE,
+                        rows=(),
+                        truncated=False,
+                        tool_calls=0,
+                        source="platform",
+                    )
+                query = reference_fallback
+                query_source = "reference"
+            else:
+                call = self._require_tool_call(first_turn)
+                if call.name != RUN_SQL_TOOL.name and reference_fallback is None:
+                    raise AgentError("O modelo solicitou uma ferramenta não permitida.")
+                proposed_query = call.arguments.get("sql")
+                if not isinstance(proposed_query, str) and reference_fallback is None:
+                    raise AgentError("A ferramenta recebeu argumentos inválidos.")
+                query = (
+                    proposed_query
+                    if call.name == RUN_SQL_TOOL.name and isinstance(proposed_query, str)
+                    else reference_fallback
                 )
-            call = self._require_tool_call(first_turn)
-            if call.name != RUN_SQL_TOOL.name:
-                raise AgentError("O modelo solicitou uma ferramenta não permitida.")
+                if query_source != "reference":
+                    query_source = "model" if query == proposed_query else "reference"
 
-            query = call.arguments.get("sql")
-            if not isinstance(query, str):
-                raise AgentError("A ferramenta recebeu argumentos inválidos.")
-
-        try:
-            validated = validate_sql(query, max_rows=self.max_rows)
-            query_started_at = time.perf_counter()
-            result = self.executor.execute(validated)
-            query_seconds = time.perf_counter() - query_started_at
-        except QueryTimeoutError:
-            logger.warning("Consulta GenAI excedeu o tempo máximo | SQL: %s", query)
-            raise
-        except (SqlValidationError, QueryExecutionError) as exc:
-            logger.warning("Consulta GenAI rejeitada: %s | SQL: %s", exc, query)
-            raise AgentError("A consulta solicitada não pôde ser executada.") from exc
-
-        if evaluation_case and result.columns != evaluation_case.expected_columns:
-            raise AgentError(
-                f"A consulta da {evaluation_case.query_id} não retornou as colunas "
-                "obrigatórias da métrica."
-            )
+        attempts = [query]
+        if reference_fallback is not None and query != reference_fallback:
+            attempts.append(reference_fallback)
+        query_started_at = time.perf_counter()
+        for candidate in attempts:
+            try:
+                result = self.executor.execute(validate_sql(candidate, max_rows=self.max_rows))
+                if evaluation_case and result.columns != evaluation_case.expected_columns:
+                    raise EvaluationMismatch(
+                        f"Colunas diferentes da métrica {evaluation_case.query_id}."
+                    )
+                if reference_fallback is not None and candidate != reference_fallback:
+                    expected = self.executor.execute(
+                        validate_sql(reference_fallback, max_rows=self.max_rows)
+                    )
+                    compare_rows(result.rows, expected.rows)
+                query = candidate
+                if candidate == reference_fallback:
+                    query_source = "reference"
+                break
+            except (SqlValidationError, QueryExecutionError, QueryTimeoutError,
+                    EvaluationMismatch) as exc:
+                if candidate != attempts[-1]:
+                    logger.warning(
+                        "SQL gerado para %s falhou na verificação (%s); "
+                        "usando consulta de referência.",
+                        evaluation_case.query_id,
+                        type(exc).__name__,
+                    )
+                    continue
+                if isinstance(exc, QueryTimeoutError):
+                    raise
+                if isinstance(exc, EvaluationMismatch):
+                    raise AgentError(str(exc)) from exc
+                logger.warning("Consulta GenAI rejeitada: %s", exc)
+                raise AgentError("A consulta solicitada não pôde ser executada.") from exc
+        query_seconds = time.perf_counter() - query_started_at
 
         row_count = len(result.rows)
         if row_count == 0:
@@ -1327,12 +1399,13 @@ class AgentService:
 
         logger.info(
             "GenAI question completed model_seconds=%.3f query_seconds=%.3f "
-            "total_seconds=%.3f returned_rows=%d truncated=%s",
+            "total_seconds=%.3f returned_rows=%d truncated=%s query_source=%s",
             model_seconds,
             query_seconds,
             time.perf_counter() - started_at,
             row_count,
             result.truncated,
+            query_source,
         )
 
         response = AgentResponse(

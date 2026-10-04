@@ -160,6 +160,7 @@
 .chatbot-chart-area { fill: url(#chart-area); opacity: .25; }
 .chatbot-chart-point { fill: #d9fff7; stroke: #5bc6b6; stroke-width: 3; }
 .chatbot-chart-x-label { fill: #9db7bc; font-size: 10px; }
+.chatbot-chart-point-value { fill: #d9fff7; font-size: 10px; font-weight: 700; paint-order: stroke; stroke: #0f2027; stroke-width: 3px; stroke-linejoin: round; }
 .chatbot-chart-card--financeiro .chatbot-chart-bar { fill: #70d9b5; }
 .chatbot-chart-card--notas .chatbot-chart-line { stroke: #79b9ff; }
 .chatbot-chart-card--notas .chatbot-chart-point { fill: #d8edff; stroke: #609ee9; }

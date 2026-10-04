@@ -275,7 +275,15 @@ def test_imdb_average_by_year_excludes_future_releases_and_is_chronological(tmp_
             "INSERT INTO fact_movies_performance VALUES (?, ?, ?)",
             (("past", 7.0, 10), ("current", 8.0, 20), ("future", 9.0, 30)),
         )
-    model = FakeModel([])
+    model = FakeModel([ModelTurn(tool_call=ToolCall("run_sql", {"sql": """
+SELECT m.ano_lancamento, COUNT(f.sk_movie_id) AS filmes_validos,
+       AVG(f.nota_imdb) AS nota_imdb_media
+FROM fact_movies_performance AS f
+JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+WHERE m.ano_lancamento IS NOT NULL AND m.data_lancamento <= date('now')
+  AND f.nota_imdb IS NOT NULL AND f.qtd_imdb > 0
+GROUP BY m.ano_lancamento ORDER BY m.ano_lancamento ASC
+"""}))])
 
     response = AgentService(
         model, GoldQueryExecutor(GoldDatabase(database_path))
@@ -283,7 +291,45 @@ def test_imdb_average_by_year_excludes_future_releases_and_is_chronological(tmp_
 
     assert [row["ano_lancamento"] for row in response.rows] == [past_year, today.year]
     assert response.query_id == "Q06"
-    assert model.calls == []
+    assert len(model.calls) == 1
+
+
+def test_tmdb_imdb_divergence_uses_model_sql(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT)")
+        connection.execute(
+            "CREATE TABLE fact_movies_performance (sk_movie_id TEXT, nota_tmdb REAL, "
+            "qtd_tmdb INTEGER, nota_imdb REAL, qtd_imdb INTEGER)"
+        )
+        connection.executemany(
+            "INSERT INTO dim_movies VALUES (?, ?)",
+            (("m1", "Menor"), ("m2", "Maior"), ("m3", "Sem votos")),
+        )
+        connection.executemany(
+            "INSERT INTO fact_movies_performance VALUES (?, ?, ?, ?, ?)",
+            (("m1", 7.5, 10, 6.0, 12), ("m2", 9.0, 20, 4.0, 14), ("m3", 8.0, 0, 2.0, 5)),
+        )
+    model = FakeModel([ModelTurn(tool_call=ToolCall("run_sql", {"sql": """
+SELECT m.sk_movie_id, m.titulo,
+       ABS(f.nota_tmdb - f.nota_imdb) AS divergencia,
+       f.nota_tmdb, f.qtd_tmdb, f.nota_imdb, f.qtd_imdb
+FROM fact_movies_performance AS f
+JOIN dim_movies AS m ON m.sk_movie_id = f.sk_movie_id
+WHERE f.nota_tmdb IS NOT NULL AND f.qtd_tmdb > 0
+  AND f.nota_imdb IS NOT NULL AND f.qtd_imdb > 0
+ORDER BY divergencia DESC, m.titulo COLLATE NOCASE, m.sk_movie_id
+LIMIT 10
+"""}))])
+
+    response = AgentService(
+        model, GoldQueryExecutor(GoldDatabase(database_path))
+    ).answer("Em quais filmes há maior divergência entre as notas TMDB e IMDb?")
+
+    assert [row["titulo"] for row in response.rows] == ["Maior", "Menor"]
+    assert response.rows[0]["divergencia"] == 5.0
+    assert response.query_id == "Q05"
+    assert len(model.calls) == 1
 
 
 def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) -> None:

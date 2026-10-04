@@ -256,6 +256,9 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
         setAnaliseDisponivel(false)
         setErro(falha.message)
         setPerguntaFalhou('')
+      } else if (falha instanceof ErroDaApi && ['query_timeout', 'service_error', 'stream_error', 'network_error'].includes(falha.codigo ?? '')) {
+        setErro('Não consegui concluir esta consulta agora. Tente novamente em instantes.')
+        setPerguntaFalhou(conteudo)
       } else {
         setErro(falha instanceof Error ? falha.message : 'Não consegui responder agora. Tente novamente.')
         setPerguntaFalhou(conteudo)
