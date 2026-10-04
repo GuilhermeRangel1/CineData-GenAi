@@ -9,7 +9,8 @@ import re
 import sqlite3
 import sys
 from collections.abc import Iterator, Sequence
-from datetime import date, datetime, timezone
+from contextlib import closing
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -19,15 +20,18 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql.schema import Table
 
+from app.communities import models as community_models  # noqa: F401  Registra as tabelas sociais.
+from app.conversations import (
+    models as conversation_models,  # noqa: F401  Registra o histórico privado.
+)
 from app.db.base import Base, GoldDatabaseSync
-from app.conversations import models as conversation_models  # noqa: F401  Registra o histórico privado.
 from app.movies import models as movie_models  # noqa: F401  Registra as tabelas do catálogo.
 from app.users import models as user_models  # noqa: F401  Registra as tabelas de contas.
-from app.communities import models as community_models  # noqa: F401  Registra as tabelas sociais.
 
 DEFAULT_BATCH_SIZE = 10_000
 DEFAULT_GOLD_DATABASE = Path(__file__).resolve().parents[3] / "data" / "cinerocket.db"
 GOLD_IMPORT_VERSION = "2"
+BOOTSTRAP_MARKER_SUFFIX = ".gold-bootstrap.json"
 
 # A revisão e855f43 acrescentou apenas índices ao arquivo Gold. O checksum
 # físico mudou, mas as dez tabelas importadas permaneceram iguais. Reconhecer
@@ -46,6 +50,38 @@ def _synchronous_url(database_url: str) -> str:
     """Converte a URL async usada pela aplicação para a conexão síncrona da CLI."""
 
     return database_url.replace("+aiosqlite", "")
+
+
+def _bootstrap_marker_path(database: str | None) -> Path | None:
+    if not database or database == ":memory:":
+        return None
+    target = Path(database).expanduser().resolve()
+    return target.with_name(target.name + BOOTSTRAP_MARKER_SUFFIX)
+
+
+def _consume_bootstrap_marker(
+    database: str | None, source_digest: str, source_size: int
+) -> bool:
+    """Confirma que o banco novo é uma cópia direta do Gold atual."""
+
+    marker = _bootstrap_marker_path(database)
+    if marker is None or not marker.is_file():
+        return False
+    try:
+        parts = marker.read_text(encoding="ascii").split()
+        return (
+            len(parts) == 2
+            and int(parts[1]) == source_size
+            and parts[0].lower() == source_digest
+        )
+    except (OSError, UnicodeError, ValueError):
+        return False
+
+
+def _remove_bootstrap_marker(database: str | None) -> None:
+    marker = _bootstrap_marker_path(database)
+    if marker is not None:
+        marker.unlink(missing_ok=True)
 
 GOLD_TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
     "dim_companies": ("sk_company_id", "nome_produtora"),
@@ -239,7 +275,7 @@ def _create_pre_sync_backup(engine: Engine) -> Path | None:
     target_path = Path(database).expanduser().resolve()
     if not target_path.is_file():
         return None
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     backup_path = target_path.with_name(f"{target_path.stem}.pre-gold-{stamp}{target_path.suffix}")
     suffix = 1
     while backup_path.exists():
@@ -248,9 +284,11 @@ def _create_pre_sync_backup(engine: Engine) -> Path | None:
         )
         suffix += 1
     try:
-        with sqlite3.connect(f"{target_path.as_uri()}?mode=ro", uri=True) as original:
-            with sqlite3.connect(backup_path) as backup:
-                original.backup(backup)
+        with (
+            closing(sqlite3.connect(f"{target_path.as_uri()}?mode=ro", uri=True)) as original,
+            closing(sqlite3.connect(backup_path)) as backup,
+        ):
+            original.backup(backup)
     except sqlite3.Error as error:
         raise GoldDatabaseError(
             "Não foi possível criar o backup do banco operacional antes da sincronização."
@@ -381,7 +419,6 @@ def _apply_table(
     table: Table,
     batch_size: int,
 ) -> int:
-    columns = GOLD_TABLE_COLUMNS[table_name]
     insert = sqlite_insert(table)
     keys = PRIMARY_KEYS[table_name]
     updates = UPSERT_COLUMNS.get(table_name, ())
@@ -492,6 +529,9 @@ def seed_from_gold_database(
 
         fingerprint, source_digest, source_size, has_manifest = _gold_fingerprint(source_path)
         tables = Base.metadata.tables
+        bootstrapped_from_current_gold = _consume_bootstrap_marker(
+            target_database, source_digest, source_size
+        )
         backup_path = None
         with engine.connect() as connection:
             previous_sync = connection.execute(
@@ -527,21 +567,38 @@ def seed_from_gold_database(
             ):
                 previous = fingerprint
             has_application_data = (
-                (force or previous != fingerprint)
+                not bootstrapped_from_current_gold
+                and (force or previous != fingerprint)
                 and _has_application_data(connection, tables)
             )
         if has_application_data:
             backup_path = _create_pre_sync_backup(engine)
-        if previous == fingerprint and not force:
+        if (previous == fingerprint or bootstrapped_from_current_gold) and not force:
             with engine.begin() as connection:
                 connection.execute(
-                    update(GoldDatabaseSync)
-                    .where(GoldDatabaseSync.dataset_name == "cinerocket")
+                    sqlite_insert(GoldDatabaseSync)
                     .values(
+                        dataset_name="cinerocket",
                         fingerprint=fingerprint,
                         source_size_bytes=source_size,
                         source_digest=source_digest,
                     )
+                    .on_conflict_do_update(
+                        index_elements=[GoldDatabaseSync.dataset_name],
+                        set_={
+                            "fingerprint": fingerprint,
+                            "imported_at": text("CURRENT_TIMESTAMP"),
+                            "source_size_bytes": source_size,
+                            "source_digest": source_digest,
+                        },
+                    )
+                )
+            if bootstrapped_from_current_gold:
+                _remove_bootstrap_marker(target_database)
+                print(
+                    "Base Gold adotada por cópia direta; "
+                    "importação linha a linha ignorada.",
+                    flush=True,
                 )
             return None
         if backup_path is not None:

@@ -109,6 +109,16 @@ e cria backup preventivo do banco operacional se ele já contém dados. Avaliaç
 locais permanecem preservadas e o resumo de notas é recomposto considerando a
 base Gold e essas avaliações.
 
+Na primeira execução sem banco operacional ou volume legado, o snapshot Gold
+conhecido é copiado diretamente para `rocketlab.db`. O preparador calcula o
+SHA-256 durante a cópia, compara com o manifesto, converte `movie_reviews` para
+o esquema da aplicação e verifica essa tabela. Depois, o Alembic aplica as
+migrações; um marcador de uso único permite ao sincronizador registrar o
+fingerprint sem repetir a importação linha a linha. O marcador é removido após
+o registro. Se o snapshot Gold for diferente, o projeto usa a criação do banco
+e a importação em lotes tradicionais. Um banco operacional existente nunca é
+substituído pela cópia rápida.
+
 O manifesto `data/cinerocket.db.sha256` guarda o SHA-256 e o tamanho do objeto
 Gold distribuído via Git LFS. O Compose o monta somente para leitura junto ao
 banco; assim, a API identifica a versão sem reler cerca de 722 MB a cada inicialização.
@@ -122,7 +132,8 @@ aplicadas no próximo início do serviço. O Gold `./data/cinerocket.db`
 `/workspace/cinerocket.db` somente para leitura; o banco operacional fica em
 `/app/data/rocketlab.db`, mapeado para `./data/rocketlab.db` no host. Na primeira
 subida, `project-data-init` copia o banco do volume legado somente quando o
-arquivo local ainda não existe; mantém o volume de origem intacto.
+arquivo local ainda não existe; mantém o volume de origem intacto. Sem banco
+local ou legado, ele prepara a cópia rápida do Gold conhecido.
 
 Para sincronização local, após obter o arquivo Gold e aplicar as migrações:
 

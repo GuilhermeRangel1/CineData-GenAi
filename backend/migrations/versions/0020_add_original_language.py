@@ -12,7 +12,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("dim_movies", sa.Column("idioma_original", sa.String(length=10)))
+    inspector = sa.inspect(op.get_bind())
+    columns = {column["name"] for column in inspector.get_columns("dim_movies")}
+    if "idioma_original" not in columns:
+        op.add_column("dim_movies", sa.Column("idioma_original", sa.String(length=10)))
 
 
 def downgrade() -> None:

@@ -320,10 +320,12 @@ extras separados do enunciado.
 ## Bancos de dados
 
 `data/cinerocket.db` é a fonte Gold analítica distribuída por Git LFS e montada
-somente para leitura. O backend aplica migrações e sincroniza o conteúdo para
-`data/rocketlab.db`, o banco operacional que preserva contas, listas,
-avaliações, comunidades e conversas. Um fingerprint SHA-256 evita sincronizações
-desnecessárias.
+somente para leitura. Em uma instalação nova com o snapshot Gold distribuído
+neste repositório, a preparação copia o arquivo de uma vez, verifica seu
+SHA-256 e adapta a tabela de avaliações; o backend aplica as migrações sem
+reimportar o catálogo linha a linha. `data/rocketlab.db` preserva contas,
+listas, avaliações, comunidades e conversas. Inicializações seguintes
+reutilizam esse banco e o fingerprint evita sincronizações desnecessárias.
 
 | Banco | Papel |
 | --- | --- |
@@ -376,9 +378,10 @@ O download precisa ocorrer fora do contêiner porque a imagem não recebe a
 pasta `.git` nem as credenciais Git da pessoa que clonou o repositório.
 
 O Compose usa `pull_policy: build`, construindo as imagens locais antes da
-subida. Ele prepara o banco operacional, aplica as migrações, sincroniza o
-catálogo e inicia o GenAI automaticamente. Na primeira execução, essa etapa
-pode levar alguns minutos. Para executar em segundo plano:
+subida. Ele prepara o banco operacional, aplica as migrações e inicia o GenAI
+automaticamente. Na primeira execução, a cópia e a construção dos índices
+ainda podem levar alguns minutos conforme o disco e a máquina. Para executar
+em segundo plano:
 
 ```powershell
 docker compose up -d
