@@ -21,6 +21,12 @@ A chave Gemini habilita todas as consultas a dados, inclusive as que usam SQL
 preparado ou busca local. Sua presença não significa que toda resposta faça
 uma chamada ao modelo.
 
+Nas perguntas de divergência de notas, média IMDb por ano e filmes por gênero,
+o Gemini recebe o esquema e as regras da métrica para gerar o SQL. O serviço
+compara as linhas retornadas com uma consulta de referência e a usa somente se
+a geração ou a conferência falhar. Outras rotas reconhecidas podem usar SQL
+preparado, enquanto perguntas livres dependem do SQL gerado pelo modelo.
+
 ## Segurança e disponibilidade
 
 - somente uma instrução `SELECT` sobre tabelas e colunas autorizadas;
@@ -55,8 +61,9 @@ se as consultas analíticas estão disponíveis, sem expor a chave.
 
 `context` é opcional, tem no máximo três resumos da conversa atual e permite
 continuações como “e em 2020?”. `conversation_id` é um identificador local do
-frontend usado somente para separar o cache; o histórico persistente pertence
-ao backend principal. O contrato completo está em
+frontend usado para separar o cache das perguntas livres; Q05, Q06, Q10 e Q14
+canônicas compartilham a resposta pública por até cinco minutos. O histórico
+persistente pertence ao backend principal. O contrato completo está em
 [docs/genai/api-contract.md](../docs/genai/api-contract.md).
 
 Uma resposta de sucesso contém `answer`, `rows`, `insights` e `metadata`.

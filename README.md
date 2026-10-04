@@ -25,15 +25,17 @@ O chatbot é o núcleo desta entrega. Ele recebe uma pergunta em português,
 identifica se ela pede uma métrica, um ranking, uma comparação ou filmes por
 descrição e retorna a evidência correspondente.
 
-O agente usa consultas preparadas nos casos reconhecidos ou pede ao Gemini que
-acione a ferramenta `run_sql`. Perguntas descritivas podem procurar termos em
-títulos e sinopses; se também pedirem uma métrica, os filmes encontrados servem
-de recorte para uma consulta analítica.
+O agente pede ao Gemini que gere SQL pela ferramenta `run_sql` nas perguntas
+livres e em parte dos casos da avaliação. Algumas rotas frequentes ainda usam
+SQL preparado para reduzir a latência. Perguntas descritivas podem procurar
+termos em títulos e sinopses; se também pedirem uma métrica, os filmes
+encontrados servem de recorte para uma consulta analítica.
 
 A chave Gemini habilita as consultas de dados do chatbot. Casos reconhecidos
-podem executar SQL preparado sem chamar o modelo a cada resposta; perguntas
-livres usam Gemini para interpretar a solicitação. A interface informa quando
-a chave ainda não foi configurada.
+podem executar SQL preparado sem chamar o modelo a cada resposta. Nas perguntas
+de divergência de notas, média IMDb por ano e filmes por gênero, o modelo gera
+a consulta primeiro; uma consulta de referência confere o resultado e recupera
+falhas. A interface informa quando a chave ainda não foi configurada.
 
 ```mermaid
 flowchart TB
@@ -42,7 +44,7 @@ flowchart TB
     R -->|Filmes por descrição| S[Busca em títulos e sinopses]
     R -->|Métricas e rankings| A[Agente analítico]
     S -.->|Se também pedir uma métrica| A
-    A --> M[SQL preparado ou Gemini com tool calling]
+    A --> M[Gemini com run_sql ou rota preparada]
     M --> V[Validação e execução somente leitura]
     S --> F[Resposta no chatbot]
     V --> F
@@ -186,7 +188,7 @@ etapa não concede ao modelo acesso direto ao banco:
 | --- | --- |
 | Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo três resumos de contexto. |
 | Filtro de entrada | Normaliza maiúsculas e acentos e bloqueia prompt injection, revelação de instruções, SQL explícito e pedidos para consultar URLs, internet ou fontes externas. |
-| Ferramenta do modelo | O Gemini recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. Perguntas obrigatórias reconhecidas usam SQL preparado pelo serviço. |
+| Ferramenta do modelo | O Gemini recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. As perguntas de divergência de notas, média IMDb por ano e filmes por gênero são geradas pelo modelo e conferidas contra consultas de referência. Outras rotas reconhecidas podem usar SQL preparado. |
 | Validador SQL | `sqlglot` aceita uma única instrução `SELECT` ou `UNION`, com até 16.000 caracteres, oito CTEs, oito `JOINs`, doze subconsultas e 100 linhas. CTE recursiva, `CROSS JOIN`, outro banco, tabelas fora do contrato e funções como `load_extension`, `readfile`, `writefile`, `randomblob` e `zeroblob` são rejeitados. |
 | Executor SQLite | Abre o arquivo com `mode=ro`, limita a duração da consulta e usa o autorizador nativo do SQLite para negar `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ATTACH`, `DETACH`, `PRAGMA` e leitura de tabelas que não pertencem à Gold. |
 
@@ -258,9 +260,15 @@ pergunta, a conversa, o contexto, a revisão do banco analítico e a versão das
 regras. Assim, uma continuação diferente ou dados atualizados não recebem uma
 resposta antiga; o cache desaparece quando o serviço reinicia.
 
+As perguntas obrigatórias Q05, Q06, Q10 e Q14, quando usadas na formulação
+exata da Ajuda, compartilham o resultado entre conversas durante esse período.
+Elas consultam o mesmo recorte público da Gold; os insights permanecem na
+resposta reutilizada. As demais perguntas continuam isoladas por conversa.
+
 Na prática, a chave é um hash SHA-256 da pergunta normalizada, identificador da
-conversa, até três resumos semânticos, tamanho e data de modificação da Gold e
-versão das regras. O serviço mantém até 100 respostas bem-sucedidas em memória;
+conversa (ou do caso fixo), até três resumos semânticos, tamanho e data de
+modificação da Gold e versão das regras. O serviço mantém até 100 respostas
+bem-sucedidas em memória;
 o texto da pergunta não é usado como identificador em claro. Não há cache
 persistente nem compartilhado depois de reiniciar o contêiner.
 
