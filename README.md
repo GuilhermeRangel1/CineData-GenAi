@@ -6,6 +6,19 @@ natural usando Gemini, tool calling e a camada Gold SQLite em modo somente
 leitura. O CineData fornece a interface para enviar as consultas e visualizar
 os resultados.
 
+## Navegação rápida
+
+| Guia | O que você encontra |
+| --- | --- |
+| [Assistente GenAI](#assistente-genai) | Fluxo da pergunta, componentes do agente e integração com o chatbot. |
+| [Consultas obrigatórias](#cobertura-obrigatória-e-avaliações-locais) | Cobertura Q01–Q14, regras de métricas e avaliação contra referências. |
+| [Extras da atividade](#extras-propostos-na-atividade) | Guardrails, gráficos, memória, fallback, cache, avaliação e busca híbrida. |
+| [Bancos de dados](#bancos-de-dados) | Papel da Gold e do banco operacional, sincronização e cópia local do GenAI. |
+| [Como executar](#como-executar-com-docker-compose) | Pré-requisitos, Docker Compose, Git LFS, chave Gemini e conta de demonstração. |
+| [Configuração por ambiente](#configuração-por-ambiente) | Variáveis necessárias no Docker e opções para execução manual. |
+| [Testes](#testes) | Comandos de avaliação, qualidade e testes automatizados. |
+| [Documentação complementar](#documentação-complementar) | Regras de métricas, SQL de referência, casos Q01–Q14 e revisão da entrega. |
+
 ## Assistente GenAI
 
 O chatbot é o núcleo desta entrega. Ele recebe uma pergunta em português,
@@ -161,6 +174,23 @@ permite um único `SELECT` nas tabelas autorizadas, limita resultados e bloqueia
 escrita, acesso a arquivos e consultas excessivamente custosas. O SQLite é
 aberto somente para leitura, mesmo depois da validação.
 
+As proteções são aplicadas em camadas independentes. Assim, uma falha em uma
+etapa não concede ao modelo acesso direto ao banco:
+
+| Camada | Aplicação concreta |
+| --- | --- |
+| Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo três resumos de contexto. |
+| Filtro de entrada | Normaliza maiúsculas e acentos e bloqueia prompt injection, revelação de instruções, SQL explícito e pedidos para consultar URLs, internet ou fontes externas. |
+| Ferramenta do modelo | O Gemini recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. Perguntas obrigatórias reconhecidas usam SQL preparado pelo serviço. |
+| Validador SQL | `sqlglot` aceita uma única instrução `SELECT` ou `UNION`, com até 16.000 caracteres, oito CTEs, oito `JOINs`, doze subconsultas e 100 linhas. CTE recursiva, `CROSS JOIN`, outro banco, tabelas fora do contrato e funções como `load_extension`, `readfile`, `writefile`, `randomblob` e `zeroblob` são rejeitados. |
+| Executor SQLite | Abre o arquivo com `mode=ro`, limita a duração da consulta e usa o autorizador nativo do SQLite para negar `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ATTACH`, `DETACH`, `PRAGMA` e leitura de tabelas que não pertencem à Gold. |
+
+O limite padrão é de cinco segundos; consultas obrigatórias reconhecidamente
+mais pesadas recebem limites específicos de quinze ou quarenta e cinco segundos.
+O executor busca no máximo 101 linhas para sinalizar truncamento e devolve no
+máximo 100 ao chatbot. Uma rejeição retorna uma mensagem controlada, sem expor
+o SQL gerado, a estrutura interna ou detalhes da chave Gemini.
+
 ### Interface visual
 
 O agente funciona dentro do chatbot do CineData. A pessoa envia perguntas em
@@ -205,6 +235,13 @@ adaptador pode tentar uma vez um modelo alternativo configurado com a mesma
 chave. Erros de pergunta, SQL ou banco não acionam essa troca. O modelo que
 respondeu fica registrado nos logs do serviço, sem expor a chave ao navegador.
 
+O roteador classifica localmente cada pergunta como simples, analítica, híbrida
+ou complexa, sem nova chamada de IA. Perguntas híbridas, longas, comparativas
+ou com contexto podem usar o modelo configurado para maior capacidade; as demais
+usam o modelo leve. A tentativa alternativa ocorre somente para falhas de rede,
+timeout ou respostas 408, 429 e 5xx. Ela não é uma segunda tentativa para
+"melhorar" uma resposta nem relaxa guardrails, validação SQL ou limites.
+
 ### Cache de respostas
 
 Respostas equivalentes podem ser reutilizadas por cinco minutos na memória do
@@ -212,6 +249,12 @@ serviço, reduzindo chamadas ao modelo e tempo de espera. A chave considera a
 pergunta, a conversa, o contexto, a revisão do banco analítico e a versão das
 regras. Assim, uma continuação diferente ou dados atualizados não recebem uma
 resposta antiga; o cache desaparece quando o serviço reinicia.
+
+Na prática, a chave é um hash SHA-256 da pergunta normalizada, identificador da
+conversa, até três resumos semânticos, tamanho e data de modificação da Gold e
+versão das regras. O serviço mantém até 100 respostas bem-sucedidas em memória;
+o texto da pergunta não é usado como identificador em claro. Não há cache
+persistente nem compartilhado depois de reiniciar o contêiner.
 
 ### Avaliação
 
@@ -222,6 +265,13 @@ verificar regras, valores e formato das respostas sem gastar cota Gemini. Essa
 avaliação detecta regressões conhecidas; perguntas livres ainda dependem do
 comportamento do modelo e dos dados disponíveis.
 
+O avaliador compara colunas e valores devolvidos, não exige que o SQL do modelo
+seja textualmente igual ao SQL de referência. Isso permite testar o contrato da
+resposta, incluindo métrica, unidade, período, população e limitações, mesmo
+quando a consulta válida tiver uma redação diferente. Os testes locais também
+cobrem guardrails, timeout, streaming, cache, fallback, continuação de conversa
+e falhas controladas da Gold.
+
 ### Agente híbrido: busca em sinopses e SQL
 
 Perguntas descritivas procuram filmes em títulos e sinopses por similaridade
@@ -230,6 +280,29 @@ pergunta pedir um número, os filmes encontrados orientam uma consulta SQL
 validada no banco analítico. Por exemplo, “Quais filmes falam de viagem no tempo
 e qual teve maior receita?” combina a seleção por descrição com a comparação de
 receitas, mantendo a origem dos dados identificada na resposta.
+
+O índice é construído a partir de títulos e sinopses disponíveis na Gold e
+reconstruído somente quando tamanho ou data de modificação do arquivo mudam. A
+busca remove palavras de formulação como “qual”, “maior” e “receita”, mede a
+similaridade por termos e ordena candidatos por pontuação e título. Quando a
+pergunta também pede receita, o serviço classifica todos os candidatos
+encontrados com uma consulta local determinística; o modelo não escolhe uma
+amostra diferente a cada resposta.
+
+### Progresso, privacidade e respostas estruturadas
+
+A interface usa `POST /api/v1/questions/stream`, que envia eventos NDJSON de
+entendimento, busca, preparação e resultado. Os eventos descrevem etapas
+visíveis da operação, sem expor raciocínio interno do modelo ou SQL. Cabeçalhos
+de não cache e não buffering mantêm o progresso legível mesmo atrás do proxy.
+
+O navegador acessa o serviço pelo proxy `/genai/api/v1`; a chave Gemini fica
+somente no ambiente do contêiner. Para continuidade, o GenAI recebe até três
+resumos da conversa atual, e não o histórico persistente completo da conta. A
+resposta final possui contrato estruturado com texto, linhas, colunas,
+metadados da métrica, origem, indicação de cache, truncamento e quantidade de
+tool calls. Gráficos e insights consomem essas mesmas linhas já validadas; o
+serviço de insights não tem acesso à Gold e não executa SQL.
 
 ### Ampliações próprias do CineData
 
