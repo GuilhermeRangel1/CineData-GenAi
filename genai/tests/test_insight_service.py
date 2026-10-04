@@ -54,3 +54,32 @@ def test_insight_service_skips_non_chartable_results() -> None:
 
     assert InsightService(model).generate(response) == ()
     assert model.calls == []
+
+
+def test_imdb_average_by_year_explains_small_samples_without_calling_model() -> None:
+    model = FakeInsightModel("- Este texto não deve ser usado.")
+    response = AgentResponse(
+        answer="Resultado.",
+        rows=(
+            {"ano_lancamento": 2016, "filmes_validos": 9532, "nota_imdb_media": 6.333078},
+            {"ano_lancamento": 2017, "filmes_validos": 10283, "nota_imdb_media": 6.345181},
+            {"ano_lancamento": 2024, "filmes_validos": 1504, "nota_imdb_media": 6.142021},
+            {"ano_lancamento": 2025, "filmes_validos": 2, "nota_imdb_media": 6.15},
+            {"ano_lancamento": 2026, "filmes_validos": 1, "nota_imdb_media": 7.5},
+        ),
+        truncated=False,
+        tool_calls=0,
+        columns=("ano_lancamento", "filmes_validos", "nota_imdb_media"),
+        query_id="Q06",
+        metric="média IMDb por ano de lançamento",
+        unit="pontuação em escala de 0 a 10",
+    )
+
+    insights = InsightService(model).generate(response)
+
+    assert insights == (
+        "2026 tem a maior média observada (7,50), mas reúne apenas 1 filme válido.",
+        "Entre os anos com ao menos 100 filmes válidos, 2017 tem a maior média (6,35; 10.283 filmes).",
+        "A menor média é a de 2024 (6,14; 1.504 filmes válidos).",
+    )
+    assert model.calls == []

@@ -57,6 +57,8 @@ class InsightService:
         rows = self._visible_rows(response)
         if len(rows) < 2:
             return ()
+        if response.query_id == "Q06":
+            return self._imdb_average_by_year_insights(rows)
         messages = (
             {
                 "role": "system",
@@ -106,10 +108,61 @@ class InsightService:
     @staticmethod
     def _visible_rows(response: AgentResponse) -> list[dict[str, Any]]:
         visible_columns = [column for column in response.columns if not _ID_COLUMN.match(column)]
+        # A série anual é desenhada com até 16 pontos. O insight precisa usar
+        # exatamente esse mesmo recorte para não descrever outro período.
+        limit = 16 if response.query_id == "Q06" else 8
         return [
             {column: row[column] for column in visible_columns if column in row}
-            for row in response.rows[:8]
+            for row in response.rows[:limit]
         ]
+
+    @staticmethod
+    def _imdb_average_by_year_insights(rows: list[dict[str, Any]]) -> tuple[str, ...]:
+        """Resume Q06 de forma determinística, preservando o tamanho da amostra."""
+
+        points = [
+            (int(row["ano_lancamento"]), int(row["filmes_validos"]), float(row["nota_imdb_media"]))
+            for row in rows
+            if isinstance(row.get("ano_lancamento"), (int, float))
+            and isinstance(row.get("filmes_validos"), (int, float))
+            and isinstance(row.get("nota_imdb_media"), (int, float))
+        ]
+        if len(points) < 2:
+            return ()
+
+        def score(value: float) -> str:
+            return f"{value:.2f}".replace(".", ",")
+
+        def count(value: int) -> str:
+            return f"{value:,}".replace(",", ".")
+
+        highest = max(points, key=lambda point: (point[2], -point[0]))
+        lowest = min(points, key=lambda point: (point[2], point[0]))
+        insights: list[str] = []
+        if highest[1] < 100:
+            insights.append(
+                f"{highest[0]} tem a maior média observada ({score(highest[2])}), "
+                f"mas reúne apenas {count(highest[1])} filme válido."
+            )
+            robust_points = [point for point in points if point[1] >= 100]
+            if robust_points:
+                robust_highest = max(robust_points, key=lambda point: (point[2], -point[0]))
+                insights.append(
+                    "Entre os anos com ao menos 100 filmes válidos, "
+                    f"{robust_highest[0]} tem a maior média "
+                    f"({score(robust_highest[2])}; {count(robust_highest[1])} filmes)."
+                )
+        else:
+            insights.append(
+                f"{highest[0]} tem a maior média do recorte "
+                f"({score(highest[2])}; {count(highest[1])} filmes válidos)."
+            )
+        if lowest != highest:
+            insights.append(
+                f"A menor média é a de {lowest[0]} "
+                f"({score(lowest[2])}; {count(lowest[1])} filmes válidos)."
+            )
+        return tuple(insights[:3])
 
     @staticmethod
     def _derived_signals(response: AgentResponse, rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -127,24 +180,28 @@ class InsightService:
         if len(points) < 2:
             return {}
 
+        is_year_series = response.query_id == "Q06"
+        leader = max(points, key=lambda point: (point[1], point[0])) if is_year_series else points[0]
+        lowest = min(points, key=lambda point: (point[1], point[0])) if is_year_series else points[-1]
         signals: dict[str, Any] = {
             "coluna_rotulo": label_column,
             "coluna_valor": value_column,
-            "maior": {"rotulo": points[0][0], "valor": points[0][1]},
-            "menor": {"rotulo": points[-1][0], "valor": points[-1][1]},
+            "maior": {"rotulo": leader[0], "valor": leader[1]},
+            "menor": {"rotulo": lowest[0], "valor": lowest[1]},
         }
-        leader, runner_up = points[0], points[1]
-        difference = leader[1] - runner_up[1]
-        signals["diferenca_primeiro_segundo"] = {
-            "absoluta": difference,
-            "percentual_sobre_segundo": (difference / abs(runner_up[1])) if runner_up[1] else None,
-        }
-        ties = [label for label, value in points if value == leader[1]]
-        if len(ties) > 1:
-            signals["empate_na_lideranca"] = ties
-        if all(value >= 0 for _, value in points):
-            total = sum(value for _, value in points)
-            signals["participacao_lider_no_recorte"] = leader[1] / total if total else None
+        if not is_year_series:
+            runner_up = points[1]
+            difference = leader[1] - runner_up[1]
+            signals["diferenca_primeiro_segundo"] = {
+                "absoluta": difference,
+                "percentual_sobre_segundo": (difference / abs(runner_up[1])) if runner_up[1] else None,
+            }
+            ties = [label for label, value in points if value == leader[1]]
+            if len(ties) > 1:
+                signals["empate_na_lideranca"] = ties
+            if all(value >= 0 for _, value in points):
+                total = sum(value for _, value in points)
+                signals["participacao_lider_no_recorte"] = leader[1] / total if total else None
         negatives = [label for label, value in points if value < 0]
         if negatives:
             signals["rotulos_com_valor_negativo"] = negatives

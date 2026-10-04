@@ -206,7 +206,10 @@ ou identificadores internos.
 
 ### Capturas da interface
 
-Evolução da nota média do IMDb, com os controles de exportação de CSV e PNG:
+Evolução da nota média do IMDb. Em respostas com dados, o botão **Baixar CSV**
+exporta todas as linhas retornadas junto do contexto da análise. Quando a resposta
+tem gráfico, **Baixar PNG** gera uma imagem da visualização com título, métrica,
+unidade, período e recorte aplicados:
 
 ![Chatbot exibindo gráfico de linha da nota IMDb média por ano](docs/images/genai/chatbot-grafico-linha.png)
 
