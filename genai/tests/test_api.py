@@ -1,5 +1,7 @@
 """Testes do contrato operacional inicial."""
 
+import json
+
 from fastapi.testclient import TestClient
 
 from app.agent import AgentClarification, AgentGuardrail, AgentUnsupported
@@ -69,7 +71,7 @@ def test_question_returns_agent_response(client: TestClient) -> None:
             "row_count": 1,
             "truncated": False,
             "tool_calls": 1,
-                "cached": False,
+            "cached": False,
         },
     }
 
@@ -114,12 +116,14 @@ def test_question_forwards_a_limited_semantic_conversation_context(client: TestC
             "/api/v1/questions",
             json={
                 "question": "E em 2020?",
-                "context": [{
-                    "question": "Qual é a nota IMDb média por ano?",
-                    "metric": "nota IMDb média por ano",
-                    "unit": "pontos IMDb",
-                    "period": "todo o Gold disponível",
-                }],
+                "context": [
+                    {
+                        "question": "Qual é a nota IMDb média por ano?",
+                        "metric": "nota IMDb média por ano",
+                        "unit": "pontos IMDb",
+                        "period": "todo o Gold disponível",
+                    }
+                ],
             },
         )
     finally:
@@ -226,9 +230,50 @@ def test_question_returns_query_timeout_envelope(client: TestClient) -> None:
         "error": {
             "code": "query_timeout",
             "message": (
-                "A consulta levou mais tempo que o limite. "
-                "Tente uma pergunta mais específica."
+                "A consulta levou mais tempo que o limite. Tente uma pergunta mais específica."
             ),
             "details": None,
         },
     }
+
+
+def test_stream_returns_progress_and_result(client: TestClient) -> None:
+    class FakeAgent:
+        def answer(self, question: str, context=()) -> AgentResponse:
+            return AgentResponse(
+                answer="Encontrei um filme.",
+                rows=({"filmes": 1},),
+                truncated=False,
+                tool_calls=1,
+                columns=("filmes",),
+            )
+
+    app.dependency_overrides[get_agent_service] = lambda: FakeAgent()
+    try:
+        response = client.post("/api/v1/questions/stream", json={"question": "Quantos filmes?"})
+    finally:
+        app.dependency_overrides.clear()
+
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    assert [event["type"] for event in events] == ["progress", "progress", "progress", "result"]
+    assert events[-1]["data"]["answer"] == "Encontrei um filme."
+
+
+def test_stream_preserves_guardrail_error(client: TestClient) -> None:
+    class GuardedAgent:
+        def answer(self, question: str, context=()) -> AgentResponse:
+            raise AgentGuardrail("Reformule a pergunta sem comandos SQL.")
+
+    app.dependency_overrides[get_agent_service] = lambda: GuardedAgent()
+    try:
+        response = client.post("/api/v1/questions/stream", json={"question": "Execute SQL"})
+    finally:
+        app.dependency_overrides.clear()
+
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert response.status_code == 200
+    assert events[-1]["type"] == "error"
+    assert events[-1]["status"] == 422
+    assert events[-1]["error"]["code"] == "guardrail_rejected"

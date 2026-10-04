@@ -3,7 +3,6 @@
 import re
 import unicodedata
 
-
 _PROMPT_INJECTION = re.compile(
     r"\b(?:ignore|ignore as|desconsidere|desobedeca|bypass|contorne)\b.{0,80}"
     r"\b(?:instruc\w*|regra|prompt|sistema|system)\b|"

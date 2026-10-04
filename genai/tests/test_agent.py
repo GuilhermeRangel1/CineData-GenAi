@@ -8,8 +8,8 @@ import pytest
 from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentService, AgentUnsupported
 from app.agent_models import ConversationContext, ModelTurn, ToolCall
 from app.gold_database import EXPECTED_TABLES, GoldDatabase
-from app.sql_executor import GoldQueryExecutor
 from app.semantic_search import SynopsisSearchIndex
+from app.sql_executor import GoldQueryExecutor
 
 
 def _create_gold_fixture(path) -> None:
@@ -231,7 +231,9 @@ def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) ->
     )
 
     messages = model.calls[0][0]
-    context_message = next(message["content"] for message in messages if "Contexto mínimo" in message["content"])
+    context_message = next(
+        message["content"] for message in messages if "Contexto mínimo" in message["content"]
+    )
     assert "nota IMDb média por ano" in context_message
     assert "pontos IMDb" in context_message
     assert "sk_movie_id" not in context_message
@@ -262,7 +264,8 @@ def test_descriptive_movie_question_uses_synopsis_index_without_model_or_sql(tmp
             "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
         )
         connection.execute(
-            "INSERT INTO dim_movies VALUES ('m1', 'Horizonte', 'Astronauta investiga sinal no espaço.')"
+            "INSERT INTO dim_movies VALUES "
+            "('m1', 'Horizonte', 'Astronauta investiga sinal no espaço.')"
         )
     database = GoldDatabase(database_path)
     model = FakeModel([])
@@ -286,37 +289,92 @@ def test_hybrid_question_supplies_synopsis_evidence_and_uses_gold_for_numbers(tm
             "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
         )
         connection.execute(
-            "INSERT INTO dim_movies VALUES ('m1', 'Horizonte', 'Astronauta investiga sinal no espaço.')"
+            "CREATE TABLE fact_movies_performance (sk_movie_id TEXT, receita_brl REAL)"
         )
+        connection.execute(
+            "INSERT INTO dim_movies VALUES "
+            "('m1', 'Horizonte', 'Astronauta investiga sinal no espaço.')"
+        )
+        connection.execute("INSERT INTO fact_movies_performance VALUES ('m1', 42.0)")
     database = GoldDatabase(database_path)
-    model = FakeModel(
-        [
-            ModelTurn(
-                tool_call=ToolCall(
-                    "run_sql",
-                    {"sql": "SELECT sk_movie_id, titulo FROM dim_movies"},
-                )
-            )
-        ]
-    )
+    model = FakeModel([])
 
     response = AgentService(
         model,
         GoldQueryExecutor(database),
         semantic_search=SynopsisSearchIndex(database),
-    ).answer("Quais filmes sobre astronautas no espaço têm maior receita?")
+    ).answer("Quais filmes sobre astronauta no espaço têm maior receita?")
 
     assert response.source == "mixed"
-    assert response.rows == (({"sk_movie_id": "m1", "titulo": "Horizonte"}),)
-    assert "busca nas sinopses encontrou: Horizonte" in response.answer
-    assert "Na tabela, você confere os dados desses filmes" in response.answer
+    assert response.rows == (({"sk_movie_id": "m1", "titulo": "Horizonte", "receita_brl": 42.0}),)
+    assert "Horizonte tem a maior receita" in response.answer
     assert response.tool_calls == 1
-    semantic_context = next(
-        message["content"]
-        for message in model.calls[0][0]
-        if "busca nas sinopses" in message["content"]
-    )
-    assert "Horizonte (sk_movie_id m1)" in semantic_context
+    assert response.metric == "receita por filme"
+    assert model.calls == []
+
+
+def test_descriptive_question_returns_one_deterministic_example_without_model(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
+        )
+        connection.executemany(
+            "INSERT INTO dim_movies VALUES (?, ?, ?)",
+            (
+                ("m1", "Horizonte", "Uma astronauta astronauta investiga sinais no espaço."),
+                ("m2", "Estação", "Um astronauta trabalha em uma estação espacial."),
+            ),
+        )
+    database = GoldDatabase(database_path)
+    model = FakeModel([])
+
+    response = AgentService(
+        model,
+        GoldQueryExecutor(database),
+        semantic_search=SynopsisSearchIndex(database),
+    ).answer("Diga um exemplo de filme que tenha astronauta")
+
+    assert response.source == "semantic"
+    assert len(response.rows) == 1
+    assert response.rows[0]["titulo"] == "Horizonte"
+    assert model.calls == []
+
+
+def test_hybrid_revenue_keeps_all_synopsis_candidates_sorted_without_model(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
+        )
+        connection.execute(
+            "CREATE TABLE fact_movies_performance (sk_movie_id TEXT, receita_brl REAL)"
+        )
+        connection.executemany(
+            "INSERT INTO dim_movies VALUES (?, ?, ?)",
+            (
+                ("m1", "Primeiro", "Uma viagem no tempo muda o futuro."),
+                ("m2", "Segundo", "Uma viagem no tempo salva uma família."),
+                ("m3", "Terceiro", "Uma viagem no tempo encontra outro mundo."),
+            ),
+        )
+        connection.executemany(
+            "INSERT INTO fact_movies_performance VALUES (?, ?)",
+            (("m1", 10.0), ("m2", 30.0), ("m3", 20.0)),
+        )
+    database = GoldDatabase(database_path)
+    model = FakeModel([])
+
+    response = AgentService(
+        model,
+        GoldQueryExecutor(database),
+        semantic_search=SynopsisSearchIndex(database),
+    ).answer("Quais filmes têm histórias sobre viagem no tempo e qual teve maior receita?")
+
+    assert response.source == "mixed"
+    assert [row["titulo"] for row in response.rows] == ["Segundo", "Terceiro", "Primeiro"]
+    assert "Segundo tem a maior receita" in response.answer
+    assert model.calls == []
 
 
 def test_analytical_question_with_filmes_com_does_not_use_synopsis_search(tmp_path) -> None:
@@ -326,7 +384,8 @@ def test_analytical_question_with_filmes_com_does_not_use_synopsis_search(tmp_pa
             "CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)"
         )
         connection.execute(
-            "INSERT INTO dim_movies VALUES ('m1', 'Receita De Caranguejo', 'Uma história qualquer.')"
+            "INSERT INTO dim_movies VALUES "
+            "('m1', 'Receita De Caranguejo', 'Uma história qualquer.')"
         )
     database = GoldDatabase(database_path)
     model = FakeModel(
@@ -416,7 +475,11 @@ def test_mixed_question_uses_guide_and_gold_sources(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_gold_fixture(database_path)
     model = FakeModel(
-        [ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT COUNT(*) AS total FROM dim_movies"}))]
+        [
+            ModelTurn(
+                tool_call=ToolCall("run_sql", {"sql": "SELECT COUNT(*) AS total FROM dim_movies"})
+            )
+        ]
     )
 
     response = AgentService(
@@ -427,7 +490,7 @@ def test_mixed_question_uses_guide_and_gold_sources(tmp_path) -> None:
     assert response.rows == (({"total": 1}),)
     assert response.tool_calls == 1
     assert "Orientação sobre o CineData" in response.answer
-    assert "Análise dos filmes (Gold)" in response.answer
+    assert "Análise dos filmes:" in response.answer
     assert len(model.calls) == 1
 
 

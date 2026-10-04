@@ -18,8 +18,8 @@ from app.gemini_adapter import GeminiToolCallingModel
 from app.gold_database import GoldDatabase
 from app.insight_service import InsightService
 from app.response_cache import ResponseCache, gold_version, make_cache_key
-from app.sql_executor import GoldQueryExecutor
 from app.semantic_search import SynopsisSearchIndex
+from app.sql_executor import GoldQueryExecutor
 
 router = APIRouter()
 v1_router = APIRouter()
@@ -174,7 +174,9 @@ def answer_question(
     try:
         response = cached_response or service.answer(payload.question, context)
     except GoldDatabaseError as exc:
-        raise HTTPException(status_code=503, detail="A base Gold não está disponível.") from exc
+        raise HTTPException(
+            status_code=503, detail="A base de filmes não está disponível."
+        ) from exc
     except ProviderConfigurationError as exc:
         raise HTTPException(
             status_code=503, detail="O provedor GenAI não está configurado."
@@ -223,7 +225,10 @@ def answer_question(
                 "status": "error",
                 "error": {
                     "code": "query_timeout",
-                    "message": "A consulta levou mais tempo que o limite. Tente uma pergunta mais específica.",
+                    "message": (
+                        "A consulta levou mais tempo que o limite. "
+                        "Tente uma pergunta mais específica."
+                    ),
                     "details": None,
                 },
             },

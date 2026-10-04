@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.agent_models import ModelTurn, ToolCall
+from app.complexity_router import QuestionComplexity
 from app.errors import ProviderConfigurationError
 from app.gemini_adapter import GeminiToolCallingModel
 
@@ -122,3 +123,25 @@ def test_adapter_does_not_fallback_for_non_retryable_provider_failure() -> None:
         model.complete([{"role": "user", "content": "Conte os filmes"}], [])
 
     assert len(client.models.calls) == 1
+
+
+def test_complex_route_falls_back_to_light_model_once() -> None:
+    class RateLimitError(RuntimeError):
+        status_code = 429
+
+    client = FakeClient(
+        [RateLimitError(), SimpleNamespace(candidates=[], text="Resposta pelo modelo leve")]
+    )
+    model = GeminiToolCallingModel("test-key", client=client)
+
+    result = model.complete_for_complexity(
+        [{"role": "user", "content": "Compare os filmes"}],
+        [],
+        QuestionComplexity.COMPLEX,
+    )
+
+    assert result == ModelTurn(answer="Resposta pelo modelo leve")
+    assert [call["model"] for call in client.models.calls] == [
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+    ]

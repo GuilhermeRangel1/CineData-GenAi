@@ -12,7 +12,6 @@ from app.agent_models import ModelTurn, ToolCall, ToolDefinition
 from app.complexity_router import QuestionComplexity
 from app.errors import ProviderConfigurationError, ProviderTransientError
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -68,7 +67,10 @@ class GeminiToolCallingModel:
         fallback_model = self.fallback_model
         if fallback_model == primary_model and primary_model != self.model:
             fallback_model = self.model
-        models = (primary_model, *((fallback_model,) if fallback_model and fallback_model != primary_model else ()))
+        models = (
+            primary_model,
+            *((fallback_model,) if fallback_model and fallback_model != primary_model else ()),
+        )
         for index, selected_model in enumerate(models):
             try:
                 response = self.client.models.generate_content(
@@ -84,14 +86,14 @@ class GeminiToolCallingModel:
                 )
                 return result
             except Exception as exc:
-                can_fallback = index == 0 and self.fallback_model and self._is_transient_failure(exc)
+                can_fallback = index == 0 and fallback_model and self._is_transient_failure(exc)
                 if not can_fallback:
                     raise
                 logger.warning(
                     "Modelo Gemini %s indisponível (%s); tentando %s uma vez.",
                     selected_model,
                     exc.__class__.__name__,
-                    self.fallback_model,
+                    fallback_model,
                 )
 
         raise ProviderConfigurationError("Nenhum modelo Gemini está configurado.")

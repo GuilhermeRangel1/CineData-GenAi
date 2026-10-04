@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ConversationContext, ModelTurn, ToolCall, ToolDefinition
-from app.complexity_router import QuestionComplexity, classify_question
+from app.complexity_router import classify_question
 from app.errors import QueryExecutionError, QueryTimeoutError, SqlValidationError
 from app.evaluation_cases import (
     MANDATORY_EVALUATIONS,
@@ -20,8 +20,8 @@ from app.evaluation_cases import (
 from app.gold_database import EXPECTED_TABLES
 from app.insight_service import InsightService
 from app.question_guard import rejection_message
-from app.sql_executor import GoldQueryExecutor
 from app.semantic_search import SynopsisSearchIndex
+from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
 
 
@@ -109,9 +109,15 @@ _ANALYTICAL_INTENT = re.compile(
     re.IGNORECASE,
 )
 _DESCRIPTIVE_MOVIE_INTENT = re.compile(
-    r"\b(?:filmes?\s+(?:sobre|onde|que (?:tenham|falam))|"
-    r"(?:quero|procuro|encontre|mostre)\s+filmes?\s+(?:sobre|com|onde|que (?:tenham|falam)))\b",
+    r"\b(?:filmes?\b.{0,60}\b(?:sobre|onde|historia(?:s)?|sinopse(?:s)?|"
+    r"que\s+(?:tenham|tenha|tem|falam|fala|possua|possui))|"
+    r"(?:diga|cite|quero|procuro|encontre|mostre)\b.{0,25}\bfilmes?\b.{0,50}"
+    r"\b(?:sobre|onde|que\s+(?:tenham|tenha|tem|falam|fala|possua|possui)))\b",
     re.IGNORECASE,
+)
+_REVENUE_INTENT = re.compile(r"\b(?:receita|faturamento)\b", re.IGNORECASE)
+_SINGLE_MOVIE_EXAMPLE = re.compile(
+    r"\b(?:um|uma)\s+(?:exemplo\s+(?:de\s+)?)?filme\b", re.IGNORECASE
 )
 
 _DEFAULT_CHAT_RESPONSE = (
@@ -132,6 +138,26 @@ def _is_conversational_message(question: str) -> bool:
     """Identifies social messages that do not require a platform guide or SQL."""
 
     return bool(_CONVERSATIONAL_MESSAGE.fullmatch(_normalize_for_routing(question).strip()))
+
+
+def _requests_single_movie_example(question: str) -> bool:
+    """Detecta pedidos explícitos por somente um exemplo de filme."""
+
+    return bool(_SINGLE_MOVIE_EXAMPLE.search(_normalize_for_routing(question)))
+
+
+def _semantic_revenue_sql(movie_ids: Sequence[str]) -> str:
+    """Mede receita somente entre candidatos já definidos pela busca de sinopse."""
+
+    if not movie_ids:
+        raise ValueError("A busca híbrida precisa de ao menos um filme candidato.")
+    values = ", ".join("'" + movie_id.replace("'", "''") + "'" for movie_id in movie_ids)
+    return f"""SELECT m.sk_movie_id, m.titulo, f.receita_brl
+FROM dim_movies AS m
+JOIN fact_movies_performance AS f USING (sk_movie_id)
+WHERE m.sk_movie_id IN ({values})
+  AND f.receita_brl IS NOT NULL
+ORDER BY f.receita_brl DESC, m.titulo COLLATE NOCASE, m.sk_movie_id"""
 
 
 def _conversational_response(question: str) -> str:
@@ -279,7 +305,9 @@ def _platform_guide_answer(question: str) -> str | None:
             end = guide.find("Algumas ferramentas de gestão", start)
             selected.append(guide[start:end if end >= 0 else len(guide)].strip())
     if not selected:
-        if _PLATFORM_GENERAL_QUESTION.search(normalized) or _PLATFORM_OVERVIEW_QUESTION.search(normalized):
+        if _PLATFORM_GENERAL_QUESTION.search(normalized) or _PLATFORM_OVERVIEW_QUESTION.search(
+            normalized
+        ):
             return (
                 "O CineData é um espaço para descobrir filmes e conversar sobre cinema. "
                 "Você pode pesquisar o catálogo e usar filtros para encontrar filmes. "
@@ -643,7 +671,7 @@ def _is_unfiltered_actor_director_pair_question(question: str) -> bool:
         "a", "as", "ator", "atores", "com", "de", "do", "dos", "e", "em", "filme",
         "filmes", "frequente", "gold", "maior", "mais", "no", "numero", "o", "os",
         "qual", "quais", "sao", "dupla", "diretor", "diretores", "fizeram", "fez",
-        "em", "comum", "todo", "todos", "catalogo", "que", "atuaram", "trabalhou",
+        "comum", "todo", "todos", "catalogo", "que", "atuaram", "trabalhou",
         "junta",
     }
     return not any(
@@ -688,12 +716,10 @@ def _is_unfiltered_genre_movie_count_question(question: str) -> bool:
         return False
     if not re.search(r"\b(?:quantos|quantidade|numero|total|cada)\b", normalized):
         return False
-    if re.search(
+    return not re.search(
         r"\b(?:ano|anos|em\s+20\d{2}|lucro|margem|receita|orcamento|nota|imdb|tmdb|popularidade)\b",
         normalized,
-    ):
-        return False
-    return True
+    )
 
 
 def _top_company_movie_count_limit(question: str) -> int | None:
@@ -931,6 +957,7 @@ class AgentService:
         mixed_intent = platform_intent and analytical_intent
         complexity = classify_question(normalized_question, has_context=bool(context))
         semantic_matches = ()
+        semantic_revenue_ranking = False
         if platform_intent and not analytical_intent:
             if _is_vague_platform_question(normalized_question):
                 raise AgentClarification(
@@ -964,7 +991,10 @@ class AgentService:
             and not analytical_intent
             and _DESCRIPTIVE_MOVIE_INTENT.search(_normalize_for_routing(normalized_question))
         ):
-            matches = self.semantic_search.search(normalized_question)
+            matches = self.semantic_search.search(
+                normalized_question,
+                limit=1 if _requests_single_movie_example(normalized_question) else 5,
+            )
             rows = tuple(
                 {
                     "titulo": match.title,
@@ -987,7 +1017,10 @@ class AgentService:
                 unit="pontuação de relevância",
                 period="todo o Gold disponível",
                 population="filmes com sinopse disponível",
-                limitations="a busca usa termos de título e sinopse; não infere temas ausentes desses textos",
+                limitations=(
+                    "a busca usa termos de título e sinopse; "
+                    "não infere temas ausentes desses textos"
+                ),
                 source="semantic",
             )
         if (
@@ -1004,6 +1037,9 @@ class AgentService:
                     tool_calls=0,
                     source="semantic",
                 )
+        semantic_revenue_ranking = bool(
+            semantic_matches and _REVENUE_INTENT.search(normalized_question)
+        )
         evaluation_case = find_evaluation_case(normalized_question)
         ranking_limit = None if mixed_intent else _popularity_rank_limit(normalized_question)
         director_average = (
@@ -1041,7 +1077,11 @@ class AgentService:
         all_time_actor_ranking = False
         all_time_company_count = False
         period_override = None
-        if continuation_company_profit_year is not None:
+        if semantic_revenue_ranking:
+            evaluation_case = None
+            query = _semantic_revenue_sql([match.movie_id for match in semantic_matches])
+            model_seconds = 0.0
+        elif continuation_company_profit_year is not None:
             evaluation_case = get_evaluation_case("Q11")
             query = _top_company_profit_by_year_sql(continuation_company_profit_year)
             model_seconds = 0.0
@@ -1167,7 +1207,7 @@ class AgentService:
             query_started_at = time.perf_counter()
             result = self.executor.execute(validated)
             query_seconds = time.perf_counter() - query_started_at
-        except QueryTimeoutError as exc:
+        except QueryTimeoutError:
             logger.warning("Consulta GenAI excedeu o tempo máximo | SQL: %s", query)
             raise
         except (SqlValidationError, QueryExecutionError) as exc:
@@ -1199,17 +1239,23 @@ class AgentService:
                     "Não encontrei essa funcionalidade no guia atual do CineData."
                 )
             analytical_answer = (
-                "A consulta Gold não encontrou resultados; a tabela está vazia."
+                "Não encontrei filmes para esses critérios; a tabela está vazia."
                 if row_count == 0
                 else (
-                    f"A consulta Gold retornou {row_count} "
+                    f"Encontrei {row_count} "
                     f"{'resultado' if row_count == 1 else 'resultados'}; "
                     "os valores estão na tabela."
                 )
             )
             final_answer = (
                 f"Orientação sobre o CineData (guia da plataforma):\n{platform_answer}\n\n"
-                f"Análise dos filmes (Gold): {analytical_answer}"
+                f"Análise dos filmes: {analytical_answer}"
+            )
+        elif semantic_matches and semantic_revenue_ranking and row_count:
+            winner = result.rows[0]["titulo"]
+            final_answer = (
+                f"Entre os filmes encontrados pelas sinopses, {winner} tem a maior receita. "
+                "A tabela mostra todos os filmes encontrados com receita informada."
             )
         elif semantic_matches:
             titles = ", ".join(match.title for match in semantic_matches)
@@ -1231,7 +1277,8 @@ class AgentService:
             period = "todo o Gold disponível"
             population = "pessoas classificadas como Ator com créditos registrados no Gold"
             limitations = (
-                "a associação reflete os créditos existentes no Gold e não distingue elenco principal"
+                "a associação reflete os créditos existentes no Gold e "
+                "não distingue elenco principal"
             )
         if all_time_company_count:
             metric = "quantidade de filmes por produtora"
@@ -1240,6 +1287,15 @@ class AgentService:
             population = "produtoras com associações registradas em bridge_movie_company"
             limitations = (
                 "filmes associados a mais de uma produtora contam uma vez para cada produtora"
+            )
+        if semantic_revenue_ranking:
+            metric = "receita por filme"
+            unit = "BRL"
+            period = "filmes encontrados na busca"
+            population = "filmes encontrados nas sinopses com receita informada"
+            limitations = (
+                "a busca considera termos de títulos e sinopses; filmes sem receita "
+                "informada não aparecem no ranking"
             )
 
         logger.info(

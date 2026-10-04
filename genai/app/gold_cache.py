@@ -34,10 +34,13 @@ def prepare_gold_cache() -> None:
         raise ValueError(f"Gold de origem não corresponde ao manifesto: {source}")
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    if target.is_file() and target.stat().st_size == expected_size:
-        if _digest(target)[0] == expected_digest:
-            print(f"Gold local já atualizado: {target}", flush=True)
-            return
+    if (
+        target.is_file()
+        and target.stat().st_size == expected_size
+        and _digest(target)[0] == expected_digest
+    ):
+        print(f"Gold local já atualizado: {target}", flush=True)
+        return
 
     temporary_path: Path | None = None
     try:

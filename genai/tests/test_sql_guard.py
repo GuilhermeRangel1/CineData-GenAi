@@ -61,7 +61,9 @@ def test_validate_caps_explicit_limit() -> None:
 @pytest.mark.parametrize(
     "sql",
     (
-        "WITH RECURSIVE numbers(value) AS (SELECT 1 UNION ALL SELECT value + 1 FROM numbers) SELECT value FROM numbers",
+        "WITH RECURSIVE numbers(value) AS "
+        "(SELECT 1 UNION ALL SELECT value + 1 FROM numbers) "
+        "SELECT value FROM numbers",
         "SELECT left_table.id FROM dim_movies AS left_table CROSS JOIN dim_people AS right_table",
         "SELECT randomblob(1000000) FROM dim_movies",
     ),

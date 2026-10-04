@@ -8,10 +8,11 @@ from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ModelTurn, ToolDefinition
 
-
 logger = logging.getLogger(__name__)
 
-_CHARTABLE_CASES = frozenset({"Q01", "Q02", "Q03", "Q04", "Q05", "Q06", "Q07", "Q08", "Q10", "Q11", "Q12", "Q13", "Q14"})
+_CHARTABLE_CASES = frozenset(
+    {"Q01", "Q02", "Q03", "Q04", "Q05", "Q06", "Q07", "Q08", "Q10", "Q11", "Q12", "Q13", "Q14"}
+)
 _ID_COLUMN = re.compile(r"^(?:id|id_.*|.*_id)$", re.IGNORECASE)
 _INSIGHT_COLUMNS = {
     "Q01": ("titulo", "receita_brl"),
@@ -62,9 +63,10 @@ class InsightService:
                 "content": (
                     "Você é um analista de dados do CineData. Use exclusivamente os dados "
                     "recebidos nesta mensagem. Não faça consultas, não use conhecimento externo "
-                    "e não invente números. Os sinais calculados são evidências prioritárias: use-os "
-                    "para explicar diferenças relevantes, concentração, tendência, empates ou exceções. "
-                    "Não apenas repita a primeira linha ou descreva o gráfico. Responda em português "
+                    "e não invente números. Os sinais calculados são evidências prioritárias: "
+                    "use-os para explicar diferenças relevantes, concentração, tendência, "
+                    "empates ou exceções. Não apenas repita a primeira linha ou descreva "
+                    "o gráfico. Responda em português "
                     "com até três observações curtas, cada uma iniciada por '- '. Se os dados não "
                     "permitirem uma observação segura, responda somente com uma lista vazia."
                 ),
@@ -76,7 +78,9 @@ class InsightService:
                         "metrica": response.metric,
                         "unidade": response.unit,
                         "periodo": response.period,
-                        "colunas": [column for column in response.columns if not _ID_COLUMN.match(column)],
+                        "colunas": [
+                            column for column in response.columns if not _ID_COLUMN.match(column)
+                        ],
                         "linhas": rows,
                         "sinais_calculados": self._derived_signals(response, rows),
                     },
@@ -95,7 +99,8 @@ class InsightService:
     def _is_chartable(response: AgentResponse) -> bool:
         return bool(
             response.query_id in _CHARTABLE_CASES
-            or response.metric in {"quantidade de filmes por ator", "quantidade de filmes por produtora"}
+            or response.metric
+            in {"quantidade de filmes por ator", "quantidade de filmes por produtora"}
         )
 
     @staticmethod
@@ -107,9 +112,7 @@ class InsightService:
         ]
 
     @staticmethod
-    def _derived_signals(
-        response: AgentResponse, rows: list[dict[str, Any]]
-    ) -> dict[str, Any]:
+    def _derived_signals(response: AgentResponse, rows: list[dict[str, Any]]) -> dict[str, Any]:
         """Calcula comparações explícitas que o modelo pode explicar sem inferir valores."""
 
         label_column, value_column = _INSIGHT_COLUMNS.get(

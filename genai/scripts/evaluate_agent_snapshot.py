@@ -1,6 +1,7 @@
 """Reproduz o ciclo do agente para cada consulta de referência sem rede."""
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -45,7 +46,9 @@ def main() -> None:
         (ROOT / "docs" / "genai" / "reference-results.json").read_text(encoding="utf-8")
     )
     queries = load_reference_queries(ROOT / "docs" / "genai" / "reference-queries.sql")
-    database = GoldDatabase(ROOT / "data" / "cinerocket.db")
+    database = GoldDatabase(
+        Path(os.environ.get("GENAI_GOLD_DATABASE_PATH", ROOT / "data" / "cinerocket.db"))
+    )
     executor = GoldQueryExecutor(
         database,
         timeout_seconds=5.0,
