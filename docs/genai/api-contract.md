@@ -4,6 +4,12 @@ O serviço usa o prefixo `/api/v1`, expõe `GET /health` e recebe perguntas em
 `POST /api/v1/questions`. A API não recebe SQL, chaves de provedor, tokens de
 sessão ou configuração de modelo do navegador.
 
+`GET /api/v1/capabilities` retorna `{"analytics_available": true}` quando a
+chave Gemini está configurada, ou `false` quando faltam credenciais. Isso não
+valida a chave junto ao provedor. Sem chave, apenas perguntas sobre a plataforma
+podem responder; consultas a dados, inclusive SQL preparado e busca local,
+retornam `provider_not_configured`.
+
 ## Requisição
 
 ```json
@@ -66,7 +72,8 @@ guia da plataforma não requerem linhas; perguntas descritivas podem ter origem
 | `422` | `ambiguous_question` | Falta métrica, período ou detalhe essencial. |
 | `422` | `guardrail_rejected` | Pedido adversarial, SQL direto ou fora do escopo. |
 | `422` | `unsupported_question` | Função não documentada no CineData. |
-| `503` | configuração ou Gold | Provedor sem chave ou Gold indisponível. |
+| `503` | `provider_not_configured` | Chave Gemini ausente em uma consulta a dados. |
+| `503` | configuração ou Gold | Gold indisponível. |
 | `504` | `query_timeout` | Consulta excedeu o orçamento de execução. |
 | `502` | falha do agente | Erro não recuperável do provedor ou da orquestração. |
 

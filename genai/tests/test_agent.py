@@ -7,6 +7,8 @@ import pytest
 
 from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentService, AgentUnsupported
 from app.agent_models import ConversationContext, ModelTurn, ToolCall
+from app.errors import ProviderConfigurationError
+from app.evaluation_cases import MANDATORY_EVALUATIONS
 from app.gold_database import EXPECTED_TABLES, GoldDatabase
 from app.semantic_search import SynopsisSearchIndex
 from app.sql_executor import GoldQueryExecutor
@@ -180,6 +182,44 @@ class FakeModel:
     def complete(self, messages, tools):
         self.calls.append((list(messages), tuple(tools)))
         return self.turns.pop(0)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [case.question for case in MANDATORY_EVALUATIONS]
+    + ["Quais filmes falam de viagem no tempo?"],
+)
+def test_questions_about_movies_require_provider_even_with_local_routes(tmp_path, question) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel([])
+    agent = AgentService(
+        model,
+        GoldQueryExecutor(GoldDatabase(database_path)),
+        provider_configured=False,
+    )
+
+    with pytest.raises(ProviderConfigurationError):
+        agent.answer(question)
+
+    assert model.calls == []
+
+
+def test_platform_guide_remains_available_without_provider(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+    model = FakeModel([])
+    agent = AgentService(
+        model,
+        GoldQueryExecutor(GoldDatabase(database_path)),
+        provider_configured=False,
+    )
+
+    response = agent.answer("O que mostra a aba Analytics?")
+
+    assert response.source == "platform"
+    assert "Analytics" in response.answer
+    assert model.calls == []
 
 
 def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:

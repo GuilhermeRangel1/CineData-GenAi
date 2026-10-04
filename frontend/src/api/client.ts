@@ -234,6 +234,16 @@ type EventoGenAi =
   | { type: 'result'; data: RespostaGenAi }
   | { type: 'error'; status?: number; error?: { code?: string; message?: string } }
 
+export async function obterCapacidadesGenAi(): Promise<{ analytics_available: boolean }> {
+  const resposta = await fetch(`${genAiApiBaseUrl}/capabilities`, { cache: 'no-store' })
+  if (!resposta.ok) throw await obterErroDaResposta(resposta)
+  const dados = await resposta.json() as { analytics_available?: unknown }
+  if (typeof dados.analytics_available !== 'boolean') {
+    throw new ErroDaApi('Não foi possível verificar a configuração do chatbot.', 502)
+  }
+  return { analytics_available: dados.analytics_available }
+}
+
 export async function perguntarGenAi(
   pergunta: string,
   contexto: ContextoConversaGenAi[] = [],

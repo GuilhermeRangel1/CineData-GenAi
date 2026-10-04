@@ -17,6 +17,10 @@ local em `docs/platform-guide.md` e não consomem cota Gemini. Perguntas sobre
 filmes podem usar a busca local por títulos e sinopses; quando há uma métrica,
 ela é consultada no Gold após a validação SQL.
 
+A chave Gemini habilita todas as consultas a dados, inclusive as que usam SQL
+preparado ou busca local. Sua presença não significa que toda resposta faça
+uma chamada ao modelo.
+
 ## Segurança e disponibilidade
 
 - somente uma instrução `SELECT` sobre tabelas e colunas autorizadas;
@@ -31,7 +35,9 @@ ela é consultada no Gold após a validação SQL.
 
 ## API
 
-`GET /health` retorna o estado do processo. `POST /api/v1/questions` recebe:
+`GET /health` retorna o estado do processo. `GET /api/v1/capabilities` informa
+se as consultas analíticas estão disponíveis, sem expor a chave.
+`POST /api/v1/questions` recebe:
 
 ```json
 {
@@ -72,11 +78,11 @@ python -m uvicorn app.main:app --reload --port 8001
 O health check fica em `http://127.0.0.1:8001/health` e a API em
 `http://127.0.0.1:8001/api/v1/questions`.
 
-Para consultas analíticas reais, copie `.env.example` para `.env` e preencha
-`GENAI_GEMINI_API_KEY`. Sem chave, o serviço continua respondendo perguntas
-sobre a plataforma; consultas analíticas retornam erro de configuração do
-provedor. `GENAI_GEMINI_MODEL` e `GENAI_GEMINI_FALLBACK_MODEL` definem os
-modelos principal e alternativo.
+Para consultar dados de filmes, copie `.env.example` para `.env` e preencha
+`GENAI_GEMINI_API_KEY`. A chave é exigida também para consultas SQL preparadas
+e busca em sinopses; a orientação sobre a plataforma continua disponível sem
+ela. `GENAI_GEMINI_MODEL` e `GENAI_GEMINI_FALLBACK_MODEL` definem os modelos
+principal e alternativo.
 
 ## Docker Compose e testes
 

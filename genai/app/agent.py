@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ConversationContext, ModelTurn, ToolCall, ToolDefinition
 from app.complexity_router import classify_question
-from app.errors import QueryExecutionError, QueryTimeoutError, SqlValidationError
+from app.errors import ProviderConfigurationError, QueryExecutionError, QueryTimeoutError, SqlValidationError
 from app.evaluation_cases import (
     MANDATORY_EVALUATIONS,
     find_evaluation_case,
@@ -938,12 +938,14 @@ class AgentService:
         max_rows: int = 100,
         insight_service: InsightService | None = None,
         semantic_search: SynopsisSearchIndex | None = None,
+        provider_configured: bool = True,
     ):
         self.model = model
         self.executor = executor
         self.max_rows = max_rows
         self.insight_service = insight_service
         self.semantic_search = semantic_search
+        self.provider_configured = provider_configured
 
     def answer(
         self,
@@ -998,6 +1000,10 @@ class AgentService:
                 truncated=False,
                 tool_calls=0,
                 source="platform",
+            )
+        if not self.provider_configured:
+            raise ProviderConfigurationError(
+                "Configure a chave Gemini para consultar os dados dos filmes."
             )
         if (
             self.semantic_search is not None

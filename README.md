@@ -30,6 +30,11 @@ acione a ferramenta `run_sql`. Perguntas descritivas podem procurar termos em
 títulos e sinopses; se também pedirem uma métrica, os filmes encontrados servem
 de recorte para uma consulta analítica.
 
+A chave Gemini habilita as consultas de dados do chatbot. Casos reconhecidos
+podem executar SQL preparado sem chamar o modelo a cada resposta; perguntas
+livres usam Gemini para interpretar a solicitação. A interface informa quando
+a chave ainda não foi configurada.
+
 ```mermaid
 flowchart TB
     Q[Pergunta em português] --> G[Guardrails]
@@ -354,7 +359,7 @@ docker-compose.yml         Serviços frontend, backend e GenAI
 
 - Docker Desktop com Docker Compose v2;
 - Git e Git LFS somente para clonar e obter o arquivo Gold;
-- chave Gemini apenas para perguntas analíticas.
+- chave Gemini para todas as consultas de dados no chatbot.
 
 O Git LFS é necessário uma única vez porque o banco Gold tem cerca de 722 MB e
 é montado pelo host como arquivo somente leitura. Depois do clone, baixe o
@@ -405,8 +410,11 @@ recomeçar o banco operacional, remova `data/rocketlab.db`; não remova o Gold.
 
 ### Modelos Gemini
 
-Não é preciso criar `genai/.env` para iniciar a interface. Sem chave, consultas
-analíticas no chatbot informam que o provedor precisa ser configurado.
+Não é preciso criar `genai/.env` para iniciar o CineData. Sem chave, o chatbot
+mostra um aviso de configuração, mantém a orientação sobre o uso do site e
+bloqueia todas as consultas a dados de filmes. Isso inclui as perguntas da
+Ajuda que possuem SQL preparado: a execução local continua rápida e estável,
+mas só fica disponível depois da configuração da chave.
 
 Para habilitar consultas analíticas, copie o arquivo de exemplo e preencha
 somente a chave:
@@ -425,8 +433,15 @@ GENAI_GEMINI_COMPLEX_MODEL=gemini-3.5-flash
 GENAI_GEMINI_FALLBACK_MODEL=gemini-3.5-flash
 ```
 
-Sem a chave, as demais áreas do CineData continuam disponíveis; as consultas
-analíticas retornam um erro de configuração do provedor.
+Se o Compose já estiver em execução, recrie o serviço após editar `genai/.env`
+e atualize a página:
+
+```powershell
+docker compose up -d --force-recreate genai
+```
+
+Sem a chave, as demais áreas do CineData continuam disponíveis; pedidos de
+dados enviados diretamente à API retornam `provider_not_configured`.
 
 ## Execução sem Docker
 
@@ -466,14 +481,14 @@ Vite para encaminhar o GenAI local.
 ## Configuração por ambiente
 
 Para executar a demonstração com Docker Compose, o único valor que a pessoa
-precisa fornecer é `GENAI_GEMINI_API_KEY` em `genai/.env`, caso queira usar as
-consultas em linguagem natural. O Compose já define banco, rotas, conta de
+precisa fornecer para usar o chatbot analítico é `GENAI_GEMINI_API_KEY` em
+`genai/.env`. O Compose já define banco, rotas, conta de
 demonstração e endereços do frontend; não é necessário criar `backend/.env` nem
 `frontend/.env` nesse fluxo.
 
 | Variável | Quando configurar |
 | --- | --- |
-| `GENAI_GEMINI_API_KEY` | Necessária apenas para consultas analíticas reais. |
+| `GENAI_GEMINI_API_KEY` | Necessária para todas as consultas de dados do chatbot, mesmo as preparadas. |
 | `GENAI_GEMINI_MODEL`, `GENAI_GEMINI_COMPLEX_MODEL`, `GENAI_GEMINI_FALLBACK_MODEL` | Opcional. Use somente para trocar os modelos padrão. |
 | `TMDB_API_TOKEN` | Opcional. Habilita a busca administrativa no TMDB. |
 | `JWT_SECRET_KEY`, `INITIAL_ADMIN_*` | Somente ao mudar a configuração local padrão ou publicar o projeto. |

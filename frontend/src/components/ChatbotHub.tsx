@@ -4,6 +4,7 @@ import {
   criarConversa,
   ErroDaApi,
   listarConversas,
+  obterCapacidadesGenAi,
   obterConversa,
   perguntarGenAi,
   removerConversa,
@@ -142,11 +143,22 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
   const [abrindoConversa, setAbrindoConversa] = useState(false)
   const [erroHistorico, setErroHistorico] = useState('')
   const [versaoHistorico, setVersaoHistorico] = useState(0)
+  const [analiseDisponivel, setAnaliseDisponivel] = useState<boolean | null>(null)
   const conversa = useRef<HTMLDivElement>(null)
   const entrada = useRef<HTMLTextAreaElement>(null)
   const botaoAjuda = useRef<HTMLButtonElement>(null)
   const idConversa = useRef(criarIdConversa())
   const estado: RobotMood = carregando ? 'thinking' : gesto ?? (erro ? 'error' : focado || texto ? 'listening' : 'idle')
+
+  useEffect(() => {
+    let active = true
+    void obterCapacidadesGenAi().then((capacidades) => {
+      if (active) setAnaliseDisponivel(capacidades.analytics_available)
+    }).catch(() => {
+      // A API da pergunta ainda informa erros caso a verificação falhe.
+    })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -238,6 +250,10 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
       if (falha instanceof ErroDaApi && falha.codigo === 'ambiguous_question') {
         setErro(`Preciso de um detalhe para continuar: ${falha.message}`)
       } else if (falha instanceof ErroDaApi && falha.codigo === 'guardrail_rejected') {
+        setErro(falha.message)
+        setPerguntaFalhou('')
+      } else if (falha instanceof ErroDaApi && falha.codigo === 'provider_not_configured') {
+        setAnaliseDisponivel(false)
         setErro(falha.message)
         setPerguntaFalhou('')
       } else {
@@ -384,6 +400,12 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
               >Ajuda</button>
             </div>
           </div>
+          {analiseDisponivel === false && (
+            <div className="chatbot-setup-notice" aria-label="Configuração do chatbot">
+              <strong>Consultas aos filmes precisam de uma chave Gemini.</strong>
+              <span>Preencha <code>GENAI_GEMINI_API_KEY</code> em <code>genai/.env</code> e reinicie o serviço GenAI. A ajuda sobre o CineData continua disponível.</span>
+            </div>
+          )}
           {ajudaAberta && (
             <div
               className="chatbot-help-panel"
@@ -401,7 +423,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
                 <div className={`chatbot-help-group chatbot-help-group--${grupo.tema}`} key={grupo.titulo}>
                   <h3>{grupo.titulo}</h3>
                   {grupo.perguntas.map((pergunta) => (
-                    <button key={pergunta} type="button" disabled={carregando} onClick={() => void enviar(pergunta)}>
+                    <button key={pergunta} type="button" disabled={carregando || (analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin')} title={analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin' ? 'Configure a chave Gemini para consultar os filmes' : undefined} onClick={() => void enviar(pergunta)}>
                       {pergunta}<span aria-hidden="true">↗</span>
                     </button>
                   ))}
@@ -422,7 +444,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
               <h3>O que vamos descobrir?</h3>
               <div className="chatbot-suggestions" aria-label="Sugestões para começar">
                 {SUGESTOES.map((sugestao, index) => (
-                  <button key={sugestao} type="button" aria-label={sugestao} onClick={() => void enviar(sugestao)} disabled={carregando}>
+                  <button key={sugestao} type="button" aria-label={sugestao} onClick={() => void enviar(sugestao)} disabled={carregando || analiseDisponivel === false} title={analiseDisponivel === false ? 'Configure a chave Gemini para consultar os filmes' : undefined}>
                     <span className="chatbot-suggestion-number">0{index + 1}</span><span>{sugestao}</span><span className="chatbot-suggestion-arrow" aria-hidden="true">↗</span>
                   </button>
                 ))}

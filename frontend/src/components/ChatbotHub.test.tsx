@@ -3,7 +3,42 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatbotHub } from './ChatbotHub'
 
+function stubFetchWithCapabilities(fetcher: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) {
+  vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith('/capabilities')) {
+      return Promise.resolve(new Response(JSON.stringify({ analytics_available: true })))
+    }
+    return fetcher(input, init)
+  })
+}
+
 describe('ChatbotHub GenAI', () => {
+  it('avisa sobre a chave ausente e bloqueia sugestões de dados, preservando a ajuda da plataforma', async () => {
+    const fetcher = vi.fn((input: RequestInfo | URL) => Promise.resolve(new Response(JSON.stringify(
+      String(input).endsWith('/capabilities')
+        ? { analytics_available: false }
+        : {
+            status: 'success', answer: 'O chatbot ajuda a explorar o CineData.', rows: [], insights: [],
+            metadata: { source: 'platform', columns: [], row_count: 0, truncated: false, tool_calls: 0 },
+          },
+    ))))
+    vi.stubGlobal('fetch', fetcher)
+    const user = userEvent.setup()
+
+    render(<ChatbotHub />)
+    expect(await screen.findByText('Consultas aos filmes precisam de uma chave Gemini.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Quais são os 10 filmes com maior receita em BRL?' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Ajuda' }))
+    expect(screen.getByRole('button', { name: 'Quantos filmes existem associados a cada gênero?' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'O que o chatbot faz?' })).toBeEnabled()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'O que o chatbot faz?' }))
+    expect(await screen.findByText('O chatbot ajuda a explorar o CineData.')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
   it('envia a pergunta ao módulo GenAI e exibe os resultados sem IDs técnicos', async () => {
     const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
       status: 'success',
@@ -23,7 +58,7 @@ describe('ChatbotHub GenAI', () => {
         tool_calls: 1,
       },
     }))))
-    vi.stubGlobal('fetch', fetcher)
+    stubFetchWithCapabilities(fetcher)
     const user = userEvent.setup()
 
     render(<ChatbotHub />)
@@ -53,7 +88,7 @@ describe('ChatbotHub GenAI', () => {
       status: 'clarification',
       error: { code: 'ambiguous_question', message: 'Informe o período.', details: null },
     }), { status: 422 })))
-    vi.stubGlobal('fetch', fetcher)
+    stubFetchWithCapabilities(fetcher)
     const user = userEvent.setup()
 
     render(<ChatbotHub />)
@@ -73,7 +108,7 @@ describe('ChatbotHub GenAI', () => {
         rows: [{ titulo: 'Filme A' }],
         metadata: { columns: ['titulo'], row_count: 1, truncated: false, tool_calls: 1 },
       })))
-    vi.stubGlobal('fetch', fetcher)
+    stubFetchWithCapabilities(fetcher)
     const user = userEvent.setup()
     const question = 'Quais filmes existem?'
 
@@ -93,7 +128,7 @@ describe('ChatbotHub GenAI', () => {
   it('acompanha digitação, consulta e resposta sem duplicar o envio pelo teclado', async () => {
     let responder!: (response: Response) => void
     const fetcher = vi.fn(() => new Promise<Response>((resolve) => { responder = resolve }))
-    vi.stubGlobal('fetch', fetcher)
+    stubFetchWithCapabilities(fetcher)
     const user = userEvent.setup()
     render(<ChatbotHub />)
     const input = screen.getByLabelText('Escreva sua mensagem')
@@ -122,7 +157,7 @@ describe('ChatbotHub GenAI', () => {
 
   it('permite acenar para o robô sem consultar o provedor', async () => {
     const fetcher = vi.fn()
-    vi.stubGlobal('fetch', fetcher)
+    stubFetchWithCapabilities(fetcher)
     const user = userEvent.setup()
     render(<ChatbotHub />)
     await user.click(screen.getByRole('button', { name: 'Acenar para o robô' }))
@@ -141,7 +176,7 @@ describe('ChatbotHub GenAI', () => {
         status: 'success', answer: 'Dados de 2020.', rows: [], insights: [],
         metadata: { columns: [], row_count: 0, truncated: false, tool_calls: 1 },
       })))
-    vi.stubGlobal('fetch', fetcher)
+    stubFetchWithCapabilities(fetcher)
     const user = userEvent.setup()
     render(<ChatbotHub />)
 

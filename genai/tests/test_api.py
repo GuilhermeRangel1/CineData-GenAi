@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from app.agent import AgentClarification, AgentGuardrail, AgentUnsupported
 from app.agent_models import AgentResponse
 from app.api import get_agent_service
-from app.errors import QueryTimeoutError
+from app.config import get_settings
+from app.errors import ProviderConfigurationError, QueryTimeoutError
 from app.main import app
 
 
@@ -16,6 +17,37 @@ def test_health_returns_process_status(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_capabilities_reports_missing_key_without_exposing_secrets(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setenv("GENAI_GEMINI_API_KEY", "")
+    get_settings.cache_clear()
+    try:
+        response = client.get("/api/v1/capabilities")
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"analytics_available": False}
+
+
+def test_missing_key_returns_setup_error_for_rest_and_stream(client: TestClient) -> None:
+    class UnconfiguredAgent:
+        def answer(self, question: str, context=()) -> AgentResponse:
+            raise ProviderConfigurationError("missing key")
+
+    app.dependency_overrides[get_agent_service] = lambda: UnconfiguredAgent()
+    try:
+        rest = client.post("/api/v1/questions", json={"question": "Quantos filmes por gênero?"})
+        stream = client.post("/api/v1/questions/stream", json={"question": "Quantos filmes por gênero?"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert rest.status_code == 503
+    assert rest.json()["error"]["code"] == "provider_not_configured"
+    events = [json.loads(line) for line in stream.text.splitlines()]
+    assert events[-1]["type"] == "error"
+    assert events[-1]["error"]["code"] == "provider_not_configured"
 
 
 def test_frontend_origin_is_allowed_for_question_preflight(client: TestClient) -> None:

@@ -24,6 +24,10 @@ from app.sql_executor import GoldQueryExecutor
 router = APIRouter()
 v1_router = APIRouter()
 logger = logging.getLogger(__name__)
+PROVIDER_SETUP_MESSAGE = (
+    "Para consultar os dados dos filmes, configure GENAI_GEMINI_API_KEY "
+    "em genai/.env e reinicie o serviço GenAI."
+)
 
 
 class ConversationTurn(BaseModel):
@@ -88,7 +92,7 @@ def _stream_event(event_type: str, **payload: Any) -> str:
 
 
 class _UnconfiguredModel:
-    """Allows local guide answers without a provider key."""
+    """Permite apenas respostas do guia local quando não há chave Gemini."""
 
     def complete(self, messages, tools):
         raise ProviderConfigurationError("A chave da Gemini API não foi configurada.")
@@ -99,7 +103,7 @@ def get_agent_service() -> AgentService:
     """Reutiliza o cliente do provedor e seu pool de conexões entre perguntas."""
 
     settings = get_settings()
-    api_key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None
+    api_key = _configured_api_key()
     if api_key:
         model = GeminiToolCallingModel(
             api_key,
@@ -121,7 +125,15 @@ def get_agent_service() -> AgentService:
         executor,
         insight_service=InsightService(model),
         semantic_search=SynopsisSearchIndex(database),
+        provider_configured=bool(api_key),
     )
+
+
+def _configured_api_key() -> str | None:
+    secret = get_settings().gemini_api_key
+    if secret is None:
+        return None
+    return secret.get_secret_value().strip() or None
 
 
 @lru_cache(maxsize=1)
@@ -137,6 +149,13 @@ def health() -> dict[str, str]:
     """Indica que o processo HTTP está ativo."""
 
     return {"status": "ok"}
+
+
+@v1_router.get("/capabilities", tags=["operational"])
+def capabilities() -> dict[str, bool]:
+    """Expõe apenas a disponibilidade das consultas, nunca a chave."""
+
+    return {"analytics_available": _configured_api_key() is not None}
 
 
 @v1_router.post("/questions", response_model=QuestionResponse, tags=["questions"])
@@ -157,7 +176,11 @@ def answer_question(
         for turn in payload.context
     )
     cache_key = None
-    if payload.conversation_id and isinstance(service, AgentService):
+    if (
+        payload.conversation_id
+        and isinstance(service, AgentService)
+        and service.provider_configured
+    ):
         settings = get_settings()
         try:
             cache_key = make_cache_key(
@@ -177,10 +200,18 @@ def answer_question(
         raise HTTPException(
             status_code=503, detail="A base de filmes não está disponível."
         ) from exc
-    except ProviderConfigurationError as exc:
-        raise HTTPException(
-            status_code=503, detail="O provedor GenAI não está configurado."
-        ) from exc
+    except ProviderConfigurationError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "error": {
+                    "code": "provider_not_configured",
+                    "message": PROVIDER_SETUP_MESSAGE,
+                    "details": None,
+                },
+            },
+        )
     except AgentClarification as exc:
         return JSONResponse(
             status_code=422,
