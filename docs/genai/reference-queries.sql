@@ -65,14 +65,16 @@ WHERE f.nota_tmdb IS NOT NULL AND f.qtd_tmdb > 0
 ORDER BY divergencia DESC, m.titulo COLLATE NOCASE, m.sk_movie_id
 LIMIT 10;
 
--- Q06: média IMDb por ano; observação válida exige ao menos um voto.
+-- Q06: média IMDb por ano até a data atual; observação válida exige ao menos um voto.
 SELECT m.ano_lancamento, COUNT(*) AS filmes_validos,
        AVG(f.nota_imdb) AS nota_imdb_media
 FROM dim_movies AS m
 JOIN fact_movies_performance AS f USING (sk_movie_id)
-WHERE f.nota_imdb IS NOT NULL AND f.qtd_imdb > 0
+WHERE m.ano_lancamento IS NOT NULL
+  AND m.data_lancamento <= date('now')
+  AND f.nota_imdb IS NOT NULL AND f.qtd_imdb > 0
 GROUP BY m.ano_lancamento
-ORDER BY m.ano_lancamento;
+ORDER BY m.ano_lancamento ASC;
 
 -- Q07: ator(es) com mais filmes na janela móvel; retorna todos os empatados.
 WITH recent_movies AS MATERIALIZED (

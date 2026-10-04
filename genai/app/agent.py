@@ -860,6 +860,19 @@ GROUP BY g.sk_genre_id, g.nome_genero
 ORDER BY total_filmes DESC, g.nome_genero COLLATE NOCASE, g.sk_genre_id"""
 
 
+_IMDB_AVERAGE_BY_YEAR_SQL = """SELECT m.ano_lancamento,
+       COUNT(*) AS filmes_validos,
+       AVG(f.nota_imdb) AS nota_imdb_media
+FROM dim_movies AS m
+JOIN fact_movies_performance AS f USING (sk_movie_id)
+WHERE m.ano_lancamento IS NOT NULL
+  AND m.data_lancamento <= date('now')
+  AND f.nota_imdb IS NOT NULL
+  AND f.qtd_imdb > 0
+GROUP BY m.ano_lancamento
+ORDER BY m.ano_lancamento ASC"""
+
+
 def _top_company_profit_by_year_sql(year: int) -> str:
     """Mantém a consulta de Q11 pequena quando uma continuação troca só o ano."""
 
@@ -1041,6 +1054,11 @@ class AgentService:
             semantic_matches and _REVENUE_INTENT.search(normalized_question)
         )
         evaluation_case = find_evaluation_case(normalized_question)
+        imdb_average_by_year = (
+            not mixed_intent
+            and evaluation_case is not None
+            and evaluation_case.query_id == "Q06"
+        )
         ranking_limit = None if mixed_intent else _popularity_rank_limit(normalized_question)
         director_average = (
             not mixed_intent
@@ -1097,6 +1115,9 @@ class AgentService:
         elif genre_movie_count:
             evaluation_case = get_evaluation_case("Q10")
             query = _GENRE_MOVIE_COUNT_SQL
+            model_seconds = 0.0
+        elif imdb_average_by_year:
+            query = _IMDB_AVERAGE_BY_YEAR_SQL
             model_seconds = 0.0
         elif top_company_count is not None:
             evaluation_case = None

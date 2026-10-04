@@ -17,7 +17,7 @@ ordenações internas diferentes e ainda produzir o mesmo resultado correto.
 | Q03 | Maiores margens | Q03 | `sk_movie_id`, `titulo`, `margem` |
 | Q04 | Top 5 por popularidade | Q04 | `sk_movie_id`, `titulo`, `popularidade` |
 | Q05 | Divergência TMDB/IMDb | Q05 | `sk_movie_id`, `titulo`, `divergencia`, notas e votos |
-| Q06 | IMDb médio por ano | Q06 | `ano_lancamento`, `filmes_validos`, `nota_imdb_media` |
+| Q06 | IMDb médio por ano até a data atual | Q06 | `ano_lancamento`, `filmes_validos`, `nota_imdb_media` |
 | Q07 | Ator em mais filmes na janela | Q07 | pessoa, nome e `total_filmes` |
 | Q08 | Diretores com maior média IMDb | Q08 | pessoa, filmes válidos e `nota_media` |
 | Q09 | Dupla ator-diretor | Q09 | `ator`, `diretor`, `filmes_em_comum` |

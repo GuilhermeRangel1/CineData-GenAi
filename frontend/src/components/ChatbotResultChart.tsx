@@ -222,12 +222,16 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
   const [erroExportacao, setErroExportacao] = useState('')
   if (!spec) return null
   const specForExport = spec
+  const maxPontos = spec.tipo === 'linha' ? 16 : 8
   const pontos = rows.flatMap((row) => {
     const valor = numero(row[spec.colunaValor])
     if (valor === null || row[spec.colunaRotulo] === undefined || row[spec.colunaRotulo] === null) return []
     return [{ rotulo: formatarCelula(spec.colunaRotulo, row[spec.colunaRotulo]), valor }]
-  }).slice(0, 8)
+  }).slice(0, maxPontos)
   if (pontos.length < 2) return null
+  const pontosOrdenados = spec.tipo === 'linha' && spec.colunaRotulo === 'ano_lancamento'
+    ? [...pontos].sort((esquerda, direita) => Number(esquerda.rotulo) - Number(direita.rotulo))
+    : pontos
 
   async function exportarPng() {
     if (!chart.current) return
@@ -248,9 +252,9 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
       <div><strong>{spec.titulo}</strong><button className="chatbot-export-png" type="button" onClick={() => void exportarPng()} disabled={exportando}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 13v2.5c0 .55.45 1 1 1h11c.55 0 1-.45 1-1V13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>{exportando ? 'Gerando…' : 'Baixar PNG'}</button></div>
       <small>{rotuloColuna(spec.colunaValor, metadata)}</small>
     </figcaption>
-    {spec.tipo === 'linha' && <GraficoDeLinha pontos={pontos} spec={spec} />}
-    {spec.tipo === 'barras' && <GraficoDeBarras pontos={pontos} spec={spec} />}
-    {spec.tipo === 'rosca' && <GraficoDeRosca pontos={pontos} spec={spec} />}
+    {spec.tipo === 'linha' && <GraficoDeLinha pontos={pontosOrdenados} spec={spec} />}
+    {spec.tipo === 'barras' && <GraficoDeBarras pontos={pontosOrdenados} spec={spec} />}
+    {spec.tipo === 'rosca' && <GraficoDeRosca pontos={pontosOrdenados} spec={spec} />}
     {spec.tipo === 'dispersao' && <GraficoDeDispersao rows={rows} spec={spec} metadata={metadata} />}
     {rows.length > pontos.length && <p>O gráfico mostra os primeiros {pontos.length} resultados; a tabela contém a lista completa.</p>}
     {erroExportacao && <p className="chatbot-chart-export-error" role="alert">{erroExportacao}</p>}

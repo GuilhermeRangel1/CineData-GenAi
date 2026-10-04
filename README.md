@@ -124,7 +124,7 @@ As respostas informam métrica, unidade, período, população válida e limita�
 | Q03 | Quais filmes têm as maiores margens de lucro? | Margem é lucro dividido pela receita; receita precisa ser positiva. |
 | Q04 | Quais são os 5 filmes mais populares? | Popularidade é uma pontuação do catálogo, não contagem de visualizações. |
 | Q05 | Em quais filmes há maior divergência entre TMDB e IMDb? | Compara notas válidas e mostra também os votos para contextualizar a diferença. |
-| Q06 | Qual é a nota IMDb média por ano de lançamento? | Média simples dos filmes com nota e votos válidos em cada ano. |
+| Q06 | Qual é a nota IMDb média por ano de lançamento? | Média simples dos filmes lançados até a data atual, com nota e votos válidos, em ordem cronológica. |
 | Q07 | Qual ator participou de mais filmes nos últimos cinco anos? | Conta filmes distintos na janela móvel de lançamento. |
 | Q08 | Quais diretores têm a maior nota IMDb média? | Exige pelo menos cinco filmes com nota e votos válidos por diretor. |
 | Q09 | Qual dupla de ator e diretor trabalhou junta em mais filmes? | Conta filmes em comum nos créditos disponíveis. |

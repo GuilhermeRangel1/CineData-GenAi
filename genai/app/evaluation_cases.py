@@ -83,9 +83,14 @@ MANDATORY_EVALUATIONS: tuple[EvaluationCase, ...] = (
         ("ano_lancamento", "filmes_validos", "nota_imdb_media"),
         metric="média IMDb por ano de lançamento",
         unit="pontuação em escala de 0 a 10",
-        period="anos presentes no Gold",
-        population="filmes com nota_imdb não nula e qtd_imdb positiva",
-        limitations="média simples por filme e quantidade de filmes válidos informada por ano",
+        period="do primeiro lançamento disponível até a data atual",
+        population=(
+            "filmes lançados até a data atual com nota_imdb não nula e qtd_imdb positiva"
+        ),
+        limitations=(
+            "média simples por filme; lançamentos futuros são excluídos e a quantidade "
+            "de filmes válidos é informada por ano"
+        ),
     ),
     EvaluationCase(
         "Q07",

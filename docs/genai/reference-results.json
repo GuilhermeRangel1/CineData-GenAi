@@ -375,7 +375,7 @@
         "filmes_validos",
         "nota_imdb_media"
       ],
-      "row_count": 13,
+      "row_count": 11,
       "rows": [
         {
           "ano_lancamento": 2016,
@@ -431,16 +431,6 @@
           "ano_lancamento": 2026,
           "filmes_validos": 1,
           "nota_imdb_media": 7.5
-        },
-        {
-          "ano_lancamento": 2027,
-          "filmes_validos": 2,
-          "nota_imdb_media": 6.4
-        },
-        {
-          "ano_lancamento": 2029,
-          "filmes_validos": 1,
-          "nota_imdb_media": 3.8
         }
       ]
     },

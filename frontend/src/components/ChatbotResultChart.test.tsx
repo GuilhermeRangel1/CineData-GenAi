@@ -57,4 +57,23 @@ describe('ChatbotResultChart', () => {
     expect(temGraficoDeResultado(genericMetadata, rows)).toBe(true)
     expect(screen.getByRole('img', { name: /Indice personalizado por Categoria/i })).toBeInTheDocument()
   })
+
+  it('organiza a série anual em ordem cronológica mesmo se a resposta chegar invertida', () => {
+    const yearlyMetadata = {
+      ...metadata,
+      query_id: 'Q06',
+      columns: ['ano_lancamento', 'filmes_validos', 'nota_imdb_media'],
+    }
+    const rows = [
+      { ano_lancamento: 2026, filmes_validos: 12, nota_imdb_media: 7.3 },
+      { ano_lancamento: 2024, filmes_validos: 18, nota_imdb_media: 7.1 },
+      { ano_lancamento: 2025, filmes_validos: 15, nota_imdb_media: 7.2 },
+    ]
+
+    const { container } = render(<ChatbotResultChart metadata={yearlyMetadata} rows={rows} />)
+
+    expect(
+      [...container.querySelectorAll('.chatbot-chart-x-label')].map((label) => label.textContent),
+    ).toEqual(['2024', '2025', '2026'])
+  })
 })

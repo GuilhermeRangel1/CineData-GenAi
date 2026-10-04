@@ -211,6 +211,41 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     assert "nunca como a quantidade qtd_imdb" in model.calls[0][0][0]["content"]
 
 
+def test_imdb_average_by_year_excludes_future_releases_and_is_chronological(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    today = date.today()
+    past_year = today.year - 2
+    future_year = today.year + 2
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE dim_movies (sk_movie_id TEXT, ano_lancamento INTEGER, data_lancamento TEXT)"
+        )
+        connection.execute(
+            "CREATE TABLE fact_movies_performance (sk_movie_id TEXT, nota_imdb REAL, qtd_imdb INTEGER)"
+        )
+        connection.executemany(
+            "INSERT INTO dim_movies VALUES (?, ?, ?)",
+            (
+                ("past", past_year, f"{past_year}-06-15"),
+                ("current", today.year, today.isoformat()),
+                ("future", future_year, f"{future_year}-01-01"),
+            ),
+        )
+        connection.executemany(
+            "INSERT INTO fact_movies_performance VALUES (?, ?, ?)",
+            (("past", 7.0, 10), ("current", 8.0, 20), ("future", 9.0, 30)),
+        )
+    model = FakeModel([])
+
+    response = AgentService(
+        model, GoldQueryExecutor(GoldDatabase(database_path))
+    ).answer("Qual é a nota IMDb média por ano de lançamento?")
+
+    assert [row["ano_lancamento"] for row in response.rows] == [past_year, today.year]
+    assert response.query_id == "Q06"
+    assert model.calls == []
+
+
 def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_gold_fixture(database_path)
