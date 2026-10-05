@@ -25,17 +25,18 @@ O chatbot é o núcleo desta entrega. Ele recebe uma pergunta em português,
 identifica se ela pede uma métrica, um ranking, uma comparação ou filmes por
 descrição e retorna a evidência correspondente.
 
-O agente pede ao Gemini que gere SQL pela ferramenta `run_sql` nas perguntas
-livres e em parte dos casos da avaliação. Algumas rotas frequentes ainda usam
-SQL preparado para reduzir a latência. Perguntas descritivas podem procurar
+O agente pede ao Gemini que gere SQL pela ferramenta `run_sql` nas 14 perguntas
+canônicas da avaliação e nas perguntas analíticas livres. Algumas variações
+reconhecidas ainda usam SQL preparado. Perguntas descritivas podem procurar
 termos em títulos e sinopses; se também pedirem uma métrica, os filmes
 encontrados servem de recorte para uma consulta analítica.
 
-A chave Gemini habilita as consultas de dados do chatbot. Casos reconhecidos
-podem executar SQL preparado sem chamar o modelo a cada resposta. Nas perguntas
-de divergência de notas, média IMDb por ano e filmes por gênero, o modelo gera
-a consulta primeiro; uma consulta de referência confere o resultado e recupera
-falhas. A interface informa quando a chave ainda não foi configurada.
+A chave Gemini habilita as consultas de dados do chatbot. Nas nove perguntas
+canônicas com regras de agregação mais sensíveis, uma consulta de referência
+confere as linhas geradas pelo modelo e recupera falhas. Ela começa em paralelo
+à geração do SQL, sem acrescentar sua duração integral à espera. As demais
+perguntas canônicas também passam pelo modelo. A interface informa quando a
+chave ainda não foi configurada.
 
 ```mermaid
 flowchart TB
@@ -44,8 +45,10 @@ flowchart TB
     R -->|Filmes por descrição| S[Busca em títulos e sinopses]
     R -->|Métricas e rankings| A[Agente analítico]
     S -.->|Se também pedir uma métrica| A
-    A --> M[Gemini com run_sql ou rota preparada]
+    A --> M[Gemini com run_sql nas Q01-Q14]
+    A --> P[SQL local em variações reconhecidas]
     M --> V[Validação e execução somente leitura]
+    P --> V
     S --> F[Resposta no chatbot]
     V --> F
     F --> O[Texto, tabela, gráfico e insights]
@@ -133,12 +136,12 @@ As respostas informam métrica, unidade, período, população válida e limita�
 | Q05 | Em quais filmes há maior divergência entre TMDB e IMDb? | Compara notas válidas e mostra também os votos para contextualizar a diferença. |
 | Q06 | Qual é a nota IMDb média por ano de lançamento? | Média simples dos filmes lançados até a data atual, com nota e votos válidos, em ordem cronológica. |
 | Q07 | Qual ator participou de mais filmes nos últimos cinco anos? | Conta filmes distintos na janela móvel de lançamento. |
-| Q08 | Quais diretores têm a maior nota IMDb média? | Exige pelo menos cinco filmes com nota e votos válidos por diretor. |
+| Q08 | Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes? | Exige pelo menos cinco filmes com nota e votos válidos por diretor. |
 | Q09 | Qual dupla de ator e diretor trabalhou junta em mais filmes? | Conta filmes em comum nos créditos disponíveis. |
 | Q10 | Quantos filmes existem associados a cada gênero? | Conta cada filme uma vez dentro de cada gênero. |
 | Q11 | Qual produtora acumulou o maior lucro total em BRL? | Soma o lucro integral dos filmes associados a cada produtora. |
 | Q12 | Qual gênero tem a maior margem média de lucro? | Faz a média das margens dos filmes elegíveis, não a margem dos totais agregados. |
-| Q13 | Quais filmes têm mais avaliações de usuários? | Usa a contagem resumida de avaliações por filme. |
+| Q13 | Quais filmes têm a maior quantidade de avaliações de usuários? | Usa a contagem resumida de avaliações por filme. |
 | Q14 | Qual filme tem a maior divergência entre usuários e IMDb? | Compara a média dos usuários e a nota IMDb quando ambas têm votos válidos. |
 
 Além das consultas estruturadas, a busca híbrida usa títulos e sinopses para
@@ -188,7 +191,7 @@ etapa não concede ao modelo acesso direto ao banco:
 | --- | --- |
 | Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo três resumos de contexto. |
 | Filtro de entrada | Normaliza maiúsculas e acentos e bloqueia prompt injection, revelação de instruções, SQL explícito e pedidos para consultar URLs, internet ou fontes externas. |
-| Ferramenta do modelo | O Gemini recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. As perguntas de divergência de notas, média IMDb por ano e filmes por gênero são geradas pelo modelo e conferidas contra consultas de referência. Outras rotas reconhecidas podem usar SQL preparado. |
+| Ferramenta do modelo | O Gemini recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. As 14 perguntas canônicas geram SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e Q14 são conferidas contra consultas de referência; variações reconhecidas podem usar SQL preparado. |
 | Validador SQL | `sqlglot` aceita uma única instrução `SELECT` ou `UNION`, com até 16.000 caracteres, oito CTEs, oito `JOINs`, doze subconsultas e 100 linhas. CTE recursiva, `CROSS JOIN`, outro banco, tabelas fora do contrato e funções como `load_extension`, `readfile`, `writefile`, `randomblob` e `zeroblob` são rejeitados. |
 | Executor SQLite | Abre o arquivo com `mode=ro`, limita a duração da consulta e usa o autorizador nativo do SQLite para negar `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ATTACH`, `DETACH`, `PRAGMA` e leitura de tabelas que não pertencem à Gold. |
 
@@ -229,7 +232,9 @@ Resultados que permitem comparação ganham uma visualização gerada a partir d
 mesmas linhas da tabela: barras para rankings, linha para evolução no tempo,
 rosca para participações e dispersão para comparar duas notas. A tabela continua
 disponível para conferir os valores. Um serviço separado recebe os dados já
-consultados e escreve até três insights; ele não executa novas consultas.
+consultados e escreve até três insights; ele não executa novas consultas. A
+série anual da nota IMDb mantém seu resumo local com contexto sobre o tamanho
+das amostras.
 
 ### Memória de conversa
 
@@ -248,7 +253,7 @@ respondeu fica registrado nos logs do serviço, sem expor a chave ao navegador.
 O roteador classifica localmente cada pergunta como simples, analítica, híbrida
 ou complexa, sem nova chamada de IA. Perguntas híbridas, longas, comparativas
 ou com contexto podem usar o modelo configurado para maior capacidade; as demais
-usam o modelo leve. As quatro perguntas canônicas com conferência automática
+usam o modelo leve. As nove perguntas canônicas com conferência automática
 de resultado usam o modelo leve mesmo quando mencionam uma série anual.
 A tentativa alternativa ocorre somente para falhas de rede,
 timeout ou respostas 408, 429 e 5xx. Ela não é uma segunda tentativa para
@@ -427,8 +432,8 @@ recomeçar o banco operacional, remova `data/rocketlab.db`; não remova o Gold.
 Não é preciso criar `genai/.env` para iniciar o CineData. Sem chave, o chatbot
 mostra um aviso de configuração, mantém a orientação sobre o uso do site e
 bloqueia todas as consultas a dados de filmes. Isso inclui as perguntas da
-Ajuda que possuem SQL preparado: a execução local continua rápida e estável,
-mas só fica disponível depois da configuração da chave.
+Ajuda: as 14 consultas canônicas geram SQL com o Gemini e só ficam disponíveis
+depois da configuração da chave.
 
 Para habilitar consultas analíticas, copie o arquivo de exemplo e preencha
 somente a chave:

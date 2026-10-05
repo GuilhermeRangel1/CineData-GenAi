@@ -21,11 +21,14 @@ A chave Gemini habilita todas as consultas a dados, inclusive as que usam SQL
 preparado ou busca local. Sua presença não significa que toda resposta faça
 uma chamada ao modelo.
 
-Nas perguntas de divergência de notas, média IMDb por ano e filmes por gênero,
-o Gemini recebe o esquema e as regras da métrica para gerar o SQL. O serviço
-compara as linhas retornadas com uma consulta de referência e a usa somente se
-a geração ou a conferência falhar. Outras rotas reconhecidas podem usar SQL
-preparado, enquanto perguntas livres dependem do SQL gerado pelo modelo.
+Nas 14 perguntas canônicas da Ajuda, o Gemini recebe o esquema necessário e as
+regras da métrica para gerar o SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e
+Q14 têm consultas de referência: o serviço compara as linhas retornadas e usa
+a referência se a geração ou a conferência falhar. A referência começa em
+paralelo à chamada do modelo. Os insights podem usar uma chamada textual ao
+Gemini sobre os resultados já validados; a série anual da nota IMDb mantém um
+resumo local. Variações reconhecidas podem usar SQL preparado; perguntas
+analíticas livres dependem do modelo.
 
 ## Segurança e disponibilidade
 
