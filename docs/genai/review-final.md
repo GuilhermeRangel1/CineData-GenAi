@@ -2,6 +2,11 @@
 
 Revisão realizada em 03/10/2026, comparando o projeto com o enunciado do Rocket Lab.
 
+Esta revisão registra as verificações daquela data. Melhorias posteriores na
+busca por sinopse e na linguagem exibida pelo chatbot estão descritas no README
+principal; os números de testes abaixo não representam uma nova execução após
+essas alterações.
+
 ## Entregas obrigatórias
 
 - Serviço Python FastAPI integrado ao CineData: confirmado em `genai/app` e no Compose.

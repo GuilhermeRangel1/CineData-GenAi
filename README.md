@@ -46,7 +46,7 @@ flowchart TB
     R -->|Métricas e rankings| A[Agente analítico]
     S -.->|Se também pedir uma métrica| A
     A --> M[Gemini com run_sql nas Q01-Q14]
-    A --> P[SQL local em variações reconhecidas]
+    A --> P[SQL preparado para variações reconhecidas]
     M --> V[Validação e execução somente leitura]
     P --> V
     S --> F[Resposta no chatbot]
@@ -573,6 +573,9 @@ Pop-Location
   ideia quando ela não aparece nos textos disponíveis.
 - A avaliação local confirma os casos de referência; perguntas livres ainda
   dependem do SQL produzido pelo modelo configurado.
+- Em perguntas livres sobre pessoas, nomes com o mesmo prefixo podem ser
+  confundidos (por exemplo, Tom Holland e Tom Hollander); confira os nomes
+  retornados antes de interpretar a contagem como referente a uma única pessoa.
 - O cache de respostas é temporário e fica na memória do serviço GenAI.
 - O mapa de gostos usa o catálogo local e não recomenda filmes fora da base.
 - Imagens, trailers e TMDB dependem dos serviços de origem e da conexão.
