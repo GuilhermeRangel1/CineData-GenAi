@@ -28,7 +28,7 @@ descrição e retorna a evidência correspondente.
 O agente pede ao Gemini que gere SQL pela ferramenta `run_sql` nas 14 perguntas
 canônicas da avaliação e nas perguntas analíticas livres. Algumas variações
 reconhecidas ainda usam SQL preparado. Perguntas descritivas podem procurar
-termos em títulos e sinopses; se também pedirem uma métrica, os filmes
+termos em sinopses; se também pedirem uma métrica, os filmes
 encontrados servem de recorte para uma consulta analítica.
 
 A chave Gemini habilita as consultas de dados do chatbot. Nas nove perguntas
@@ -42,7 +42,7 @@ chave ainda não foi configurada.
 flowchart TB
     Q[Pergunta em português] --> G[Guardrails]
     G --> R{Tipo de consulta}
-    R -->|Filmes por descrição| S[Busca em títulos e sinopses]
+    R -->|Filmes por descrição| S[Busca em sinopses]
     R -->|Métricas e rankings| A[Agente analítico]
     S -.->|Se também pedir uma métrica| A
     A --> M[Gemini com run_sql nas Q01-Q14]
@@ -60,7 +60,7 @@ O caminho analítico é composto por:
 - `agent_models.py`: contratos dos tool calls e das respostas estruturadas;
 - `gemini_adapter.py`: integração configurável com Gemini e fallback;
 - `sql_guard.py` e `sql_executor.py`: validação e execução segura do SQL;
-- `semantic_search.py`: busca por título e sinopse para perguntas descritivas ou híbridas;
+- `semantic_search.py`: busca por sinopse para perguntas descritivas ou híbridas;
 - `insight_service.py`: interpreta resultados numéricos para a interface;
 - `evaluation_runner.py`: avalia as perguntas de referência contra o Gold.
 
@@ -144,7 +144,7 @@ As respostas informam métrica, unidade, período, população válida e limita�
 | Q13 | Quais filmes têm a maior quantidade de avaliações de usuários? | Usa a contagem resumida de avaliações por filme. |
 | Q14 | Qual filme tem a maior divergência entre usuários e IMDb? | Compara a média dos usuários e a nota IMDb quando ambas têm votos válidos. |
 
-Além das consultas estruturadas, a busca híbrida usa títulos e sinopses para
+Além das consultas estruturadas, a busca híbrida usa sinopses para
 encontrar filmes por descrição e combina esse recorte com SQL quando necessário.
 
 Os cenários de avaliação, resultados esperados e consultas de referência ficam
@@ -295,14 +295,17 @@ e falhas controladas da Gold.
 
 ### Agente híbrido: busca em sinopses e SQL
 
-Perguntas descritivas procuram filmes em títulos e sinopses por similaridade
-textual calculada localmente, sem serviço externo de embeddings. Se a mesma
+Perguntas descritivas procuram filmes nas sinopses por similaridade textual
+calculada localmente, sem serviço externo de embeddings. Quando os termos da
+pergunta não bastam, o Gemini traduz apenas duas palavras centrais; títulos e
+sinopses permanecem no serviço local. A busca exige evidência próxima para os
+dois conceitos e descarta sinopses sem descrição. Se a mesma
 pergunta pedir um número, os filmes encontrados orientam uma consulta SQL
 validada no banco analítico. Por exemplo, “Quais filmes falam de viagem no tempo
 e qual teve maior receita?” combina a seleção por descrição com a comparação de
 receitas, mantendo a origem dos dados identificada na resposta.
 
-O índice é construído a partir de títulos e sinopses disponíveis na Gold e
+O índice é construído a partir das sinopses disponíveis na Gold e
 reconstruído somente quando tamanho ou data de modificação do arquivo mudam. A
 busca remove palavras de formulação como “qual”, “maior” e “receita”, mede a
 similaridade por termos e ordena candidatos por pontuação e título. Quando a
@@ -360,7 +363,7 @@ genai/
     question_guard.py      Guardrails de pergunta
     sql_guard.py           Validação de SQL permitido
     sql_executor.py        Execução SQLite somente leitura
-    semantic_search.py     Busca híbrida por título e sinopse
+    semantic_search.py     Busca híbrida por sinopse
     insight_service.py     Insights para resultados numéricos
     evaluation_runner.py   Avaliações locais Q01-Q14
   tests/                   Testes do módulo GenAI
@@ -567,7 +570,7 @@ Pop-Location
   banco servidor e infraestrutura dedicada.
 - A qualidade das respostas analíticas depende do Gemini e dos dados Gold.
 - A busca por sinopses usa similaridade de termos, que pode não encontrar uma
-  ideia quando ela não aparece nos títulos ou textos disponíveis.
+  ideia quando ela não aparece nos textos disponíveis.
 - A avaliação local confirma os casos de referência; perguntas livres ainda
   dependem do SQL produzido pelo modelo configurado.
 - O cache de respostas é temporário e fica na memória do serviço GenAI.

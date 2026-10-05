@@ -51,6 +51,29 @@ def test_synopsis_index_rebuilds_after_gold_catalog_changes(tmp_path) -> None:
     assert [result.movie_id for result in results] == ["m2"]
 
 
+def test_bilingual_concepts_require_nearby_evidence_in_real_synopsis(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)")
+        connection.executemany(
+            "INSERT INTO dim_movies VALUES (?, ?, ?)",
+            (
+                ("m1", "Laço", "Two rivals form an unlikely friendship."),
+                ("m2", "Coincidência", "An unlikely result changes the game."),
+                ("m3", "Sem sinopse", "Sem descrição"),
+            ),
+        )
+
+    index = SynopsisSearchIndex(GoldDatabase(database_path))
+    results = index.search_concepts(
+        (("amizade", "friendship"), ("improvável", "unlikely"))
+    )
+
+    assert [result.movie_id for result in results] == ["m1"]
+    assert index.search("improvável", min_terms=1) == ()
+    assert index.search("sem descrição") == ()
+
+
 def test_synopsis_index_reports_missing_database_as_service_error(tmp_path) -> None:
     index = SynopsisSearchIndex(GoldDatabase(tmp_path / "missing.db"))
 

@@ -14,8 +14,10 @@ pergunta → guardrails → Gemini com run_sql → validação SQL → Gold read
 
 Perguntas sobre catálogo, listas, comunidades ou mapa de gostos usam o guia
 local em `docs/platform-guide.md` e não consomem cota Gemini. Perguntas sobre
-filmes podem usar a busca local por títulos e sinopses; quando há uma métrica,
-ela é consultada no Gold após a validação SQL.
+filmes podem usar a busca local nas sinopses. Se os termos da pergunta não
+encontrarem evidência suficiente, o Gemini traduz somente duas palavras da
+pergunta e a seleção continua local, sem enviar sinopses ao provedor. Quando
+há uma métrica, ela é consultada no Gold após a validação SQL.
 
 A chave Gemini habilita todas as consultas a dados, inclusive as que usam SQL
 preparado ou busca local. Sua presença não significa que toda resposta faça

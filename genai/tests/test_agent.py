@@ -379,6 +379,12 @@ def test_platform_question_uses_guide_without_model_or_sql(tmp_path) -> None:
     assert response.tool_calls == 0
     assert "Filtros" in response.answer and "avançados" in response.answer
     assert "gênero" in response.answer
+    assert (
+        AgentService(model, GoldQueryExecutor(GoldDatabase(database_path))).answer(
+            "Como faço para encontrar filmes sobre amizade no CineData?"
+        ).source
+        == "platform"
+    )
     assert model.calls == []
 
 
@@ -405,6 +411,36 @@ def test_descriptive_movie_question_uses_synopsis_index_without_model_or_sql(tmp
     assert response.rows[0]["titulo"] == "Horizonte"
     assert response.tool_calls == 0
     assert model.calls == []
+
+
+def test_story_search_translates_question_terms_without_sending_synopses(tmp_path) -> None:
+    database_path = tmp_path / "gold.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("CREATE TABLE dim_movies (sk_movie_id TEXT, titulo TEXT, sinopse TEXT)")
+        connection.executemany(
+            "INSERT INTO dim_movies VALUES (?, ?, ?)",
+            (
+                ("m1", "Laço", "Two rivals form an unlikely friendship."),
+                ("m2", "Jogo", "An unlikely result changes the game."),
+            ),
+        )
+    database = GoldDatabase(database_path)
+    model = FakeModel(
+        [ModelTurn(answer='{"translations":[["friendship"],["unlikely"]]}')]
+    )
+
+    response = AgentService(
+        model,
+        GoldQueryExecutor(database),
+        semantic_search=SynopsisSearchIndex(database),
+    ).answer("Quais filmes mostram uma amizade improvável?")
+
+    assert response.source == "semantic"
+    assert [row["titulo"] for row in response.rows] == ["Laço"]
+    assert len(model.calls) == 1
+    assert model.calls[0][1] == ()
+    assert "Two rivals" not in str(model.calls[0][0])
+    assert '"amizade"' in model.calls[0][0][-1]["content"]
 
 
 def test_hybrid_question_supplies_synopsis_evidence_and_uses_gold_for_numbers(tmp_path) -> None:

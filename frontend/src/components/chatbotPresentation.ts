@@ -145,14 +145,24 @@ export function tituloResultado(metadata: MetadadosGenAi): string {
   return 'Resultados encontrados'
 }
 
+export function textoParaExibicao(texto: string): string {
+  return texto
+    .replace(/\bbase Gold\b/gi, 'base de filmes')
+    .replace(/\bcamada Gold\b/gi, 'catálogo de filmes')
+    .replace(/\bGold\b/gi, 'catálogo')
+}
+
 export function contextoParaExibicao(metadata: MetadadosGenAi): Array<[string, string]> {
-  const indicador = (metadata.query_id && INDICADORES[metadata.query_id]) ?? metadata.metric
-  const unidade = metadata.unit ? (UNIDADES[metadata.unit] ?? metadata.unit) : null
+  const indicador = (metadata.query_id && INDICADORES[metadata.query_id])
+    ?? (metadata.metric ? textoParaExibicao(metadata.metric) : null)
+  const unidade = metadata.unit
+    ? textoParaExibicao(UNIDADES[metadata.unit] ?? metadata.unit)
+    : null
   const periodo = metadata.period
-    ? (/gold/i.test(metadata.period) ? 'Até a atualidade' : metadata.period.replace(/^anos presentes no /i, 'Anos disponíveis no '))
+    ? (/gold/i.test(metadata.period) ? 'Todo o catálogo disponível' : metadata.period.replace(/^anos presentes no /i, 'Anos disponíveis no '))
     : null
   const abrangencia = (metadata.query_id && ABRANGENCIAS[metadata.query_id])
-    ?? metadata.population
+    ?? (metadata.population ? textoParaExibicao(metadata.population) : null)
       ?.replaceAll('receita_brl', 'receita')
       .replaceAll('orcamento_brl', 'orçamento')
       .replaceAll('nota_imdb', 'nota IMDb')

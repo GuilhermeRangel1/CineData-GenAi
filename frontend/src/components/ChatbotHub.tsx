@@ -14,7 +14,7 @@ import type { ContextoConversaGenAi, ConversaResumo, MensagemConversa, RespostaG
 import { ChatbotRobot, type RobotMood } from './ChatbotRobot'
 import { baixarResultadoCsv } from './chatbotExport'
 import { ChatbotResultChart, temGraficoDeResultado } from './ChatbotResultChart'
-import { colunasVisiveis, formatarCelula, observacaoResultado, rotuloColuna, tituloResultado } from './chatbotPresentation'
+import { colunasVisiveis, formatarCelula, observacaoResultado, rotuloColuna, textoParaExibicao, tituloResultado } from './chatbotPresentation'
 import './ChatbotHub.css'
 
 const SUGESTOES = [
@@ -458,13 +458,13 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
               {mensagens.map((mensagem, indice) => (
                 <article key={`${indice}-${mensagem.role}`} className={`chatbot-message chatbot-message--${mensagem.role}`} data-chatbot-result={mensagem.resposta ? '' : undefined}>
                   {mensagem.role === 'assistant' && <span className="chatbot-message-avatar"><ChatbotRobot compact mood="happy" incognito={modoTemporario} /></span>}
-                  {mensagem.resposta ? <ResultadoGenAi resposta={mensagem.resposta} /> : <p>{mensagem.conteudo}</p>}
+                  {mensagem.resposta ? <ResultadoGenAi resposta={mensagem.resposta} /> : <p>{mensagem.role === 'assistant' ? textoParaExibicao(mensagem.conteudo) : mensagem.conteudo}</p>}
                 </article>
               ))}
               {carregando && (
                 <article className="chatbot-message chatbot-message--assistant chatbot-message--loading" aria-label="Chatbot está respondendo">
                   <span className="chatbot-message-avatar"><ChatbotRobot compact mood="thinking" incognito={modoTemporario} /></span>
-                  <div className="chatbot-loading-bubble"><span className="chatbot-loading-dots" aria-hidden="true"><i /><i /><i /></span><span key={progresso} className="chatbot-loading-status">{progresso || 'Entendendo sua pergunta…'}</span></div>
+                  <div className="chatbot-loading-bubble"><span className="chatbot-loading-dots" aria-hidden="true"><i /><i /><i /></span><span key={progresso} className="chatbot-loading-status">{progresso ? textoParaExibicao(progresso) : 'Entendendo sua pergunta…'}</span></div>
                 </article>
               )}
             </div>
@@ -472,7 +472,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
 
           {erro && (
             <div className="chatbot-error-wrap">
-              <p className="chatbot-error" role="alert">{erro}</p>
+              <p className="chatbot-error" role="alert">{textoParaExibicao(erro)}</p>
               {perguntaFalhou && (
                 <button className="chatbot-retry" type="button" onClick={() => void enviar(perguntaFalhou, false)}>
                   Tentar novamente
@@ -522,7 +522,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const possuiGrafico = temGraficoDeResultado(metadata, rows)
   return (
     <div className="chatbot-result" aria-label="Resposta do chatbot">
-      {mostrarTexto && <p className="chatbot-result-answer">{resposta.answer}</p>}
+      {mostrarTexto && <p className="chatbot-result-answer">{textoParaExibicao(resposta.answer)}</p>}
       {rows.length > 0 && (
         <div className="chatbot-result-heading">
           <h3>{tituloResultado(metadata)}</h3>
@@ -533,7 +533,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
       {possuiGrafico && resposta.insights.length > 0 && (
         <section className="chatbot-insights" aria-label="Insights sobre os dados">
           <span>Insights</span>
-          <ul>{resposta.insights.map((insight) => <li key={insight}>{insight}</li>)}</ul>
+          <ul>{resposta.insights.map((insight) => <li key={insight}>{textoParaExibicao(insight)}</li>)}</ul>
         </section>
       )}
       {rows.length > 0 && columns.length > 0 && (

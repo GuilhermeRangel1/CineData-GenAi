@@ -1,5 +1,6 @@
 """Orquestração do agente sem acoplar um provedor específico."""
 
+import json
 import logging
 import re
 import time
@@ -28,7 +29,7 @@ from app.evaluation_runner import EvaluationMismatch, compare_rows
 from app.gold_database import EXPECTED_TABLES
 from app.insight_service import InsightService
 from app.question_guard import rejection_message
-from app.semantic_search import SynopsisSearchIndex
+from app.semantic_search import SemanticResult, SynopsisSearchIndex, _query_tokens
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
 
@@ -117,10 +118,18 @@ _ANALYTICAL_INTENT = re.compile(
     re.IGNORECASE,
 )
 _DESCRIPTIVE_MOVIE_INTENT = re.compile(
-    r"\b(?:filmes?\b.{0,60}\b(?:sobre|onde|historia(?:s)?|sinopse(?:s)?|"
-    r"que\s+(?:tenham|tenha|tem|falam|fala|possua|possui))|"
-    r"(?:diga|cite|quero|procuro|encontre|mostre)\b.{0,25}\bfilmes?\b.{0,50}"
-    r"\b(?:sobre|onde|que\s+(?:tenham|tenha|tem|falam|fala|possua|possui)))\b",
+    r"\bfilmes?\b.{0,60}\b(?:sobre|onde|historia(?:s)?|sinopse(?:s)?|"
+    r"mostra(?:m)?|conta(?:m)?|envolve(?:m)?|apresenta(?:m)?|acompanha(?:m)?|"
+    r"(?:tem|tenham|tenha)\s+(?:personagens?|historia|enredo|trama)|"
+    r"falam|fala|possua|possui|"
+    r"que\s+(?:tenham|tenha|tem|falam|fala|possua|possui))\b|"
+    r"\b(?:diga|cite|quero|procuro|encontre|mostre)\b.{0,25}"
+    r"\bfilmes?\b.{0,50}\b(?:sobre|onde|que\s+(?:tenham|tenha|tem|"
+    r"falam|fala|possua|possui))\b|"
+    r"\b(?:quais|que|tem|existe|procuro|encontre|mostre)\b.{0,35}"
+    r"\b(?:filmes?|historias?)\b.{0,45}\b(?:sobre|onde|mostram|contam|"
+    r"envolvem|apresentam|acompanham)\b|"
+    r"\b(?:historias?|enredos?|sinopses?)\b.{0,35}\bsobre\b",
     re.IGNORECASE,
 )
 _REVENUE_INTENT = re.compile(r"\b(?:receita|faturamento)\b", re.IGNORECASE)
@@ -1091,6 +1100,68 @@ class AgentService:
             max_workers=2, thread_name_prefix="gold-reference"
         )
 
+    def _find_movies_by_story(
+        self, question: str, *, limit: int = 5
+    ) -> tuple[SemanticResult, ...]:
+        """Traduz conceitos da pergunta; as sinopses permanecem no índice local."""
+
+        if self.semantic_search is None:
+            return ()
+        direct = self.semantic_search.search(question, limit=limit, min_terms=2)
+        if direct:
+            return direct
+        key_terms = tuple(dict.fromkeys(_query_tokens(question)))
+        if not key_terms:
+            return ()
+        if len(key_terms) > 2:
+            key_terms = (key_terms[0], key_terms[-1])
+        try:
+            turn = self.model.complete(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Traduza cada palavra da lista recebida, na mesma ordem, para "
+                            "palavras que possam aparecer em sinopses de filmes em inglês. "
+                            "Para cada item, retorne de duas a quatro alternativas de UMA "
+                            "palavra (traduções diretas e sinônimos estritos). Evite termos "
+                            "vagamente relacionados, objetos e personagens do mesmo tema. "
+                            "Não omita itens, não "
+                            "adicione conceitos e não use expressões com espaços. Responda "
+                            'somente JSON: {"translations":[["word","synonym"],'
+                            '["word","synonym"]]}. A lista externa deve ter exatamente '
+                            "a mesma quantidade de itens que a entrada."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": json.dumps({"terms": key_terms}, ensure_ascii=False),
+                    },
+                ],
+                [],
+            )
+            raw = re.search(r"\{.*\}", (turn.answer or "")[:4000], re.DOTALL)
+            parsed = json.loads(raw.group() if raw else "")
+            translations = parsed.get("translations")
+            if not isinstance(translations, list) or len(translations) != len(key_terms):
+                return ()
+            groups: list[tuple[str, ...]] = []
+            for source, terms in zip(key_terms, translations, strict=True):
+                if not isinstance(terms, list):
+                    return ()
+                valid_terms = tuple(
+                    term.strip()
+                    for term in terms[:4]
+                    if isinstance(term, str) and len(_query_tokens(term)) == 1
+                )
+                groups.append((source, *valid_terms))
+            return self.semantic_search.search_concepts(tuple(groups), limit=limit)
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            logger.info("Termos da busca por enredo inválidos: %s", exc.__class__.__name__)
+        except Exception as exc:
+            logger.warning("Expansão da busca por enredo falhou: %s", exc.__class__.__name__)
+        return ()
+
     def answer(
         self,
         question: str,
@@ -1112,7 +1183,29 @@ class AgentService:
                 tool_calls=0,
                 source="platform",
             )
+        normalized_routing_question = _normalize_for_routing(normalized_question)
+        descriptive_movie_intent = bool(
+            _DESCRIPTIVE_MOVIE_INTENT.search(normalized_routing_question)
+        )
         platform_intent, analytical_intent = _question_sources(normalized_question)
+        semantic_intent = descriptive_movie_intent and (
+            not analytical_intent
+            or bool(
+                re.search(
+                    r"\b(?:sobre|sinopse|enredo|trama|historia|historias|personagem|"
+                    r"personagens)\b",
+                    normalized_routing_question,
+                )
+            )
+        )
+        explicit_platform_navigation = bool(
+            _PLATFORM_ACTION.search(normalized_routing_question)
+            and _PLATFORM_NAME.search(normalized_routing_question)
+        )
+        if semantic_intent and not analytical_intent and not explicit_platform_navigation:
+            # Palavras como "amizade" também aparecem nas áreas sociais do guia;
+            # quando a pergunta descreve um enredo, a intenção principal é buscar filmes.
+            platform_intent = False
         mixed_intent = platform_intent and analytical_intent
         complexity = classify_question(normalized_question, has_context=bool(context))
         semantic_matches = ()
@@ -1152,9 +1245,9 @@ class AgentService:
         if (
             self.semantic_search is not None
             and not analytical_intent
-            and _DESCRIPTIVE_MOVIE_INTENT.search(_normalize_for_routing(normalized_question))
+            and semantic_intent
         ):
-            matches = self.semantic_search.search(
+            matches = self._find_movies_by_story(
                 normalized_question,
                 limit=1 if _requests_single_movie_example(normalized_question) else 5,
             )
@@ -1189,9 +1282,9 @@ class AgentService:
         if (
             self.semantic_search is not None
             and analytical_intent
-            and _DESCRIPTIVE_MOVIE_INTENT.search(_normalize_for_routing(normalized_question))
+            and semantic_intent
         ):
-            semantic_matches = self.semantic_search.search(normalized_question)
+            semantic_matches = self._find_movies_by_story(normalized_question)
             if not semantic_matches:
                 return AgentResponse(
                     answer="Não encontrei filmes com essa descrição nas sinopses disponíveis.",

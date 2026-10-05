@@ -27,12 +27,13 @@ function baixarBlob(blob: Blob, nome: string) {
 }
 
 function contextoDaAnalise(titulo: string, metadata: MetadadosGenAi) {
+  const contexto = Object.fromEntries(contextoParaExibicao(metadata))
   return [
     ['Análise', titulo],
-    ['Métrica', metadata.metric],
-    ['Unidade', metadata.unit],
-    ['Período', metadata.period],
-    ['Recorte aplicado', metadata.population],
+    ['Métrica', contexto.Indicador],
+    ['Unidade', contexto['Valores exibidos']],
+    ['Período', contexto['Período']],
+    ['Recorte aplicado', contexto['Abrangência']],
   ].filter(([, value]) => value)
 }
 
