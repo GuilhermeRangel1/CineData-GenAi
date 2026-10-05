@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from app import agent as agent_module
 from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentService, AgentUnsupported
 from app.agent_models import ConversationContext, ModelTurn, ToolCall
 from app.errors import ProviderConfigurationError
@@ -259,10 +260,12 @@ def test_imdb_average_by_year_excludes_future_releases_and_is_chronological(tmp_
     future_year = today.year + 2
     with sqlite3.connect(database_path) as connection:
         connection.execute(
-            "CREATE TABLE dim_movies (sk_movie_id TEXT, ano_lancamento INTEGER, data_lancamento TEXT)"
+            "CREATE TABLE dim_movies (sk_movie_id TEXT, ano_lancamento INTEGER, "
+            "data_lancamento TEXT)"
         )
         connection.execute(
-            "CREATE TABLE fact_movies_performance (sk_movie_id TEXT, nota_imdb REAL, qtd_imdb INTEGER)"
+            "CREATE TABLE fact_movies_performance (sk_movie_id TEXT, nota_imdb REAL, "
+            "qtd_imdb INTEGER)"
         )
         connection.executemany(
             "INSERT INTO dim_movies VALUES (?, ?, ?)",
@@ -751,13 +754,15 @@ def test_all_time_actor_ranking_does_not_discard_period_or_name_filter(tmp_path)
 def test_five_year_actor_ranking_uses_exact_date_window(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_actor_director_gold_fixture(database_path)
-    model = FakeModel([])
+    model = FakeModel([ModelTurn(tool_call=ToolCall(
+        "run_sql", {"sql": agent_module._FIVE_YEAR_ACTOR_COUNT_SQL}
+    ))])
 
     response = AgentService(
         model, GoldQueryExecutor(GoldDatabase(database_path))
     ).answer("Qual ator participou de mais filmes nos últimos cinco anos?")
 
-    assert model.calls == []
+    assert len(model.calls) == 1
     assert [row["nome_pessoa"] for row in response.rows] == ["Ator A"]
     assert response.rows[0]["total_filmes"] == 2
     assert response.query_id == "Q07"
@@ -766,13 +771,15 @@ def test_five_year_actor_ranking_uses_exact_date_window(tmp_path) -> None:
 def test_actor_director_pair_ranking_aggregates_ids_before_names(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_actor_director_gold_fixture(database_path)
-    model = FakeModel([])
+    model = FakeModel([ModelTurn(tool_call=ToolCall(
+        "run_sql", {"sql": agent_module._ACTOR_DIRECTOR_PAIR_SQL}
+    ))])
 
     response = AgentService(
         model, GoldQueryExecutor(GoldDatabase(database_path))
     ).answer("Qual dupla de ator e diretor trabalhou junta em mais filmes?")
 
-    assert model.calls == []
+    assert len(model.calls) == 1
     assert response.rows == (
         {"ator": "Ator A", "diretor": "Diretor A", "filmes_em_comum": 3},
     )
@@ -782,13 +789,15 @@ def test_actor_director_pair_ranking_aggregates_ids_before_names(tmp_path) -> No
 def test_top_company_profit_uses_valid_population_once_and_keeps_ties(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_company_gold_fixture(database_path)
-    model = FakeModel([])
+    model = FakeModel([ModelTurn(tool_call=ToolCall(
+        "run_sql", {"sql": agent_module._TOP_COMPANY_PROFIT_SQL}
+    ))])
 
     response = AgentService(
         model, GoldQueryExecutor(GoldDatabase(database_path))
     ).answer("Qual produtora acumulou o maior lucro total em BRL?")
 
-    assert model.calls == []
+    assert len(model.calls) == 1
     assert [row["nome_produtora"] for row in response.rows] == [
         "Produtora A", "Produtora B"
     ]

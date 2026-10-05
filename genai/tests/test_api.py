@@ -23,7 +23,9 @@ def test_health_returns_process_status(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_capabilities_reports_missing_key_without_exposing_secrets(client: TestClient, monkeypatch) -> None:
+def test_capabilities_reports_missing_key_without_exposing_secrets(
+    client: TestClient, monkeypatch
+) -> None:
     monkeypatch.setenv("GENAI_GEMINI_API_KEY", "")
     get_settings.cache_clear()
     try:
@@ -43,7 +45,9 @@ def test_missing_key_returns_setup_error_for_rest_and_stream(client: TestClient)
     app.dependency_overrides[get_agent_service] = lambda: UnconfiguredAgent()
     try:
         rest = client.post("/api/v1/questions", json={"question": "Quantos filmes por gênero?"})
-        stream = client.post("/api/v1/questions/stream", json={"question": "Quantos filmes por gênero?"})
+        stream = client.post(
+            "/api/v1/questions/stream", json={"question": "Quantos filmes por gênero?"}
+        )
     finally:
         app.dependency_overrides.clear()
 

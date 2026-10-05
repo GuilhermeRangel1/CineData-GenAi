@@ -79,7 +79,8 @@ def test_imdb_average_by_year_explains_small_samples_without_calling_model() -> 
 
     assert insights == (
         "2026 tem a maior média observada (7,50), mas reúne apenas 1 filme válido.",
-        "Entre os anos com ao menos 100 filmes válidos, 2017 tem a maior média (6,35; 10.283 filmes).",
+        "Entre os anos com ao menos 100 filmes válidos, 2017 tem a maior média "
+        "(6,35; 10.283 filmes).",
         "A menor média é a de 2024 (6,14; 1.504 filmes válidos).",
     )
     assert model.calls == []

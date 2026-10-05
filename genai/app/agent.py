@@ -5,13 +5,20 @@ import re
 import time
 import unicodedata
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ConversationContext, ModelTurn, ToolCall, ToolDefinition
 from app.complexity_router import QuestionComplexity, classify_question
-from app.errors import ProviderConfigurationError, ProviderTransientError, QueryExecutionError, QueryTimeoutError, SqlValidationError
+from app.errors import (
+    ProviderConfigurationError,
+    ProviderTransientError,
+    QueryExecutionError,
+    QueryTimeoutError,
+    SqlValidationError,
+)
 from app.evaluation_cases import (
     MANDATORY_EVALUATIONS,
     find_evaluation_case,
@@ -884,6 +891,37 @@ JOIN maximum AS mx ON d.divergencia = mx.divergencia
 ORDER BY d.titulo COLLATE NOCASE, d.sk_movie_id"""
 
 
+_CASE_TABLES = {
+    "Q01": ("dim_movies", "fact_movies_performance"),
+    "Q02": ("dim_movies", "dim_genres", "bridge_movie_genre", "fact_movies_performance"),
+    "Q03": ("dim_movies", "fact_movies_performance"),
+    "Q04": ("dim_movies", "fact_movies_performance"),
+    "Q05": ("dim_movies", "fact_movies_performance"),
+    "Q06": ("dim_movies", "fact_movies_performance"),
+    "Q07": ("dim_movies", "dim_people", "bridge_movie_person"),
+    "Q08": ("dim_movies", "dim_people", "bridge_movie_person", "fact_movies_performance"),
+    "Q09": ("dim_people", "bridge_movie_person"),
+    "Q10": ("dim_genres", "bridge_movie_genre"),
+    "Q11": ("dim_movies", "dim_companies", "bridge_movie_company", "fact_movies_performance"),
+    "Q12": ("dim_movies", "dim_genres", "bridge_movie_genre", "fact_movies_performance"),
+    "Q13": ("dim_movies", "dim_reviews"),
+    "Q14": ("dim_movies", "dim_reviews", "fact_movies_performance"),
+}
+
+
+def _schema_for_case(case) -> tuple[str, str]:
+    """Envia apenas o esquema útil à pergunta canônica; perguntas livres veem tudo."""
+
+    if case is None:
+        return _GOLD_TABLES_CONTEXT, _GOLD_SCHEMA_CONTEXT
+    tables = _CASE_TABLES[case.query_id]
+    schema = "\n".join(
+        line for line in _GOLD_SCHEMA_CONTEXT.splitlines()
+        if line.split(":", 1)[0] in tables
+    )
+    return ", ".join(tables), schema
+
+
 _IMDB_AVERAGE_BY_YEAR_SQL = """SELECT m.ano_lancamento,
        COUNT(*) AS filmes_validos,
        AVG(f.nota_imdb) AS nota_imdb_media
@@ -895,21 +933,6 @@ WHERE m.ano_lancamento IS NOT NULL
   AND f.qtd_imdb > 0
 GROUP BY m.ano_lancamento
 ORDER BY m.ano_lancamento ASC"""
-
-
-_REFERENCE_FALLBACKS = {
-    "Q05": _TMDB_IMDB_DIVERGENCE_SQL,
-    "Q06": _IMDB_AVERAGE_BY_YEAR_SQL,
-    "Q10": _GENRE_MOVIE_COUNT_SQL,
-    "Q14": _USER_IMDB_DIVERGENCE_SQL,
-}
-
-_FOCUSED_METRIC_RULES = {
-    "Q05": "Calcule a diferença absoluta entre as notas; exija notas e votos positivos nas duas fontes; ordene pela maior diferença e retorne dez filmes com as duas contagens de votos.",
-    "Q06": "Agrupe por ano de lançamento em ordem crescente; exclua lançamentos futuros; calcule média IMDb somente para filmes com nota e votos válidos e informe a quantidade de filmes por ano.",
-    "Q10": "Conte filmes distintos em cada associação filme-gênero; ordene pela contagem decrescente e nome do gênero.",
-    "Q14": "Compare o resumo de notas dos usuários com IMDb apenas quando ambas as fontes têm votos positivos; calcule a diferença absoluta e retorne todos os filmes empatados no valor máximo.",
-}
 
 
 def _top_company_profit_by_year_sql(year: int) -> str:
@@ -967,6 +990,85 @@ WHERE nota_media = (SELECT MAX(nota_media) FROM director_avgs)
 ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id"""
 
 
+_REFERENCE_FALLBACKS = {
+    "Q04": _popularity_rank_sql(5),
+    "Q05": _TMDB_IMDB_DIVERGENCE_SQL,
+    "Q06": _IMDB_AVERAGE_BY_YEAR_SQL,
+    "Q07": _FIVE_YEAR_ACTOR_COUNT_SQL,
+    "Q08": _DIRECTOR_AVERAGE_SQL,
+    "Q09": _ACTOR_DIRECTOR_PAIR_SQL,
+    "Q10": _GENRE_MOVIE_COUNT_SQL,
+    "Q11": _TOP_COMPANY_PROFIT_SQL,
+    "Q14": _USER_IMDB_DIVERGENCE_SQL,
+}
+
+_FOCUSED_METRIC_RULES = {
+    "Q01": (
+        "Ordene por receita_brl decrescente, mantenha apenas receita não nula e "
+        "retorne dez filmes com desempate estável por título e chave."
+    ),
+    "Q02": (
+        "Calcule AVG(receita_brl - orcamento_brl) por gênero apenas com receita e "
+        "orçamento informados; cada associação filme-gênero participa uma vez."
+    ),
+    "Q03": (
+        "Calcule margem como (receita_brl - orcamento_brl) / receita_brl para filmes "
+        "com receita positiva e orçamento informado; ordene pela margem decrescente."
+    ),
+    "Q04": (
+        "Use popularidade, não visualizações; inclua zero, retorne cinco filmes e "
+        "desempate por título e chave. Encontre o limite de pontuação antes de "
+        "juntar os títulos."
+    ),
+    "Q05": (
+        "Calcule a diferença absoluta entre as notas; exija notas e votos positivos "
+        "nas duas fontes; ordene pela maior diferença e retorne dez filmes com as "
+        "duas contagens de votos."
+    ),
+    "Q06": (
+        "Agrupe por ano de lançamento em ordem crescente; exclua lançamentos "
+        "futuros; calcule média IMDb somente para filmes com nota e votos válidos "
+        "e informe a quantidade de filmes por ano."
+    ),
+    "Q07": (
+        "Conte filmes distintos por ator nos últimos cinco anos até hoje; filtre "
+        "data_lancamento em uma CTE de filmes recentes antes de juntar créditos e "
+        "agregar; retorne os empatados no máximo."
+    ),
+    "Q08": (
+        "Calcule a média IMDb por diretor uma vez, exigindo pelo menos cinco filmes "
+        "com nota e votos válidos; retorne todos os empatados no máximo."
+    ),
+    "Q09": (
+        "Use CTEs MATERIALIZED para separar créditos de ator e diretor e contar "
+        "filmes em comum por identificadores antes de juntar nomes; retorne todos "
+        "os pares empatados no máximo."
+    ),
+    "Q10": (
+        "Conte filmes distintos em cada associação filme-gênero; ordene pela "
+        "contagem decrescente e nome do gênero."
+    ),
+    "Q11": (
+        "Some receita_brl menos orcamento_brl por produtora apenas quando ambos "
+        "existirem; retorne todas as produtoras empatadas no maior lucro total."
+    ),
+    "Q12": (
+        "Calcule a média das margens individuais por gênero, usando somente filmes "
+        "com receita positiva e orçamento informado; retorne todos os gêneros "
+        "empatados no máximo."
+    ),
+    "Q13": (
+        "Use qtd_avaliacoes_usuarios de dim_reviews por filme e retorne os empatados "
+        "no maior número de avaliações."
+    ),
+    "Q14": (
+        "Compare o resumo de notas dos usuários com IMDb apenas quando ambas as "
+        "fontes têm votos positivos; calcule a diferença absoluta e retorne todos "
+        "os filmes empatados no valor máximo."
+    ),
+}
+
+
 class AgentService:
     """Consulta o Gold com uma chamada de modelo e responde com evidências."""
 
@@ -985,6 +1087,9 @@ class AgentService:
         self.insight_service = insight_service
         self.semantic_search = semantic_search
         self.provider_configured = provider_configured
+        self._reference_pool = ThreadPoolExecutor(
+            max_workers=2, thread_name_prefix="gold-reference"
+        )
 
     def answer(
         self,
@@ -1106,6 +1211,14 @@ class AgentService:
         )
         if reference_fallback is not None:
             complexity = QuestionComplexity.ANALYTICAL
+        reference_future = (
+            self._reference_pool.submit(
+                self.executor.execute,
+                validate_sql(reference_fallback, max_rows=self.max_rows),
+            )
+            if reference_fallback is not None
+            else None
+        )
         ranking_limit = None if mixed_intent else _popularity_rank_limit(normalized_question)
         director_average = (
             not mixed_intent
@@ -1148,11 +1261,11 @@ class AgentService:
             query = _top_company_profit_by_year_sql(continuation_company_profit_year)
             model_seconds = 0.0
             period_override = f"ano de {continuation_company_profit_year}"
-        elif five_year_actor_count:
+        elif five_year_actor_count and reference_fallback is None:
             evaluation_case = get_evaluation_case("Q07")
             query = _FIVE_YEAR_ACTOR_COUNT_SQL
             model_seconds = 0.0
-        elif actor_director_pair:
+        elif actor_director_pair and reference_fallback is None:
             evaluation_case = get_evaluation_case("Q09")
             query = _ACTOR_DIRECTOR_PAIR_SQL
             model_seconds = 0.0
@@ -1161,11 +1274,11 @@ class AgentService:
             query = _top_company_movie_count_sql(top_company_count)
             model_seconds = 0.0
             all_time_company_count = True
-        elif top_company_profit:
+        elif top_company_profit and reference_fallback is None:
             evaluation_case = get_evaluation_case("Q11")
             query = _TOP_COMPANY_PROFIT_SQL
             model_seconds = 0.0
-        elif director_average:
+        elif director_average and reference_fallback is None:
             evaluation_case = get_evaluation_case("Q08")
             query = _DIRECTOR_AVERAGE_SQL
             model_seconds = 0.0
@@ -1174,11 +1287,16 @@ class AgentService:
             query = _ACTOR_MOVIE_COUNT_SQL
             model_seconds = 0.0
             all_time_actor_ranking = True
-        elif ranking_limit is not None:
+        elif ranking_limit is not None and reference_fallback is None:
             evaluation_case = get_evaluation_case("Q04")
             query = _popularity_rank_sql(ranking_limit)
             model_seconds = 0.0
         else:
+            available_tables, schema_context = _schema_for_case(evaluation_case)
+            evaluation_context = (
+                _format_evaluation_context(evaluation_case)
+                if evaluation_case else _MANDATORY_QUESTIONS_CONTEXT
+            )
             conversation_context = self._format_conversation_context(context)
             semantic_context = (
                 "Filmes encontrados pela busca nas sinopses para esta pergunta híbrida: "
@@ -1204,15 +1322,15 @@ class AgentService:
                     "a agregação, a população e os filtros anteriores; se não for possível "
                     "inferi-los com segurança, responda com CLARIFY:. "
                     "Use somente estes nomes exatos de tabelas Gold: "
-                    f"{_GOLD_TABLES_CONTEXT}. Não invente nomes de tabelas."
+                    f"{available_tables}. Não invente nomes de tabelas."
                     " Use somente as colunas reais abaixo; não traduza nomes de colunas "
                     "nem invente aliases para colunas usadas nos JOINs:\n"
-                    f"{_GOLD_SCHEMA_CONTEXT}\n"
+                    f"{schema_context}\n"
                     f"{_GOLD_RELATIONSHIPS_CONTEXT}\n"
-                    f"\n{_NATURAL_LANGUAGE_RULES}"
+                    f"\n{_NATURAL_LANGUAGE_RULES if evaluation_case is None else ''}"
                     "\nIdentifique a intenção entre os casos obrigatórios abaixo e use "
                     "aliases iguais às colunas esperadas quando fizer sentido:\n"
-                    f"{_format_evaluation_context(evaluation_case) if evaluation_case else _MANDATORY_QUESTIONS_CONTEXT}"
+                    f"{evaluation_context}"
                     + (
                         f"\nPara esta pergunta: {_FOCUSED_METRIC_RULES[evaluation_case.query_id]}"
                         if evaluation_case and evaluation_case.query_id in _FOCUSED_METRIC_RULES
@@ -1253,12 +1371,20 @@ class AgentService:
                 except (TypeError, ValueError):
                     transient_status = False
                 if reference_fallback is None or not (
-                    isinstance(exc, (ProviderTransientError, TimeoutError, ConnectionError, OSError))
+                    isinstance(
+                        exc,
+                        (ProviderTransientError, TimeoutError, ConnectionError, OSError),
+                    )
                     or transient_status
                 ):
                     raise
-                logger.warning("Falha transitória do modelo na %s; usando consulta de referência.", evaluation_case.query_id)
-                first_turn = ModelTurn(tool_call=ToolCall(RUN_SQL_TOOL.name, {"sql": reference_fallback}))
+                logger.warning(
+                    "Falha transitória do modelo na %s; usando consulta de referência.",
+                    evaluation_case.query_id,
+                )
+                first_turn = ModelTurn(
+                    tool_call=ToolCall(RUN_SQL_TOOL.name, {"sql": reference_fallback})
+                )
                 query_source = "reference"
             model_seconds = time.perf_counter() - model_started_at
             if first_turn.tool_call is None:
@@ -1296,18 +1422,21 @@ class AgentService:
         query_started_at = time.perf_counter()
         for candidate in attempts:
             try:
-                result = self.executor.execute(validate_sql(candidate, max_rows=self.max_rows))
+                result = (
+                    reference_future.result()
+                    if candidate == reference_fallback and reference_future is not None
+                    else self.executor.execute(validate_sql(candidate, max_rows=self.max_rows))
+                )
                 if evaluation_case and result.columns != evaluation_case.expected_columns:
                     raise EvaluationMismatch(
-                        f"Colunas diferentes da métrica {evaluation_case.query_id}."
+                        f"A consulta não retornou as colunas obrigatórias da métrica "
+                        f"{evaluation_case.query_id}."
                     )
                 if reference_fallback is not None and candidate != reference_fallback:
-                    expected = self.executor.execute(
-                        validate_sql(reference_fallback, max_rows=self.max_rows)
-                    )
+                    expected = reference_future.result()
                     compare_rows(result.rows, expected.rows)
                 query = candidate
-                if candidate == reference_fallback:
+                if candidate != attempts[0]:
                     query_source = "reference"
                 break
             except (SqlValidationError, QueryExecutionError, QueryTimeoutError,
@@ -1406,17 +1535,6 @@ class AgentService:
                 "informada não aparecem no ranking"
             )
 
-        logger.info(
-            "GenAI question completed model_seconds=%.3f query_seconds=%.3f "
-            "total_seconds=%.3f returned_rows=%d truncated=%s query_source=%s",
-            model_seconds,
-            query_seconds,
-            time.perf_counter() - started_at,
-            row_count,
-            result.truncated,
-            query_source,
-        )
-
         response = AgentResponse(
             answer=final_answer,
             rows=result.rows,
@@ -1431,9 +1549,22 @@ class AgentService:
             limitations=limitations,
             source="mixed" if mixed_intent or semantic_matches else "gold",
         )
-        if self.insight_service is None:
-            return response
-        return replace(response, insights=self.insight_service.generate(response))
+        insight_started_at = time.perf_counter()
+        if self.insight_service is not None:
+            response = replace(response, insights=self.insight_service.generate(response))
+        logger.info(
+            "GenAI question completed model_seconds=%.3f query_seconds=%.3f "
+            "insight_seconds=%.3f total_seconds=%.3f returned_rows=%d "
+            "truncated=%s query_source=%s",
+            model_seconds,
+            query_seconds,
+            time.perf_counter() - insight_started_at,
+            time.perf_counter() - started_at,
+            row_count,
+            result.truncated,
+            query_source,
+        )
+        return response
 
     @staticmethod
     def _format_conversation_context(context: Sequence[ConversationContext]) -> str | None:

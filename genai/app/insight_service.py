@@ -181,8 +181,14 @@ class InsightService:
             return {}
 
         is_year_series = response.query_id == "Q06"
-        leader = max(points, key=lambda point: (point[1], point[0])) if is_year_series else points[0]
-        lowest = min(points, key=lambda point: (point[1], point[0])) if is_year_series else points[-1]
+        leader = (
+            max(points, key=lambda point: (point[1], point[0]))
+            if is_year_series else points[0]
+        )
+        lowest = (
+            min(points, key=lambda point: (point[1], point[0]))
+            if is_year_series else points[-1]
+        )
         signals: dict[str, Any] = {
             "coluna_rotulo": label_column,
             "coluna_valor": value_column,
@@ -194,7 +200,9 @@ class InsightService:
             difference = leader[1] - runner_up[1]
             signals["diferenca_primeiro_segundo"] = {
                 "absoluta": difference,
-                "percentual_sobre_segundo": (difference / abs(runner_up[1])) if runner_up[1] else None,
+                "percentual_sobre_segundo": (
+                    difference / abs(runner_up[1]) if runner_up[1] else None
+                ),
             }
             ties = [label for label, value in points if value == leader[1]]
             if len(ties) > 1:
