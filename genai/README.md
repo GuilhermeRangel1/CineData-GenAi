@@ -35,8 +35,10 @@ preparado, enquanto perguntas livres dependem do SQL gerado pelo modelo.
   tentativas de alterar as regras do agente;
 - o modelo principal pode recorrer uma vez ao modelo de fallback para falhas
   temporárias de conexão, cota, timeout ou resposta 5xx;
-- respostas analíticas equivalentes ficam em cache por cinco minutos, isoladas
-  por conversa, contexto, revisão do Gold e versão das regras;
+- perguntas livres equivalentes ficam em cache por cinco minutos, isoladas
+  por conversa e contexto; as 14 perguntas completas da Ajuda compartilham
+  respostas públicas por até uma hora, sempre considerando a revisão do Gold
+  e a versão das regras;
 - o serviço nunca recebe token de sessão, senha ou identificador da conta.
 
 ## API
@@ -61,8 +63,8 @@ se as consultas analíticas estão disponíveis, sem expor a chave.
 
 `context` é opcional, tem no máximo três resumos da conversa atual e permite
 continuações como “e em 2020?”. `conversation_id` é um identificador local do
-frontend usado para separar o cache das perguntas livres; Q05, Q06, Q10 e Q14
-canônicas compartilham a resposta pública por até cinco minutos. O histórico
+frontend usado para separar o cache das perguntas livres; Q01–Q14 canônicas
+compartilham a resposta pública por até uma hora. O histórico
 persistente pertence ao backend principal. O contrato completo está em
 [docs/genai/api-contract.md](../docs/genai/api-contract.md).
 

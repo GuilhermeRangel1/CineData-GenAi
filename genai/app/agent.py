@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ConversationContext, ModelTurn, ToolCall, ToolDefinition
-from app.complexity_router import classify_question
+from app.complexity_router import QuestionComplexity, classify_question
 from app.errors import ProviderConfigurationError, ProviderTransientError, QueryExecutionError, QueryTimeoutError, SqlValidationError
 from app.evaluation_cases import (
     MANDATORY_EVALUATIONS,
@@ -1104,6 +1104,8 @@ class AgentService:
             if evaluation_case is not None and not mixed_intent
             else None
         )
+        if reference_fallback is not None:
+            complexity = QuestionComplexity.ANALYTICAL
         ranking_limit = None if mixed_intent else _popularity_rank_limit(normalized_question)
         director_average = (
             not mixed_intent

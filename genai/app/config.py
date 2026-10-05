@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     gemini_complex_model: str | None = "gemini-3.5-flash"
     gemini_fallback_model: str | None = "gemini-3.5-flash"
     response_cache_ttl_seconds: float = 300.0
+    canonical_response_cache_ttl_seconds: float = 3600.0
     response_cache_rules_version: str = "1"
 
     model_config = SettingsConfigDict(

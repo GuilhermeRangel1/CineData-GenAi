@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -145,6 +146,17 @@ def get_response_cache() -> ResponseCache:
     return ResponseCache(ttl_seconds=settings.response_cache_ttl_seconds)
 
 
+@lru_cache(maxsize=1)
+def get_canonical_response_cache() -> ResponseCache:
+    """Reutiliza respostas públicas das perguntas completas da Ajuda."""
+
+    settings = get_settings()
+    return ResponseCache(
+        ttl_seconds=settings.canonical_response_cache_ttl_seconds,
+        max_entries=32,
+    )
+
+
 @router.get("/health", tags=["operational"])
 def health() -> dict[str, str]:
     """Indica que o processo HTTP está ativo."""
@@ -178,10 +190,10 @@ def answer_question(
     )
     cache_key = None
     fixed_case = find_evaluation_case(payload.question)
-    shared_case_id = (
-        fixed_case.query_id
-        if fixed_case is not None and fixed_case.query_id in {"Q05", "Q06", "Q10", "Q14"}
-        else None
+    shared_case_id = fixed_case.query_id if fixed_case is not None else None
+    effective_context = () if shared_case_id else context
+    response_cache = (
+        get_canonical_response_cache() if shared_case_id else get_response_cache()
     )
     if (
         (payload.conversation_id or shared_case_id)
@@ -190,22 +202,25 @@ def answer_question(
     ):
         settings = get_settings()
         try:
+            rules_version = settings.response_cache_rules_version
+            if shared_case_id in {"Q06", "Q07"}:
+                rules_version += f":{datetime.now(UTC).date().isoformat()}"
             cache_key = make_cache_key(
                 conversation_id=(
                     f"fixed:{shared_case_id}"
                     if shared_case_id else payload.conversation_id or ""
                 ),
                 question=payload.question,
-                context=() if shared_case_id else context,
+                context=effective_context,
                 gold_revision=gold_version(service.executor.database.path),
-                rules_version=settings.response_cache_rules_version,
+                rules_version=rules_version,
             )
         except OSError:
             cache_key = None
-    cached_response = get_response_cache().get(cache_key) if cache_key else None
+    cached_response = response_cache.get(cache_key) if cache_key else None
 
     try:
-        response = cached_response or service.answer(payload.question, context)
+        response = cached_response or service.answer(payload.question, effective_context)
     except GoldDatabaseError as exc:
         raise HTTPException(
             status_code=503, detail="A base de filmes não está disponível."
@@ -281,7 +296,7 @@ def answer_question(
         ) from exc
 
     if cache_key and cached_response is None:
-        get_response_cache().put(cache_key, response)
+        response_cache.put(cache_key, response)
 
     return QuestionResponse(
         status="success",

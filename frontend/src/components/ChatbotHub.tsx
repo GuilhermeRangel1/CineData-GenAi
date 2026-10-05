@@ -522,7 +522,6 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const possuiGrafico = temGraficoDeResultado(metadata, rows)
   return (
     <div className="chatbot-result" aria-label="Resposta do chatbot">
-      {metadata.cached && <p className="chatbot-cache-note">Resposta recuperada do cache desta conversa</p>}
       {mostrarTexto && <p className="chatbot-result-answer">{resposta.answer}</p>}
       {rows.length > 0 && (
         <div className="chatbot-result-heading">

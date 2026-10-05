@@ -248,22 +248,22 @@ respondeu fica registrado nos logs do serviço, sem expor a chave ao navegador.
 O roteador classifica localmente cada pergunta como simples, analítica, híbrida
 ou complexa, sem nova chamada de IA. Perguntas híbridas, longas, comparativas
 ou com contexto podem usar o modelo configurado para maior capacidade; as demais
-usam o modelo leve. A tentativa alternativa ocorre somente para falhas de rede,
+usam o modelo leve. As quatro perguntas canônicas com conferência automática
+de resultado usam o modelo leve mesmo quando mencionam uma série anual.
+A tentativa alternativa ocorre somente para falhas de rede,
 timeout ou respostas 408, 429 e 5xx. Ela não é uma segunda tentativa para
 "melhorar" uma resposta nem relaxa guardrails, validação SQL ou limites.
 
 ### Cache de respostas
 
-Respostas equivalentes podem ser reutilizadas por cinco minutos na memória do
-serviço, reduzindo chamadas ao modelo e tempo de espera. A chave considera a
-pergunta, a conversa, o contexto, a revisão do banco analítico e a versão das
-regras. Assim, uma continuação diferente ou dados atualizados não recebem uma
-resposta antiga; o cache desaparece quando o serviço reinicia.
-
-As perguntas obrigatórias Q05, Q06, Q10 e Q14, quando usadas na formulação
-exata da Ajuda, compartilham o resultado entre conversas durante esse período.
-Elas consultam o mesmo recorte público da Gold; os insights permanecem na
-resposta reutilizada. As demais perguntas continuam isoladas por conversa.
+Perguntas livres equivalentes podem ser reutilizadas por cinco minutos na memória
+do serviço. As 14 perguntas completas da Ajuda compartilham a resposta pública
+por até uma hora entre conversas, inclusive os insights; a primeira execução
+ainda gera SQL pelo modelo nos casos que usam essa rota. A chave do cache
+considera a pergunta, a revisão do banco analítico e a versão das regras.
+Perguntas livres também consideram a conversa e o contexto, para que uma
+continuação diferente não receba uma resposta antiga. O cache desaparece
+quando o serviço reinicia.
 
 Na prática, a chave é um hash SHA-256 da pergunta normalizada, identificador da
 conversa (ou do caso fixo), até três resumos semânticos, tamanho e data de

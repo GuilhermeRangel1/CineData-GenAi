@@ -1,15 +1,19 @@
 """Testes do contrato operacional inicial."""
 
 import json
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-from app.agent import AgentClarification, AgentGuardrail, AgentUnsupported
+from app import api as api_module
+from app.agent import AgentClarification, AgentGuardrail, AgentService, AgentUnsupported
 from app.agent_models import AgentResponse
 from app.api import get_agent_service
 from app.config import get_settings
 from app.errors import ProviderConfigurationError, QueryTimeoutError
+from app.evaluation_cases import get_evaluation_case
 from app.main import app
+from app.response_cache import ResponseCache
 
 
 def test_health_returns_process_status(client: TestClient) -> None:
@@ -106,6 +110,61 @@ def test_question_returns_agent_response(client: TestClient) -> None:
             "cached": False,
         },
     }
+
+
+def test_canonical_question_reuses_public_response_without_conversation_context(
+    client: TestClient, monkeypatch, tmp_path
+) -> None:
+    class CanonicalAgent(AgentService):
+        provider_configured = True
+        executor = SimpleNamespace(database=SimpleNamespace(path=tmp_path / "gold.db"))
+
+        def __init__(self) -> None:
+            self.calls: list[tuple] = []
+
+        def answer(self, question: str, context=()) -> AgentResponse:
+            self.calls.append(tuple(context))
+            return AgentResponse(
+                answer="Dados do catálogo.",
+                rows=({"titulo": "Filme A", "receita_brl": 100.0},),
+                truncated=False,
+                tool_calls=1,
+                columns=("titulo", "receita_brl"),
+                query_id="Q01",
+                insights=("Filme A lidera o recorte.",),
+            )
+
+    agent = CanonicalAgent()
+    case = get_evaluation_case("Q01")
+    monkeypatch.setattr(api_module, "gold_version", lambda path: "gold-v1")
+    cache = ResponseCache(ttl_seconds=3600)
+    monkeypatch.setattr(api_module, "get_canonical_response_cache", lambda: cache)
+    app.dependency_overrides[get_agent_service] = lambda: agent
+    try:
+        first = client.post(
+            "/api/v1/questions",
+            json={
+                "question": case.question,
+                "conversation_id": "conversation-one",
+                "context": [{"question": "E em 2020?"}],
+            },
+        )
+        second = client.post(
+            "/api/v1/questions",
+            json={
+                "question": case.question,
+                "conversation_id": "conversation-two",
+                "context": [{"question": "E em 2021?"}],
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["metadata"]["cached"] is False
+    assert second.json()["metadata"]["cached"] is True
+    assert second.json()["insights"] == ["Filme A lidera o recorte."]
+    assert agent.calls == [()]
 
 
 def test_question_response_preserves_platform_source(client: TestClient) -> None:
