@@ -234,6 +234,17 @@ def _platform_guide_path() -> Path:
     return Path(__file__).resolve().parents[2] / "docs" / "platform-guide.md"
 
 
+def _guide_section(guide: str, heading: str) -> str:
+    """Returns one Markdown section without leaking content from the next heading."""
+
+    match = re.search(
+        rf"^{re.escape(heading)}\s*$\n(?P<content>.*?)(?=^##\s|\Z)",
+        guide,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    return match.group("content").strip() if match else ""
+
+
 def _platform_guide_answer(question: str) -> str | None:
     """Returns relevant guide content as readable chat text."""
 
@@ -247,14 +258,10 @@ def _platform_guide_answer(question: str) -> str | None:
     if _CHATBOT_HELP.search(normalized) or re.search(
         r"\b(?:chatbot|assistente)\b", normalized
     ):
-        chatbot_guide = guide.split("## Chatbot", 1)[1].split(
-            "## Onde conferir", 1
-        )[0].strip()
+        chatbot_guide = _guide_section(guide, "## Chatbot")
         return re.sub(r"(?<!\n)\n(?!\n)\s*", " ", chatbot_guide).replace("**", "")
     if _PLATFORM_ANALYTICS.search(normalized):
-        analytics_guide = guide.split("## Analytics", 1)[1].split(
-            "## Onde conferir", 1
-        )[0].strip()
+        analytics_guide = _guide_section(guide, "## Analytics")
         return re.sub(r"(?<!\n)\n(?!\n)\s*", " ", analytics_guide)
     topics = {
         "filmes": (

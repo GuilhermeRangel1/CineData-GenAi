@@ -219,6 +219,7 @@ def test_platform_guide_remains_available_without_provider(tmp_path) -> None:
 
     assert response.source == "platform"
     assert "Analytics" in response.answer
+    assert "Na aba Chatbot" not in response.answer
     assert model.calls == []
 
 
