@@ -1,0 +1,20 @@
+[
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q01",
+    "question": "Liste os três filmes de maior receita em BRL.",
+    "model_only": true,
+    "agent_sha256": "d3b50971aa6c7bf4e03b83ab7f0f0f9d0730d49b2593fc0f92a549d56dc50807",
+    "status": "passed",
+    "rows": 3,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT f.sk_movie_id, m.titulo, f.receita_brl FROM fact_movies_performance AS f JOIN dim_movies AS m ON f.sk_movie_id = m.sk_movie_id WHERE NOT f.receita_brl IS NULL ORDER BY f.receita_brl DESC, m.titulo ASC, f.sk_movie_id ASC LIMIT 3"
+    ],
+    "seconds": 0.78
+  }
+]

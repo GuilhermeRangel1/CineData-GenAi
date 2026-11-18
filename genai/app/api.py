@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any, Literal
@@ -14,11 +15,16 @@ from pydantic import BaseModel, Field, field_validator
 from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentService, AgentUnsupported
 from app.agent_models import ConversationContext
 from app.config import get_settings
-from app.errors import GoldDatabaseError, ProviderConfigurationError, QueryTimeoutError
+from app.errors import (
+    GoldDatabaseError,
+    ProviderConfigurationError,
+    ProviderTransientError,
+    QueryTimeoutError,
+)
 from app.evaluation_cases import find_evaluation_case
-from app.gemini_adapter import GeminiToolCallingModel
 from app.gold_database import GoldDatabase
 from app.insight_service import InsightService
+from app.provider_router import ProviderRouter, build_provider_router, configured_providers
 from app.response_cache import ResponseCache, gold_version, make_cache_key
 from app.semantic_search import SynopsisSearchIndex
 from app.sql_executor import GoldQueryExecutor
@@ -27,8 +33,9 @@ router = APIRouter()
 v1_router = APIRouter()
 logger = logging.getLogger(__name__)
 PROVIDER_SETUP_MESSAGE = (
-    "Para consultar os dados dos filmes, configure GENAI_GEMINI_API_KEY "
-    "em genai/.env e reinicie o serviço GenAI."
+    "Para consultar os dados dos filmes, configure um provedor de IA em genai/.env: "
+    "GENAI_GEMINI_API_KEY ou a chave e o modelo do Groq/OpenRouter. "
+    "Depois recrie o serviço GenAI."
 )
 
 
@@ -94,27 +101,19 @@ def _stream_event(event_type: str, **payload: Any) -> str:
 
 
 class _UnconfiguredModel:
-    """Permite apenas respostas do guia local quando não há chave Gemini."""
+    """Permite apenas respostas do guia local quando não há provedor configurado."""
 
     def complete(self, messages, tools):
-        raise ProviderConfigurationError("A chave da Gemini API não foi configurada.")
+        raise ProviderConfigurationError("Nenhum provedor de IA foi configurado.")
 
 
 @lru_cache(maxsize=1)
 def get_agent_service() -> AgentService:
-    """Reutiliza o cliente do provedor e seu pool de conexões entre perguntas."""
+    """Reutiliza o agente e a saúde das rotas; transportes têm escopo por chamada."""
 
     settings = get_settings()
-    api_key = _configured_api_key()
-    if api_key:
-        model = GeminiToolCallingModel(
-            api_key,
-            model=settings.gemini_model,
-            complex_model=settings.gemini_complex_model,
-            fallback_model=settings.gemini_fallback_model,
-        )
-    else:
-        model = _UnconfiguredModel()
+    available = configured_providers(settings)
+    model = build_provider_router(settings) if available else _UnconfiguredModel()
     database = GoldDatabase(settings.gold_database_path, settings.gold_timeout_seconds)
     executor = GoldQueryExecutor(
         database,
@@ -127,15 +126,8 @@ def get_agent_service() -> AgentService:
         executor,
         insight_service=InsightService(model),
         semantic_search=SynopsisSearchIndex(database),
-        provider_configured=bool(api_key),
+        provider_configured=bool(available),
     )
-
-
-def _configured_api_key() -> str | None:
-    secret = get_settings().gemini_api_key
-    if secret is None:
-        return None
-    return secret.get_secret_value().strip() or None
 
 
 @lru_cache(maxsize=1)
@@ -168,7 +160,7 @@ def health() -> dict[str, str]:
 def capabilities() -> dict[str, bool]:
     """Expõe apenas a disponibilidade das consultas, nunca a chave."""
 
-    return {"analytics_available": _configured_api_key() is not None}
+    return {"analytics_available": bool(configured_providers(get_settings()))}
 
 
 @v1_router.post("/questions", response_model=QuestionResponse, tags=["questions"])
@@ -220,7 +212,14 @@ def answer_question(
     cached_response = response_cache.get(cache_key) if cache_key else None
 
     try:
-        response = cached_response or service.answer(payload.question, effective_context)
+        scope = (
+            service.model.question_scope()
+            if isinstance(service, AgentService)
+            and isinstance(getattr(service, "model", None), ProviderRouter)
+            else nullcontext()
+        )
+        with scope:
+            response = cached_response or service.answer(payload.question, effective_context)
     except GoldDatabaseError as exc:
         raise HTTPException(
             status_code=503, detail="A base de filmes não está disponível."
@@ -233,6 +232,21 @@ def answer_question(
                 "error": {
                     "code": "provider_not_configured",
                     "message": PROVIDER_SETUP_MESSAGE,
+                    "details": None,
+                },
+            },
+        )
+    except ProviderTransientError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "error": {
+                    "code": "provider_unavailable",
+                    "message": (
+                        "Os provedores de IA estão temporariamente indisponíveis. "
+                        "Tente novamente em breve."
+                    ),
                     "details": None,
                 },
             },

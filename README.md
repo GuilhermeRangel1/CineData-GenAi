@@ -2,7 +2,7 @@
 
 Entrega da atividade de GenAI do Rocket Lab 2026.2. O projeto implementa um
 agente analítico em Python que responde perguntas sobre filmes em linguagem
-natural usando Gemini, tool calling e a camada Gold SQLite em modo somente
+natural usando provedores de IA com tool calling e a camada Gold SQLite em modo somente
 leitura. O CineData fornece a interface para enviar as consultas e visualizar
 os resultados.
 
@@ -14,7 +14,7 @@ os resultados.
 | [Consultas obrigatórias](#cobertura-obrigatória-e-avaliações-locais) | Cobertura Q01–Q14, regras de métricas e avaliação contra referências. |
 | [Extras da atividade](#extras-propostos-na-atividade) | Guardrails, gráficos, memória, fallback, cache, avaliação e busca híbrida. |
 | [Bancos de dados](#bancos-de-dados) | Papel da Gold e do banco operacional, sincronização e cópia local do GenAI. |
-| [Como executar](#como-executar-com-docker-compose) | Pré-requisitos, Docker Compose, Git LFS, chave Gemini e conta de demonstração. |
+| [Como executar](#como-executar-com-docker-compose) | Pré-requisitos, Docker Compose, Git LFS, configuração de provedor e conta de demonstração. |
 | [Configuração por ambiente](#configuração-por-ambiente) | Variáveis necessárias no Docker e opções para execução manual. |
 | [Testes](#testes) | Comandos de avaliação, qualidade e testes automatizados. |
 | [Documentação complementar](#documentação-complementar) | Regras de métricas, SQL de referência, casos Q01–Q14 e revisão da entrega. |
@@ -25,13 +25,13 @@ O chatbot é o núcleo desta entrega. Ele recebe uma pergunta em português,
 identifica se ela pede uma métrica, um ranking, uma comparação ou filmes por
 descrição e retorna a evidência correspondente.
 
-O agente pede ao Gemini que gere SQL pela ferramenta `run_sql` nas 14 perguntas
+O agente pede ao provedor selecionado que gere SQL pela ferramenta `run_sql` nas 14 perguntas
 canônicas da avaliação e nas perguntas analíticas livres. Algumas variações
 reconhecidas ainda usam SQL preparado. Perguntas descritivas podem procurar
 termos em sinopses; se também pedirem uma métrica, os filmes
 encontrados servem de recorte para uma consulta analítica.
 
-A chave Gemini habilita as consultas de dados do chatbot. Nas nove perguntas
+A configuração de um provedor habilita as consultas de dados do chatbot. Nas nove perguntas
 canônicas com regras de agregação mais sensíveis, uma consulta de referência
 confere as linhas geradas pelo modelo e recupera falhas. Ela começa em paralelo
 à geração do SQL, sem acrescentar sua duração integral à espera. As demais
@@ -45,7 +45,7 @@ flowchart TB
     R -->|Filmes por descrição| S[Busca em sinopses]
     R -->|Métricas e rankings| A[Agente analítico]
     S -.->|Se também pedir uma métrica| A
-    A --> M[Gemini com run_sql nas Q01-Q14]
+    A --> M[Provedor configurado com run_sql nas Q01-Q14]
     A --> P[SQL preparado para variações reconhecidas]
     M --> V[Validação e execução somente leitura]
     P --> V
@@ -66,7 +66,7 @@ O caminho analítico é composto por:
 
 Para usar a entrega, abra o CineData em `http://localhost:8080` e entre na aba
 **Chatbot**. O navegador chama `/genai/api/v1`; o Nginx encaminha essa rota ao
-serviço GenAI internamente, sem expor a chave Gemini. A porta `8001` é apenas a
+serviço GenAI internamente, sem expor credenciais dos provedores. A porta `8001` é apenas a
 porta local do serviço para desenvolvimento, health check e diagnóstico. Há
 também `POST /api/v1/questions/stream`, que entrega eventos de progresso e a
 resposta final no mesmo fluxo. O backend operacional guarda o histórico de
@@ -107,7 +107,7 @@ flowchart LR
     API --> OP[(SQLite operacional)]
     API --> TMDB[TMDB opcional]
     G -->|somente leitura| GOLD[(Gold SQLite)]
-    G --> GEMINI[Gemini]
+    G --> GEMINI[Provedor configurado]
     GOLD --> SYNC[Sincronização]
     SYNC --> OP
 ```
@@ -191,7 +191,7 @@ etapa não concede ao modelo acesso direto ao banco:
 | --- | --- |
 | Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo três resumos de contexto. |
 | Filtro de entrada | Normaliza maiúsculas e acentos e bloqueia prompt injection, revelação de instruções, SQL explícito e pedidos para consultar URLs, internet ou fontes externas. |
-| Ferramenta do modelo | O Gemini recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. As 14 perguntas canônicas geram SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e Q14 são conferidas contra consultas de referência; variações reconhecidas podem usar SQL preparado. |
+| Ferramenta do modelo | O modelo recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. As 14 perguntas canônicas geram SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e Q14 são conferidas contra consultas de referência; variações reconhecidas podem usar SQL preparado. |
 | Validador SQL | `sqlglot` aceita uma única instrução `SELECT` ou `UNION`, com até 16.000 caracteres, oito CTEs, oito `JOINs`, doze subconsultas e 100 linhas. CTE recursiva, `CROSS JOIN`, outro banco, tabelas fora do contrato e funções como `load_extension`, `readfile`, `writefile`, `randomblob` e `zeroblob` são rejeitados. |
 | Executor SQLite | Abre o arquivo com `mode=ro`, limita a duração da consulta e usa o autorizador nativo do SQLite para negar `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ATTACH`, `DETACH`, `PRAGMA` e leitura de tabelas que não pertencem à Gold. |
 
@@ -199,7 +199,7 @@ O limite padrão é de cinco segundos; consultas obrigatórias reconhecidamente
 mais pesadas recebem limites específicos de quinze ou quarenta e cinco segundos.
 O executor busca no máximo 101 linhas para sinalizar truncamento e devolve no
 máximo 100 ao chatbot. Uma rejeição retorna uma mensagem controlada, sem expor
-o SQL gerado, a estrutura interna ou detalhes da chave Gemini.
+o SQL gerado, a estrutura interna ou detalhes das chaves dos provedores.
 
 ### Interface visual
 
@@ -282,7 +282,7 @@ persistente nem compartilhado depois de reiniciar o contêiner.
 Além de comparar as 14 consultas obrigatórias com resultados de referência,
 os cenários locais cobrem variações de linguagem, filtros, empates, ausência de
 dados e ambiguidades. Modelos simulados permitem
-verificar regras, valores e formato das respostas sem gastar cota Gemini. Essa
+verificar regras, valores e formato das respostas sem gastar cota dos provedores. Essa
 avaliação detecta regressões conhecidas; perguntas livres ainda dependem do
 comportamento do modelo e dos dados disponíveis.
 
@@ -297,7 +297,7 @@ e falhas controladas da Gold.
 
 Perguntas descritivas procuram filmes nas sinopses por similaridade textual
 calculada localmente, sem serviço externo de embeddings. Quando os termos da
-pergunta não bastam, o Gemini traduz apenas duas palavras centrais; títulos e
+pergunta não bastam, o provedor selecionado traduz apenas duas palavras centrais; títulos e
 sinopses permanecem no serviço local. A busca exige evidência próxima para os
 dois conceitos e descarta sinopses sem descrição. Se a mesma
 pergunta pedir um número, os filmes encontrados orientam uma consulta SQL
@@ -320,7 +320,7 @@ entendimento, busca, preparação e resultado. Os eventos descrevem etapas
 visíveis da operação, sem expor raciocínio interno do modelo ou SQL. Cabeçalhos
 de não cache e não buffering mantêm o progresso legível mesmo atrás do proxy.
 
-O navegador acessa o serviço pelo proxy `/genai/api/v1`; a chave Gemini fica
+O navegador acessa o serviço pelo proxy `/genai/api/v1`; as chaves dos provedores ficam
 somente no ambiente do contêiner. Para continuidade, o GenAI recebe até três
 resumos da conversa atual, e não o histórico persistente completo da conta. A
 resposta final possui contrato estruturado com texto, linhas, colunas,
@@ -359,7 +359,8 @@ genai/
   app/
     agent.py               Orquestrador da pergunta analítica
     agent_models.py        Contratos de tool calling e resposta
-    gemini_adapter.py      Gemini e fallback de modelo
+    provider_router.py     Roteamento e fallback entre provedores
+    gemini_adapter.py      Integração com Gemini
     question_guard.py      Guardrails de pergunta
     sql_guard.py           Validação de SQL permitido
     sql_executor.py        Execução SQLite somente leitura
@@ -380,7 +381,7 @@ docker-compose.yml         Serviços frontend, backend e GenAI
 
 - Docker Desktop com Docker Compose v2;
 - Git e Git LFS somente para clonar e obter o arquivo Gold;
-- chave Gemini para todas as consultas de dados no chatbot.
+- ao menos um provedor de IA configurado para consultas de dados no chatbot.
 
 O Git LFS é necessário uma única vez porque o banco Gold tem cerca de 722 MB e
 é montado pelo host como arquivo somente leitura. Depois do clone, baixe o
@@ -430,13 +431,43 @@ projeto a uma rede, troque `JWT_SECRET_KEY` e as credenciais iniciais.
 Para encerrar mantendo os dados, use `Ctrl+C` ou `docker compose down`. Para
 recomeçar o banco operacional, remova `data/rocketlab.db`; não remova o Gold.
 
+### Provedores e fallback
+
+O chatbot usa Gemini → Groq → OpenRouter por padrão. Configure as chaves em
+`genai/.env`; Groq e OpenRouter também precisam de um modelo explícito com tool
+calling. Rotas sem chave/modelo são ignoradas. A ordem é configurável:
+
+```dotenv
+GENAI_PROVIDER_ORDER=gemini,groq,openrouter
+GENAI_GROQ_API_KEY=
+GENAI_GROQ_MODEL=
+GENAI_OPENROUTER_API_KEY=
+GENAI_OPENROUTER_MODEL=
+GENAI_PROVIDER_TIMEOUT_SECONDS=12
+GENAI_PROVIDER_BUDGET_SECONDS=40
+GENAI_PROVIDER_COOLDOWN_SECONDS=60
+```
+
+Em timeout, falha de rede, 429 ou erro 5xx, o serviço tenta a próxima rota e
+aguarda o cooldown antes de sondar a rota com falha. Credenciais rejeitadas
+desativam a rota até reiniciar com a configuração corrigida. O orçamento de
+inferência é compartilhado pelos turnos e insights da pergunta, sem incluir
+o tempo de SQL. Cada chamada cancela o transporte ao atingir seu limite.
+Não são feitas chamadas paralelas especulativas aos provedores.
+
+Depois de editar o `.env`, aplique com `docker compose up -d --no-build --no-deps genai`.
+O fallback reduz interrupções, mas não garante disponibilidade nem cota.
+O cache válido continua sendo reutilizado; sem resposta utilizável, o serviço
+informa indisponibilidade. Consulte o [roteiro de testes reais](docs/genai/provider-validation.md)
+para testar cada provedor isolado e a cadeia sem esconder falhas com cache.
+
 ### Modelos Gemini
 
-Não é preciso criar `genai/.env` para iniciar o CineData. Sem chave, o chatbot
-mostra um aviso de configuração, mantém a orientação sobre o uso do site e
+Não é preciso criar `genai/.env` para iniciar o CineData. Sem nenhum provedor
+configurado, o chatbot mostra um aviso de configuração, mantém a orientação sobre o uso do site e
 bloqueia todas as consultas a dados de filmes. Isso inclui as perguntas da
-Ajuda: as 14 consultas canônicas geram SQL com o Gemini e só ficam disponíveis
-depois da configuração da chave.
+Ajuda: as 14 consultas canônicas geram SQL pelo provedor selecionado e só ficam
+disponíveis depois da configuração de pelo menos uma rota.
 
 Para habilitar consultas analíticas, copie o arquivo de exemplo e preencha
 somente a chave:
@@ -445,7 +476,7 @@ somente a chave:
 Copy-Item genai/.env.example genai/.env
 ```
 
-Os demais valores do `genai/.env` já têm padrão. A mesma chave atende ao modelo
+Os demais valores do `genai/.env` já têm padrão. Na rota Gemini, a mesma chave atende ao modelo
 leve, ao modelo para perguntas complexas e ao fallback:
 
 ```dotenv
@@ -503,14 +534,18 @@ Vite para encaminhar o GenAI local.
 ## Configuração por ambiente
 
 Para executar a demonstração com Docker Compose, o único valor que a pessoa
-precisa fornecer para usar o chatbot analítico é `GENAI_GEMINI_API_KEY` em
+precisa fornecer para usar a rota Gemini é `GENAI_GEMINI_API_KEY` em
 `genai/.env`. O Compose já define banco, rotas, conta de
 demonstração e endereços do frontend; não é necessário criar `backend/.env` nem
 `frontend/.env` nesse fluxo.
 
 | Variável | Quando configurar |
 | --- | --- |
-| `GENAI_GEMINI_API_KEY` | Necessária para todas as consultas de dados do chatbot, mesmo as preparadas. |
+| `GENAI_GEMINI_API_KEY` | Habilita a rota Gemini; opcional com outro provedor configurado. |
+| `GENAI_GROQ_API_KEY`, `GENAI_GROQ_MODEL` | Habilitam a rota Groq quando ambos estão preenchidos. |
+| `GENAI_OPENROUTER_API_KEY`, `GENAI_OPENROUTER_MODEL` | Habilitam a rota OpenRouter quando ambos estão preenchidos. |
+| `GENAI_PROVIDER_ORDER` | Ordem das rotas; permite também testar um provedor isolado. |
+| `GENAI_PROVIDER_TIMEOUT_SECONDS`, `GENAI_PROVIDER_BUDGET_SECONDS`, `GENAI_PROVIDER_COOLDOWN_SECONDS` | Limites positivos: chamada, inferência por pergunta e pausa após falha. |
 | `GENAI_GEMINI_MODEL`, `GENAI_GEMINI_COMPLEX_MODEL`, `GENAI_GEMINI_FALLBACK_MODEL` | Opcional. Use somente para trocar os modelos padrão. |
 | `TMDB_API_TOKEN` | Opcional. Habilita a busca administrativa no TMDB. |
 | `JWT_SECRET_KEY`, `INITIAL_ADMIN_*` | Somente ao mudar a configuração local padrão ou publicar o projeto. |
@@ -518,7 +553,7 @@ demonstração e endereços do frontend; não é necessário criar `backend/.env
 
 ## Testes
 
-Os testes do agente usam clientes simulados e não consomem cota Gemini. As
+Os testes do agente usam clientes simulados e não consomem cota de API. As
 consultas Q01–Q14 também podem ser comparadas com o banco configurado no
 Compose, usando SQL de referência como modelo simulado:
 
@@ -553,7 +588,6 @@ Pop-Location
 
 ## Documentação complementar
 
-- [Plano de execução](docs/.ruler/TODO.md)
 - [Banco de dados e sincronização Gold](docs/database.md)
 - [Guia de backend](docs/backend.md)
 - [Interface](docs/frontend.md)
@@ -568,7 +602,7 @@ Pop-Location
 
 - SQLite e execução local atendem à demonstração; produção concorrente exige
   banco servidor e infraestrutura dedicada.
-- A qualidade das respostas analíticas depende do Gemini e dos dados Gold.
+- A qualidade das respostas analíticas depende do provedor selecionado e dos dados Gold.
 - A busca por sinopses usa similaridade de termos, que pode não encontrar uma
   ideia quando ela não aparece nos textos disponíveis.
 - A avaliação local confirma os casos de referência; perguntas livres ainda

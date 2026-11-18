@@ -945,3 +945,33 @@ def test_agent_answers_casual_greeting_without_calling_model(tmp_path) -> None:
     assert response.source == "platform"
     assert "explorar o CineData" in response.answer
     assert model.calls == []
+
+
+def test_model_only_does_not_replace_wrong_popularity_with_reference(tmp_path):
+    path = tmp_path / "gold.db"
+    _create_popularity_gold_fixture(path)
+    model = FakeModel([ModelTurn(tool_call=ToolCall("run_sql", {"sql":
+        "SELECT m.sk_movie_id, m.titulo, f.popularidade FROM dim_movies m "
+        "JOIN fact_movies_performance f USING(sk_movie_id) "
+        "ORDER BY f.popularidade ASC LIMIT 1"}))])
+    service = AgentService(model, GoldQueryExecutor(GoldDatabase(path)), model_only=True)
+    response = service.answer("Quais são os 5 filmes mais populares?")
+    assert len(model.calls) == 1
+    assert len(response.rows) == 1
+    assert response.rows[0]["popularidade"] == 7.0
+
+
+def test_invalid_sql_can_be_repaired_once_by_model(tmp_path):
+    path = tmp_path / "gold.db"
+    _create_gold_fixture(path)
+    model = FakeModel([
+        ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT inexistente FROM dim_movies"})),
+        ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT title FROM dim_movies"})),
+    ])
+    response = AgentService(model, GoldQueryExecutor(GoldDatabase(path))).answer(
+        "Liste os títulos dos filmes do catálogo."
+    )
+    assert response.rows == ({"title": "A"},)
+    assert response.tool_calls == 2
+    assert len(model.calls) == 2
+    assert "Erro:" in model.calls[1][0][-1]["content"]

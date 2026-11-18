@@ -1,0 +1,23 @@
+[
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q12",
+    "question": "Qual gênero tem a maior margem média de lucro?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH genre_stats AS (SELECT g.sk_genre_id, g.nome_genero, COUNT(DISTINCT m.sk_movie_id) AS filmes_validos, AVG(1.0 * (p.receita_brl - p.orcamento_brl) / p.receita_brl) AS margem_media FROM dim_genres AS g JOIN bridge_movie_genre AS bg ON g.sk_genre_id = bg.sk_genre_id JOIN dim_movies AS m ON bg.sk_movie_id = m.sk_movie_id JOIN fact_movies_performance AS p ON m.sk_movie_id = p.sk_movie_id WHERE p.receita_brl > 0 AND NOT p.orcamento_brl IS NULL GROUP BY g.sk_genre_id, g.nome_genero) SELECT sk_genre_id, nome_genero, filmes_validos, margem_media FROM genre_stats WHERE margem_media = (SELECT MAX(margem_media) FROM genre_stats) LIMIT 100"
+    ],
+    "seconds": 5.42,
+    "diagnostic_timeout_seconds": 30,
+    "api_http_status": 200,
+    "api_seconds": 5.29
+  }
+]

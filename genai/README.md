@@ -8,7 +8,7 @@ leitura.
 ## Fluxo
 
 ```text
-pergunta → guardrails → Gemini com run_sql → validação SQL → Gold read-only
+pergunta → guardrails → provedor com run_sql → validação SQL → Gold read-only
          → resposta estruturada → tabela, gráfico e insights no frontend
 ```
 
@@ -19,9 +19,36 @@ encontrarem evidência suficiente, o Gemini traduz somente duas palavras da
 pergunta e a seleção continua local, sem enviar sinopses ao provedor. Quando
 há uma métrica, ela é consultada no Gold após a validação SQL.
 
-A chave Gemini habilita todas as consultas a dados, inclusive as que usam SQL
-preparado ou busca local. Sua presença não significa que toda resposta faça
-uma chamada ao modelo.
+A configuração de ao menos um provedor habilita todas as consultas a dados,
+inclusive SQL preparado ou busca local. Isso não significa que toda resposta
+faça uma chamada ao modelo. Gemini permanece como rota principal padrão;
+Groq e OpenRouter são alternativas independentes.
+
+## Provedores
+
+Defina `GENAI_PROVIDER_ORDER=gemini,groq,openrouter` para usar essa cadeia ou
+uma lista reduzida para isolar um provedor. Gemini usa as variáveis existentes.
+Groq exige `GENAI_GROQ_API_KEY` e `GENAI_GROQ_MODEL`; OpenRouter exige
+`GENAI_OPENROUTER_API_KEY` e `GENAI_OPENROUTER_MODEL`. Modelos alternativos não
+são escolhidos automaticamente. Confira suporte a ferramentas, cota e preço
+antes de configurar. Sem chave ou modelo, a rota é ignorada.
+
+Limites padrão: `GENAI_PROVIDER_TIMEOUT_SECONDS=12`,
+`GENAI_PROVIDER_BUDGET_SECONDS=40` e `GENAI_PROVIDER_COOLDOWN_SECONDS=60`.
+O timeout cancela a chamada; o orçamento soma o tempo de inferência da pergunta
+e pausa durante SQL. Uma rota com falha transitória entra em cooldown; apenas
+uma tentativa de recuperação roda por vez. Chaves rejeitadas ficam desativadas
+até reiniciar o processo. O provedor que respondeu passa a ser preferido nos
+turnos restantes daquela pergunta; outras perguntas mantêm sua própria ordem.
+
+`GET /api/v1/capabilities` indica configuração, sem sondar a saúde externa.
+Falha total sem cache retorna `provider_unavailable` (HTTP 503), preservando o
+guia local. As recuperações SQL de referência já existentes continuam ativas
+nas perguntas canônicas. Veja o [roteiro de testes reais](../docs/genai/provider-validation.md).
+
+Protocolos: [Groq](https://console.groq.com/docs/openai),
+[OpenRouter](https://openrouter.ai/docs/api/reference/overview),
+[Google GenAI](https://googleapis.github.io/python-genai/).
 
 Nas 14 perguntas canônicas da Ajuda, o Gemini recebe o esquema necessário e as
 regras da métrica para gerar o SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e

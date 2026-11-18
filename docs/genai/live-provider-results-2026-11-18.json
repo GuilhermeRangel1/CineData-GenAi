@@ -1,0 +1,362 @@
+[
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q01",
+    "question": "Quais são os 10 filmes com maior receita em BRL?",
+    "status": "passed",
+    "rows": 10,
+    "insights": 3,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 1.9
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q01",
+    "question": "Quais são os 10 filmes com maior receita em BRL?",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 16.53
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q02",
+    "question": "Qual é o lucro médio em BRL por gênero?",
+    "status": "passed",
+    "rows": 19,
+    "insights": 3,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 2.36
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q02",
+    "question": "Qual é o lucro médio em BRL por gênero?",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 20.85
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q03",
+    "question": "Quais filmes têm as maiores margens de lucro?",
+    "status": "failed",
+    "error_type": "EvaluationMismatch",
+    "query_source": [
+      "model"
+    ],
+    "seconds": 1.75
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q03",
+    "question": "Quais filmes têm as maiores margens de lucro?",
+    "status": "failed",
+    "error_type": "EvaluationMismatch",
+    "query_source": [
+      "model"
+    ],
+    "seconds": 16.63
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q04",
+    "question": "Quais são os 5 filmes mais populares?",
+    "status": "passed",
+    "rows": 5,
+    "insights": 3,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 2.96
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q04",
+    "question": "Quais são os 5 filmes mais populares?",
+    "status": "passed",
+    "rows": 5,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 18.77
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q05",
+    "question": "Em quais filmes há maior divergência entre as notas TMDB e IMDb?",
+    "status": "passed",
+    "rows": 10,
+    "insights": 3,
+    "query_source": [
+      "reference"
+    ],
+    "seconds": 2.08
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q05",
+    "question": "Em quais filmes há maior divergência entre as notas TMDB e IMDb?",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "reference"
+    ],
+    "seconds": 16.93
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q06",
+    "question": "Qual é a nota IMDb média por ano de lançamento?",
+    "status": "passed",
+    "rows": 11,
+    "insights": 3,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 1.09
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q06",
+    "question": "Qual é a nota IMDb média por ano de lançamento?",
+    "status": "passed",
+    "rows": 11,
+    "insights": 3,
+    "query_source": [
+      "reference"
+    ],
+    "seconds": 5.47
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q07",
+    "question": "Qual ator participou de mais filmes nos últimos cinco anos?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 5.06
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q07",
+    "question": "Qual ator participou de mais filmes nos últimos cinco anos?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 13.43
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "status": "passed",
+    "rows": 2,
+    "insights": 3,
+    "query_source": [
+      "reference"
+    ],
+    "seconds": 2.27
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "status": "passed",
+    "rows": 2,
+    "insights": 3,
+    "query_source": [
+      "reference"
+    ],
+    "seconds": 16.34
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q09",
+    "question": "Qual dupla de ator e diretor trabalhou junta em mais filmes?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 4.83
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q09",
+    "question": "Qual dupla de ator e diretor trabalhou junta em mais filmes?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 19.94
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q10",
+    "question": "Quantos filmes existem associados a cada gênero?",
+    "status": "passed",
+    "rows": 19,
+    "insights": 3,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 1.57
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q10",
+    "question": "Quantos filmes existem associados a cada gênero?",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 15.54
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q11",
+    "question": "Qual produtora acumulou o maior lucro total em BRL?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 2.12
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q11",
+    "question": "Qual produtora acumulou o maior lucro total em BRL?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "reference"
+    ],
+    "seconds": 12.01
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q12",
+    "question": "Qual gênero tem a maior margem média de lucro?",
+    "status": "failed",
+    "error_type": "EvaluationMismatch",
+    "query_source": [
+      "model"
+    ],
+    "seconds": 1.43
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q12",
+    "question": "Qual gênero tem a maior margem média de lucro?",
+    "status": "failed",
+    "error_type": "EvaluationMismatch",
+    "query_source": [
+      "model"
+    ],
+    "seconds": 8.22
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q13",
+    "question": "Quais filmes têm a maior quantidade de avaliações de usuários?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 0.75
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q13",
+    "question": "Quais filmes têm a maior quantidade de avaliações de usuários?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 7.08
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q14",
+    "question": "Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 1.49
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q14",
+    "question": "Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "seconds": 9.84
+  }
+]

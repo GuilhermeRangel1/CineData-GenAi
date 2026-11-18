@@ -1,0 +1,20 @@
+[
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "e501bd3b42f60c43f4ce361a44891c91613d2ff1f9d98c1ef95ecc5738291f60",
+    "status": "passed",
+    "rows": 2,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH diretores_stats AS (SELECT p.sk_person_id, p.nome_pessoa, COUNT(f.sk_movie_id) AS filmes_validos, AVG(1.0 * f.nota_imdb) AS nota_media FROM dim_people AS p JOIN bridge_movie_person AS bmp ON p.sk_person_id = bmp.sk_person_id JOIN fact_movies_performance AS f ON bmp.sk_movie_id = f.sk_movie_id WHERE p.tipo_pessoa = 'Diretor' AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0 GROUP BY p.sk_person_id, p.nome_pessoa HAVING COUNT(f.sk_movie_id) >= 5) SELECT sk_person_id, nome_pessoa, filmes_validos, nota_media FROM diretores_stats WHERE nota_media = (SELECT MAX(nota_media) FROM diretores_stats) ORDER BY nome_pessoa COLLATE NOCASE ASC, sk_person_id ASC LIMIT 100"
+    ],
+    "seconds": 8.52
+  }
+]
