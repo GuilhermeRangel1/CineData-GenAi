@@ -12,6 +12,18 @@ from app.api import get_agent_service
 from app.config import get_settings
 from app.evaluation_cases import MANDATORY_EVALUATIONS
 from app.evaluation_runner import compare_rows, execute_reference_query, load_reference_queries
+from app.expansion_evaluation_cases import EXPANSION_EVALUATIONS
+
+_TECHNICAL_IDS = {"sk_movie_id", "sk_person_id", "sk_director_id", "sk_company_id", "sk_genre_id"}
+
+
+def comparable_rows(rows, expected_columns):
+    """Ignore extra internal IDs while preserving the requested output columns."""
+    expected = set(expected_columns)
+    return [
+        {key: value for key, value in row.items() if key in expected or key not in _TECHNICAL_IDS}
+        for row in rows
+    ]
 
 
 class RouteLog(logging.Handler):
@@ -29,6 +41,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-only", action="store_true")
     parser.add_argument("--reference", default="/tmp/reference-queries.sql")
+    parser.add_argument("--expansion-reference", type=Path)
     parser.add_argument("--output", default="/tmp/live-provider-results.json")
     parser.add_argument("--cases", default="")
     parser.add_argument("--paraphrases", action="store_true")
@@ -44,6 +57,9 @@ def main():
     agent_log.addHandler(log)
     report = []
     cases = MANDATORY_EVALUATIONS
+    if args.expansion_reference:
+        queries.update(load_reference_queries(args.expansion_reference))
+        cases += EXPANSION_EVALUATIONS
     if args.novel:
         cases = (replace(cases[0], question="Liste os três filmes de maior receita em BRL."),)
     for case in cases:
@@ -53,6 +69,8 @@ def main():
         if args.novel:
             reference_sql = reference_sql.replace("LIMIT 10", "LIMIT 3")
         expected = execute_reference_query(settings.gold_database_path, reference_sql)
+        if tuple(expected["columns"]) != case.expected_columns:
+            raise ValueError(f"{case.query_id}: colunas da referência divergentes do catálogo.")
         for provider in args.providers.split(","):
             settings.provider_order = provider
             get_agent_service.cache_clear()
@@ -83,7 +101,10 @@ def main():
             try:
                 with service.model.question_scope():
                     response = service.answer(question)
-                compare_rows(response.rows, expected["rows"])
+                rows = response.rows
+                if case in EXPANSION_EVALUATIONS:
+                    rows = comparable_rows(rows, case.expected_columns)
+                compare_rows(rows, expected["rows"])
                 entry.update(status="passed", rows=len(response.rows),
                              insights=len(response.insights), query_source=log.events[-1:])
             except Exception as exc:
