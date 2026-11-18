@@ -1,0 +1,20 @@
+[
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q09",
+    "question": "Qual dupla de ator e diretor trabalhou junta em mais filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH actor_movies AS (SELECT bm.sk_movie_id, bm.sk_person_id AS sk_actor_id FROM bridge_movie_person AS bm JOIN dim_people AS dp ON bm.sk_person_id = dp.sk_person_id WHERE dp.tipo_pessoa = 'Ator'), director_movies AS (SELECT bm.sk_movie_id, bm.sk_person_id AS sk_director_id FROM bridge_movie_person AS bm JOIN dim_people AS dp ON bm.sk_person_id = dp.sk_person_id WHERE dp.tipo_pessoa = 'Diretor'), pairs AS (SELECT a.sk_movie_id, a.sk_actor_id, d.sk_director_id FROM actor_movies AS a JOIN director_movies AS d ON a.sk_movie_id = d.sk_movie_id), pair_counts AS (SELECT sk_actor_id, sk_director_id, COUNT(DISTINCT a.sk_movie_id) AS filmes_em_comum FROM pairs AS a GROUP BY sk_actor_id, sk_director_id), max_count AS (SELECT MAX(filmes_em_comum) AS max_filmes FROM pair_counts) SELECT dp_actor.nome_pessoa AS ator, dp_director.nome_pessoa AS diretor, pc.filmes_em_comum FROM pair_counts AS pc JOIN dim_people AS dp_actor ON pc.sk_actor_id = dp_actor.sk_person_id AND dp_actor.tipo_pessoa = 'Ator' JOIN dim_people AS dp_director ON pc.sk_director_id = dp_director.sk_person_id AND dp_director.tipo_pessoa = 'Diretor' WHERE pc.filmes_em_comum = (SELECT max_filmes FROM max_count) ORDER BY ator, diretor LIMIT 100"
+    ],
+    "seconds": 23.67
+  }
+]

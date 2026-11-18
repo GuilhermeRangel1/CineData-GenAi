@@ -1,0 +1,88 @@
+[
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q10",
+    "question": "Quantos filmes existem associados a cada gênero?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT g.nome_genero, COUNT(DISTINCT b.sk_movie_id) AS total_filmes FROM dim_genres AS g JOIN bridge_movie_genre AS b ON b.sk_genre_id = g.sk_genre_id JOIN dim_movies AS m ON m.sk_movie_id = b.sk_movie_id GROUP BY g.sk_genre_id, g.nome_genero ORDER BY total_filmes DESC, g.nome_genero LIMIT 100"
+    ],
+    "seconds": 5.36
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q11",
+    "question": "Qual produtora acumulou o maior lucro total em BRL?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH producer_stats AS (SELECT dim_companies.sk_company_id, dim_companies.nome_produtora, COUNT(*) AS filmes_elegiveis, SUM(fact_movies_performance.receita_brl - fact_movies_performance.orcamento_brl) AS lucro_total_brl FROM bridge_movie_company JOIN dim_companies ON bridge_movie_company.sk_company_id = dim_companies.sk_company_id JOIN dim_movies ON bridge_movie_company.sk_movie_id = dim_movies.sk_movie_id JOIN fact_movies_performance ON dim_movies.sk_movie_id = fact_movies_performance.sk_movie_id WHERE NOT fact_movies_performance.receita_brl IS NULL AND NOT fact_movies_performance.orcamento_brl IS NULL GROUP BY dim_companies.sk_company_id, dim_companies.nome_produtora) SELECT sk_company_id, nome_produtora, filmes_elegiveis, lucro_total_brl FROM producer_stats WHERE lucro_total_brl = (SELECT MAX(lucro_total_brl) FROM producer_stats) LIMIT 100"
+    ],
+    "seconds": 8.41
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q12",
+    "question": "Qual gênero tem a maior margem média de lucro?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "failed",
+    "error_type": "ProviderTransientError",
+    "error": "Os provedores de IA estão temporariamente indisponíveis. Tente novamente em breve.",
+    "query_source": [],
+    "sql_attempts": [],
+    "seconds": 12.0
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q13",
+    "question": "Quais filmes têm a maior quantidade de avaliações de usuários?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT m.sk_movie_id, m.titulo, r.qtd_avaliacoes_usuarios FROM dim_movies AS m JOIN dim_reviews AS r ON m.sk_movie_id = r.sk_movie_id WHERE NOT r.qtd_avaliacoes_usuarios IS NULL AND r.qtd_avaliacoes_usuarios = (SELECT MAX(qtd_avaliacoes_usuarios) FROM dim_reviews) LIMIT 100"
+    ],
+    "seconds": 3.38
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q14",
+    "question": "Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH base AS (SELECT m.sk_movie_id, m.titulo, r.nota_media_usuarios, f.nota_imdb, r.qtd_avaliacoes_usuarios, f.qtd_imdb, ABS(r.nota_media_usuarios - f.nota_imdb) AS divergencia FROM dim_movies AS m JOIN fact_movies_performance AS f ON m.sk_movie_id = f.sk_movie_id JOIN dim_reviews AS r ON m.sk_movie_id = r.sk_movie_id WHERE r.qtd_avaliacoes_usuarios > 0 AND f.qtd_imdb > 0) SELECT sk_movie_id, titulo, nota_media_usuarios, nota_imdb, qtd_avaliacoes_usuarios, qtd_imdb, divergencia FROM base WHERE divergencia = (SELECT MAX(divergencia) FROM base) LIMIT 100"
+    ],
+    "seconds": 5.24
+  }
+]
