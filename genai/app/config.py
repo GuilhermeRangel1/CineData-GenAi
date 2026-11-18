@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_complex_model: str | None = "gemini-3.5-flash"
     gemini_fallback_model: str | None = "gemini-3.5-flash"
+    provider_order: str = "gemini,groq,openrouter"
+    groq_api_key: SecretStr | None = None
+    groq_model: str | None = None
+    openrouter_api_key: SecretStr | None = None
+    openrouter_model: str | None = None
+    provider_timeout_seconds: float = Field(default=12, gt=0, allow_inf_nan=False)
+    provider_budget_seconds: float = Field(default=40, gt=0, allow_inf_nan=False)
+    provider_cooldown_seconds: float = Field(default=60, gt=0, allow_inf_nan=False)
     response_cache_ttl_seconds: float = 300.0
     canonical_response_cache_ttl_seconds: float = 3600.0
     response_cache_rules_version: str = "1"
@@ -31,6 +39,15 @@ class Settings(BaseSettings):
         env_prefix="GENAI_",
         extra="ignore",
     )
+
+    @field_validator("provider_order")
+    @classmethod
+    def validate_provider_order(cls, value: str) -> str:
+        names = [name.strip().lower() for name in value.split(",")]
+        if (not names or any(name not in {"gemini", "groq", "openrouter"} for name in names)
+                or len(set(names)) != len(names)):
+            raise ValueError("Ordem de provedores contém nomes desconhecidos ou repetidos.")
+        return ",".join(names)
 
 
 @lru_cache

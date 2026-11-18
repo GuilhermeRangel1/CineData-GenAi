@@ -30,6 +30,30 @@ class FakeClient:
         self.models = FakeModels(response)
 
 
+def test_timeout_budget_shared_with_internal_fallback(monkeypatch):
+    import app.gemini_adapter as adapter
+
+    times = iter([0, 0, 3])
+    monkeypatch.setattr(adapter.time, "monotonic", lambda: next(times))
+    response = SimpleNamespace(candidates=[], text="ok")
+    client = FakeClient([TimeoutError(), response])
+    model = GeminiToolCallingModel("key", client=client)
+    assert model.complete_for_complexity([], [], QuestionComplexity.SIMPLE,
+                                         timeout_seconds=5).answer == "ok"
+    assert client.models.calls[0]["config"].http_options.timeout == 5000
+    assert client.models.calls[1]["config"].http_options.timeout == 2000
+    assert client.models.calls[0]["config"].http_options.retry_options.attempts == 1
+
+
+def test_replay_tool_call_from_another_provider_uses_documented_signature_marker():
+    history = GeminiToolCallingModel._contents([
+        {"role": "assistant", "tool_call": {"name": "run_sql", "arguments": {"sql": "SELECT 1"}}},
+        {"role": "tool", "name": "run_sql", "content": '{"rows":[{"value":1}]}'},
+    ])
+    assert history[0].parts[0].thought_signature == b"skip_thought_signature_validator"
+    assert history[1].parts[0].function_response.response == {"rows": [{"value": 1}]}
+
+
 def test_adapter_requires_api_key_without_injected_client() -> None:
     with pytest.raises(ProviderConfigurationError):
         GeminiToolCallingModel(None)
