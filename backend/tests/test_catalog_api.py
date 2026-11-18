@@ -5,8 +5,8 @@ from decimal import Decimal
 import httpx
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import Connection
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -25,7 +25,6 @@ from app.movies.models import (
 )
 from app.users.dependencies import get_current_admin, get_current_user
 from app.users.models import User
-
 
 CATALOG_SEARCH_TABLES = (
     ("dim_movies", "dim_movies_search", "titulo"),

@@ -553,6 +553,19 @@ demonstração e endereços do frontend; não é necessário criar `backend/.env
 
 ## Testes
 
+### Integração contínua
+
+O workflow `.github/workflows/ci.yml` verifica PRs para `main`, `develop` e `prod`, pushes
+nessas branches e execuções manuais. Backend, GenAI e frontend rodam em paralelo,
+com cache de dependências e cancelamento da execução anterior do mesmo PR.
+Cada job tem limite de cinco minutos, incluindo instalação e verificações.
+
+Os jobs Python usam Python 3.12, Ruff e os testes locais existentes. O frontend
+usa Node.js 24, lint, testes e build. O CI não precisa de chaves, chamadas reais
+às APIs, Docker nem download do Gold por Git LFS; os testes usam dados temporários
+e transportes simulados. O tempo real deve ser medido nas execuções do GitHub,
+pois instalação sem cache e filas podem aumentar a duração.
+
 Os testes do agente usam clientes simulados e não consomem cota de API. As
 consultas Q01–Q14 também podem ser comparadas com o banco configurado no
 Compose, usando SQL de referência como modelo simulado:

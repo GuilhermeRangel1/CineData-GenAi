@@ -17,6 +17,7 @@ from app.users.schemas import (
 from app.users.security import gerar_hash_senha, verificar_senha
 from app.users.tokens import criar_token_acesso
 
+
 class AuthService:
     """Coordena operações locais de conta sem expor hashes de senha."""
 

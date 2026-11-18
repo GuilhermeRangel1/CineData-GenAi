@@ -28,7 +28,9 @@ async def listar_conversas(
     return await ConversationsService(session).listar(user)
 
 
-@conversations_router.post("", response_model=ConversationDetail, status_code=status.HTTP_201_CREATED)
+@conversations_router.post(
+    "", response_model=ConversationDetail, status_code=status.HTTP_201_CREATED
+)
 async def criar_conversa(
     data: ConversationCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
