@@ -1,0 +1,56 @@
+[
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "e501bd3b42f60c43f4ce361a44891c91613d2ff1f9d98c1ef95ecc5738291f60",
+    "status": "passed",
+    "rows": 2,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH diretor_filmes AS (SELECT p.sk_person_id, p.nome_pessoa, m.sk_movie_id, f.nota_imdb FROM dim_people AS p JOIN bridge_movie_person AS bmp ON p.sk_person_id = bmp.sk_person_id JOIN dim_movies AS m ON bmp.sk_movie_id = m.sk_movie_id JOIN fact_movies_performance AS f ON m.sk_movie_id = f.sk_movie_id WHERE p.tipo_pessoa = 'Diretor' AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0), diretor_stats AS (SELECT sk_person_id, nome_pessoa, COUNT(DISTINCT sk_movie_id) AS filmes_validos, AVG(1.0 * nota_imdb) AS nota_media FROM diretor_filmes GROUP BY sk_person_id, nome_pessoa HAVING COUNT(DISTINCT sk_movie_id) >= 5) SELECT sk_person_id, nome_pessoa, filmes_validos, nota_media FROM diretor_stats WHERE nota_media = (SELECT MAX(nota_media) FROM diretor_stats) ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id LIMIT 100"
+    ],
+    "seconds": 9.79
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "e501bd3b42f60c43f4ce361a44891c91613d2ff1f9d98c1ef95ecc5738291f60",
+    "status": "passed",
+    "rows": 2,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH director_stats AS (SELECT p.sk_person_id, p.nome_pessoa, COUNT(*) AS filmes_validos, AVG(1.0 * f.nota_imdb) AS nota_media FROM dim_people AS p JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id JOIN fact_movies_performance AS f ON f.sk_movie_id = bp.sk_movie_id WHERE p.tipo_pessoa = 'Diretor' AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0 GROUP BY p.sk_person_id, p.nome_pessoa HAVING COUNT(*) >= 5) SELECT sk_person_id, nome_pessoa, filmes_validos, nota_media FROM director_stats WHERE nota_media = (SELECT MAX(nota_media) FROM director_stats) ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id LIMIT 100"
+    ],
+    "seconds": 1.77
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "e501bd3b42f60c43f4ce361a44891c91613d2ff1f9d98c1ef95ecc5738291f60",
+    "status": "passed",
+    "rows": 2,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH director_movies AS (SELECT p.sk_person_id, p.nome_pessoa, f.nota_imdb FROM dim_people AS p JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id JOIN dim_movies AS m ON m.sk_movie_id = bp.sk_movie_id JOIN fact_movies_performance AS f ON f.sk_movie_id = m.sk_movie_id WHERE p.tipo_pessoa = 'Diretor' AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0), director_avg AS (SELECT sk_person_id, nome_pessoa, COUNT(*) AS filmes_validos, AVG(1.0 * nota_imdb) AS nota_media FROM director_movies GROUP BY sk_person_id, nome_pessoa HAVING COUNT(*) >= 5) SELECT sk_person_id, nome_pessoa, filmes_validos, nota_media FROM director_avg WHERE nota_media = (SELECT MAX(nota_media) FROM director_avg) ORDER BY nome_pessoa COLLATE NOCASE, sk_person_id LIMIT 100"
+    ],
+    "seconds": 11.97
+  }
+]

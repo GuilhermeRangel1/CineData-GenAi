@@ -1049,8 +1049,14 @@ _FOCUSED_METRIC_RULES = {
     ),
     "Q08": (
         "Calcule a média IMDb por diretor uma vez, exigindo pelo menos cinco filmes "
-        "com nota não nula (zero é válido) e votos positivos; filtre tipo_pessoa = 'Diretor'; "
-        "retorne todos os empatados no máximo."
+        "com nota não nula (zero é válido) e votos positivos; filtre tipo_pessoa = 'Diretor'. "
+        "A pergunta pede SOMENTE os vencedores, não um ranking de todos os diretores. "
+        "Separe a agregação em uma CTE, aplique HAVING COUNT(*) >= 5 nessa CTE e, "
+        "na consulta externa, filtre nota_media = (SELECT MAX(nota_media) FROM a_CTE). "
+        "ORDER BY nota_media DESC sozinho não seleciona os vencedores. Não substitua "
+        "esse filtro por LIMIT 1 ou LIMIT 100: preserve todos os empatados no máximo. "
+        "Retorne somente as quatro colunas esperadas, ordenadas por nome_pessoa "
+        "COLLATE NOCASE e sk_person_id."
     ),
     "Q09": (
         "Use CTEs MATERIALIZED para separar créditos de ator e diretor e contar "
