@@ -1022,7 +1022,9 @@ _FOCUSED_METRIC_RULES = {
     ),
     "Q03": (
         "Calcule margem como (receita_brl - orcamento_brl) / receita_brl para filmes "
-        "com receita positiva e orçamento informado; ordene pela margem decrescente."
+        "com receita positiva e orçamento informado; use divisão real "
+        "(1.0 * numerador / receita), retorne dez filmes quando não houver quantidade "
+        "explícita e ordene por margem DESC, título COLLATE NOCASE e chave técnica."
     ),
     "Q04": (
         "Use popularidade, não visualizações; inclua zero, retorne cinco filmes e "
@@ -1032,11 +1034,12 @@ _FOCUSED_METRIC_RULES = {
     "Q05": (
         "Calcule a diferença absoluta entre as notas; exija notas e votos positivos "
         "nas duas fontes; ordene pela maior diferença e retorne dez filmes com as "
-        "duas contagens de votos."
+        "duas contagens de votos; desempate por título COLLATE NOCASE e chave técnica."
     ),
     "Q06": (
-        "Agrupe por ano de lançamento em ordem crescente; exclua lançamentos "
-        "futuros; calcule média IMDb somente para filmes com nota e votos válidos "
+        "Agrupe por ano de lançamento em ordem crescente; exclua lançamentos futuros "
+        "com data_lancamento > date('now') (não compare ano_lancamento a um ano "
+        "estimado pelo modelo); calcule média IMDb somente para filmes com nota e votos válidos "
         "e informe a quantidade de filmes por ano."
     ),
     "Q07": (
@@ -1046,7 +1049,8 @@ _FOCUSED_METRIC_RULES = {
     ),
     "Q08": (
         "Calcule a média IMDb por diretor uma vez, exigindo pelo menos cinco filmes "
-        "com nota e votos válidos; retorne todos os empatados no máximo."
+        "com nota não nula (zero é válido) e votos positivos; filtre tipo_pessoa = 'Diretor'; "
+        "retorne todos os empatados no máximo."
     ),
     "Q09": (
         "Use CTEs MATERIALIZED para separar créditos de ator e diretor e contar "
@@ -1058,13 +1062,18 @@ _FOCUSED_METRIC_RULES = {
         "contagem decrescente e nome do gênero."
     ),
     "Q11": (
-        "Some receita_brl menos orcamento_brl por produtora apenas quando ambos "
+        "Não use a coluna lucro_brl: ela pode ter população diferente. Calcule "
+        "SUM(receita_brl - orcamento_brl) por produtora apenas quando ambos "
         "existirem; retorne todas as produtoras empatadas no maior lucro total."
     ),
     "Q12": (
         "Calcule a média das margens individuais por gênero, usando somente filmes "
         "com receita positiva e orçamento informado; retorne todos os gêneros "
-        "empatados no máximo."
+        "empatados no máximo. Use 1.0 * (receita_brl - orcamento_brl) / receita_brl "
+        "antes do AVG; inclua orçamento zero, deduplique associações filme-gênero "
+        "e agrupe por chave e nome. Antes de COUNT e AVG, filtre explicitamente "
+        "receita_brl > 0 AND orcamento_brl IS NOT NULL: COUNT não ignora orçamento nulo "
+        "automaticamente como AVG faz."
     ),
     "Q13": (
         "Use qtd_avaliacoes_usuarios de dim_reviews por filme e retorne os empatados "
@@ -1072,7 +1081,9 @@ _FOCUSED_METRIC_RULES = {
     ),
     "Q14": (
         "Compare o resumo de notas dos usuários com IMDb apenas quando ambas as "
-        "fontes têm votos positivos; calcule a diferença absoluta e retorne todos "
+        "fontes têm votos positivos. nota_media_usuarios e qtd_avaliacoes_usuarios "
+        "vêm de dim_reviews; nota_imdb e qtd_imdb vêm de fact_movies_performance. "
+        "Junte essas tabelas por sk_movie_id; calcule a diferença absoluta e retorne todos "
         "os filmes empatados no valor máximo."
     ),
 }
@@ -1089,8 +1100,10 @@ class AgentService:
         insight_service: InsightService | None = None,
         semantic_search: SynopsisSearchIndex | None = None,
         provider_configured: bool = True,
+        model_only: bool = False,
     ):
         self.model = model
+        self.model_only = model_only
         self.executor = executor
         self.max_rows = max_rows
         self.insight_service = insight_service
@@ -1240,7 +1253,7 @@ class AgentService:
             )
         if not self.provider_configured:
             raise ProviderConfigurationError(
-                "Configure a chave Gemini para consultar os dados dos filmes."
+                "Configure um provedor de IA para consultar os dados dos filmes."
             )
         if (
             self.semantic_search is not None
@@ -1299,7 +1312,7 @@ class AgentService:
         evaluation_case = find_evaluation_case(normalized_question)
         reference_fallback = (
             _REFERENCE_FALLBACKS.get(evaluation_case.query_id)
-            if evaluation_case is not None and not mixed_intent
+            if evaluation_case is not None and not mixed_intent and not self.model_only
             else None
         )
         if reference_fallback is not None:
@@ -1349,38 +1362,38 @@ class AgentService:
             evaluation_case = None
             query = _semantic_revenue_sql([match.movie_id for match in semantic_matches])
             model_seconds = 0.0
-        elif continuation_company_profit_year is not None:
+        elif continuation_company_profit_year is not None and not self.model_only:
             evaluation_case = get_evaluation_case("Q11")
             query = _top_company_profit_by_year_sql(continuation_company_profit_year)
             model_seconds = 0.0
             period_override = f"ano de {continuation_company_profit_year}"
-        elif five_year_actor_count and reference_fallback is None:
+        elif five_year_actor_count and reference_fallback is None and not self.model_only:
             evaluation_case = get_evaluation_case("Q07")
             query = _FIVE_YEAR_ACTOR_COUNT_SQL
             model_seconds = 0.0
-        elif actor_director_pair and reference_fallback is None:
+        elif actor_director_pair and reference_fallback is None and not self.model_only:
             evaluation_case = get_evaluation_case("Q09")
             query = _ACTOR_DIRECTOR_PAIR_SQL
             model_seconds = 0.0
-        elif top_company_count is not None:
+        elif top_company_count is not None and not self.model_only:
             evaluation_case = None
             query = _top_company_movie_count_sql(top_company_count)
             model_seconds = 0.0
             all_time_company_count = True
-        elif top_company_profit and reference_fallback is None:
+        elif top_company_profit and reference_fallback is None and not self.model_only:
             evaluation_case = get_evaluation_case("Q11")
             query = _TOP_COMPANY_PROFIT_SQL
             model_seconds = 0.0
-        elif director_average and reference_fallback is None:
+        elif director_average and reference_fallback is None and not self.model_only:
             evaluation_case = get_evaluation_case("Q08")
             query = _DIRECTOR_AVERAGE_SQL
             model_seconds = 0.0
-        elif actor_movie_count:
+        elif actor_movie_count and not self.model_only:
             evaluation_case = None
             query = _ACTOR_MOVIE_COUNT_SQL
             model_seconds = 0.0
             all_time_actor_ranking = True
-        elif ranking_limit is not None and reference_fallback is None:
+        elif ranking_limit is not None and reference_fallback is None and not self.model_only:
             evaluation_case = get_evaluation_case("Q04")
             query = _popularity_rank_sql(ranking_limit)
             model_seconds = 0.0
@@ -1407,7 +1420,17 @@ class AgentService:
                 "content": (
                     "Responda em português. Para perguntas sobre o catálogo, "
                     "use exatamente a ferramenta run_sql para obter os dados. "
-                    "Não invente números. Se faltar métrica, unidade ou período "
+                    "Não invente números. Em SQLite, use 1.0 * numerador / denominador "
+                    "para evitar divisão inteira. Médias de razões são calculadas por entidade "
+                    "antes da agregação. Exemplo genérico: AVG(1.0 * itens_devolvidos / "
+                    "itens_vendidos) é diferente de SUM(itens_devolvidos) / SUM(itens_vendidos). "
+                    "Em dim_people.tipo_pessoa os valores são Ator e Diretor, com essa grafia; "
+                    "não traduza os valores para actor/director. Nota zero é válida: use "
+                    "IS NOT NULL e votos positivos, sem impor nota > 0. Em janelas até hoje, "
+                    "exclua também datas futuras. Deduplique associações antes de contar "
+                    "entidades. Em rankings, preserve "
+                    "empates quando a pergunta pede o maior valor; se pede N itens, retorne "
+                    "N com desempate estável. Se faltar métrica, unidade ou período "
                     "essencial, peça esclarecimento começando por CLARIFY: e não "
                     "chame a ferramenta. "
                     "O contexto de conversa, quando fornecido, só serve para resolver "
@@ -1534,6 +1557,46 @@ class AgentService:
                 break
             except (SqlValidationError, QueryExecutionError, QueryTimeoutError,
                     EvaluationMismatch) as exc:
+                if query_source == "model" and isinstance(
+                    exc, (SqlValidationError, QueryExecutionError)
+                ):
+                    repair_messages = [*messages, {
+                        "role": "user",
+                        "content": (
+                            "A consulta proposta não passou na validação ou execução. "
+                            f"SQL proposto: {candidate}\nErro: {exc}\n"
+                            "Corrija usando somente o esquema informado e chame run_sql. "
+                            "Preserve a métrica e os filtros solicitados."
+                        ),
+                    }]
+                    try:
+                        if callable(complete_for_complexity):
+                            repaired = complete_for_complexity(
+                                repair_messages, (RUN_SQL_TOOL,), complexity
+                            )
+                        else:
+                            repaired = self.model.complete(repair_messages, (RUN_SQL_TOOL,))
+                        repair_call = self._require_tool_call(repaired)
+                        if repair_call.name != RUN_SQL_TOOL.name:
+                            raise AgentError("Ferramenta de correção inválida.")
+                        repair_sql = repair_call.arguments.get("sql")
+                        if not isinstance(repair_sql, str):
+                            raise AgentError("SQL de correção inválido.")
+                        repaired_result = self.executor.execute(
+                            validate_sql(repair_sql, max_rows=self.max_rows)
+                        )
+                        if (evaluation_case
+                                and repaired_result.columns != evaluation_case.expected_columns):
+                            raise EvaluationMismatch("Colunas da correção incompatíveis.")
+                        if reference_future is not None:
+                            compare_rows(repaired_result.rows, reference_future.result().rows)
+                        result = repaired_result
+                        query = repair_sql
+                        query_source = "model_repaired"
+                        break
+                    except (AgentError, SqlValidationError, QueryExecutionError,
+                            QueryTimeoutError, EvaluationMismatch, ProviderTransientError):
+                        logger.info("A tentativa de correção SQL não produziu resultado válido.")
                 if candidate != attempts[-1]:
                     logger.warning(
                         "SQL gerado para %s falhou na verificação (%s); "
@@ -1632,7 +1695,7 @@ class AgentService:
             answer=final_answer,
             rows=result.rows,
             truncated=result.truncated,
-            tool_calls=1,
+            tool_calls=2 if query_source == "model_repaired" else 1,
             columns=result.columns,
             query_id=evaluation_case.query_id if evaluation_case else None,
             metric=metric,
