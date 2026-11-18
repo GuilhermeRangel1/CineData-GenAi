@@ -256,7 +256,10 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
         setAnaliseDisponivel(false)
         setErro(falha.message)
         setPerguntaFalhou('')
-      } else if (falha instanceof ErroDaApi && ['query_timeout', 'service_error', 'stream_error', 'network_error'].includes(falha.codigo ?? '')) {
+      } else if (falha instanceof ErroDaApi && falha.codigo === 'network_error') {
+        setErro(falha.message)
+        setPerguntaFalhou(conteudo)
+      } else if (falha instanceof ErroDaApi && ['query_timeout', 'service_error', 'stream_error'].includes(falha.codigo ?? '')) {
         setErro('Não consegui concluir esta consulta agora. Tente novamente em instantes.')
         setPerguntaFalhou(conteudo)
       } else {
@@ -405,8 +408,8 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
           </div>
           {analiseDisponivel === false && (
             <div className="chatbot-setup-notice" aria-label="Configuração do chatbot">
-              <strong>Consultas aos filmes precisam de uma chave Gemini.</strong>
-              <span>Preencha <code>GENAI_GEMINI_API_KEY</code> em <code>genai/.env</code> e reinicie o serviço GenAI. A ajuda sobre o CineData continua disponível.</span>
+              <strong>Consultas aos filmes precisam de um provedor de IA configurado.</strong>
+              <span>Configure Gemini, Groq ou OpenRouter em <code>genai/.env</code> e recrie o serviço GenAI. A ajuda sobre o CineData continua disponível.</span>
             </div>
           )}
           {ajudaAberta && (
@@ -426,7 +429,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
                 <div className={`chatbot-help-group chatbot-help-group--${grupo.tema}`} key={grupo.titulo}>
                   <h3>{grupo.titulo}</h3>
                   {grupo.perguntas.map((pergunta) => (
-                    <button key={pergunta} type="button" disabled={carregando || (analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin')} title={analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin' ? 'Configure a chave Gemini para consultar os filmes' : undefined} onClick={() => void enviar(pergunta)}>
+                    <button key={pergunta} type="button" disabled={carregando || (analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin')} title={analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin' ? 'Configure um provedor de IA para consultar os filmes' : undefined} onClick={() => void enviar(pergunta)}>
                       {pergunta}<span aria-hidden="true">↗</span>
                     </button>
                   ))}
@@ -447,7 +450,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
               <h3>O que vamos descobrir?</h3>
               <div className="chatbot-suggestions" aria-label="Sugestões para começar">
                 {SUGESTOES.map((sugestao, index) => (
-                  <button key={sugestao} type="button" aria-label={sugestao} onClick={() => void enviar(sugestao)} disabled={carregando || analiseDisponivel === false} title={analiseDisponivel === false ? 'Configure a chave Gemini para consultar os filmes' : undefined}>
+                  <button key={sugestao} type="button" aria-label={sugestao} onClick={() => void enviar(sugestao)} disabled={carregando || analiseDisponivel === false} title={analiseDisponivel === false ? 'Configure um provedor de IA para consultar os filmes' : undefined}>
                     <span className="chatbot-suggestion-number">0{index + 1}</span><span>{sugestao}</span><span className="chatbot-suggestion-arrow" aria-hidden="true">↗</span>
                   </button>
                 ))}

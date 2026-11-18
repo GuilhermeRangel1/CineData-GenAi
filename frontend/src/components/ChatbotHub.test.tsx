@@ -13,6 +13,22 @@ function stubFetchWithCapabilities(fetcher: (input: RequestInfo | URL, init?: Re
 }
 
 describe('ChatbotHub GenAI', () => {
+  it('permite tentar novamente quando todos os provedores estão indisponíveis', async () => {
+    stubFetchWithCapabilities(() => Promise.resolve(new Response(JSON.stringify({
+      status: 'error', error: {
+        code: 'provider_unavailable',
+        message: 'Os provedores de IA estão temporariamente indisponíveis.',
+      },
+    }), { status: 503 })))
+    const user = userEvent.setup()
+    render(<ChatbotHub />)
+    await user.type(screen.getByLabelText('Escreva sua mensagem'), 'Quais filmes existem?')
+    await user.click(screen.getByRole('button', { name: 'Enviar mensagem' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('temporariamente indisponíveis')
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument()
+    expect(screen.queryByText('Consultas aos filmes precisam de um provedor de IA configurado.')).not.toBeInTheDocument()
+  })
+
   it('avisa sobre a chave ausente e bloqueia sugestões de dados, preservando a ajuda da plataforma', async () => {
     const fetcher = vi.fn((input: RequestInfo | URL) => Promise.resolve(new Response(JSON.stringify(
       String(input).endsWith('/capabilities')
@@ -26,7 +42,7 @@ describe('ChatbotHub GenAI', () => {
     const user = userEvent.setup()
 
     render(<ChatbotHub />)
-    expect(await screen.findByText('Consultas aos filmes precisam de uma chave Gemini.')).toBeInTheDocument()
+    expect(await screen.findByText('Consultas aos filmes precisam de um provedor de IA configurado.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Quais são os 10 filmes com maior receita em BRL?' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: 'Ajuda' }))
