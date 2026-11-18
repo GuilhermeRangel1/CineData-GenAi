@@ -1,6 +1,6 @@
 # Fallback entre provedores do chatbot
 
-Data: 2026-11-18. Estado: proposta para aprovação.
+Data: 2026-11-18. Estado: implementado; Groq validado na versão atual, OpenRouter parcialmente validado e Gemini isolado aguarda credencial válida.
 
 ## Objetivo
 
@@ -8,13 +8,13 @@ Reduzir interrupções do chatbot quando um provedor ficar indisponível ou sem
 cota, mantendo a interface, o histórico e as proteções atuais do banco Gold.
 Não há garantia de disponibilidade absoluta nem de equivalência entre modelos.
 
-## Situação atual
+## Situação antes da implementação
 
-O agente já usa ToolDefinition, ToolCall e ModelTurn como contrato interno.
-GeminiToolCallingModel implementa esse contrato e tenta um segundo modelo Gemini
-em falhas transitórias. A criação do agente e capabilities ainda dependem
-exclusivamente da chave Gemini. SQL é validado e executado localmente em modo
-somente leitura; provedores geram pedidos de ferramentas, não acessam o banco.
+O agente usava ToolDefinition, ToolCall e ModelTurn como contrato interno.
+GeminiToolCallingModel implementava esse contrato e tentava outro modelo Gemini
+em falhas transitórias. A criação do agente e capabilities dependiam
+exclusivamente da chave Gemini. SQL era validado e executado localmente em modo
+somente leitura; provedores geravam pedidos de ferramentas, sem acesso ao banco.
 
 ## Abordagem escolhida como proposta
 
@@ -102,9 +102,16 @@ Testes determinísticos devem cobrir ordem, chaves ausentes, autenticação,
 limites de uso, rede, cooldown, concorrência, deadline, falha total e tradução
 de ferramentas. A suíte existente deve continuar passando. Validar imagem e
 endpoints no Docker. Q01–Q14 precisam de avaliação real por modelo; testes com
-fakes não comprovam qualidade analítica e essa etapa depende de chaves e cota.
+fakes não comprovam qualidade analítica. A avaliação real Q01–Q14 passou de primeira no Groq, sem SQL de referência.
+No OpenRouter, Q01–Q08 passaram na versão atual antes de timeout e falhas de API;
+a rodada anterior de 14/14 usou uma cópia antiga do agente. Gemini isolado
+aguarda uma chave válida.
 
-prod começa como referência local do commit 49cc10d; isso não equivale a uma
-certificação de release. Nenhum push, merge ou deploy faz parte da preparação.
-Implementação acontece em feat/multi-provider-fallback. Integração na main e
-promoção para prod acontecem após revisão e validação.
+prod começou como referência local do commit 49cc10d; isso não equivale a uma
+certificação de release. A implementação permanece em feat/multi-provider-fallback.
+Integração na main e promoção para prod dependem de revisão e decisão explícita.
+
+
+## Resultado da validação
+
+Groq passou Q01–Q14 na primeira tentativa em uma avaliação isolada da versão atual, sem SQL de referência ou correção. OpenRouter passou Q01–Q08 nessa versão; a chamada de Q09 expirou e a API falhou nas seguintes. Uma avaliação anterior de 14/14 do OpenRouter usou uma cópia antiga do agente. Os testes cobrem resultados tabulares no Gold atual. Gemini isolado aguarda uma chave válida (a anterior foi rejeitada com HTTP 400). Consulte `docs/genai/provider-validation.md` para detalhes e relatórios.
