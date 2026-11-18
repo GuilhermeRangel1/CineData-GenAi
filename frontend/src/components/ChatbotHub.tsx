@@ -521,7 +521,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
   const columns = colunasVisiveis(metadata.columns)
   const titulo = tituloResultado(metadata)
   const observacao = observacaoResultado(metadata)
-  const mostrarTexto = metadata.source === 'platform' || metadata.source === 'mixed'
+  const mostrarTexto = metadata.source === 'platform' || metadata.source === 'mixed' || rows.length === 0
   const possuiGrafico = temGraficoDeResultado(metadata, rows)
   return (
     <div className="chatbot-result" aria-label="Resposta do chatbot">
@@ -548,7 +548,11 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
               <tbody>
                 {rows.map((row, index) => (
                   <tr key={index}>
-                    {columns.map((column) => <td key={column}>{formatarCelula(column, row[column])}</td>)}
+                    {columns.map((column) => (
+                      <td key={column} className={typeof row[column] === 'number' ? 'chatbot-result-number' : undefined}>
+                        {formatarCelula(column, row[column])}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

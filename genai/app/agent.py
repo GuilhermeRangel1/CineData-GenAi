@@ -21,7 +21,6 @@ from app.errors import (
     SqlValidationError,
 )
 from app.evaluation_cases import (
-    MANDATORY_EVALUATIONS,
     find_evaluation_case,
     get_evaluation_case,
 )
@@ -149,6 +148,25 @@ def _normalize_for_routing(question: str) -> str:
         for character in unicodedata.normalize("NFD", question.casefold())
         if unicodedata.category(character) != "Mn"
     )
+
+
+def _empty_analytical_answer(question: str) -> str:
+    """Verbaliza uma comparação anual quando a consulta não encontrou exceções."""
+    comparison = re.search(
+        r"\b(?:de|entre)\s+(\d{4})\s+(?:a|até|e)\s+(\d{4})\s*,?\s*"
+        r"(?:teve algum ano em que|em quais anos)\s+"
+        r"(?:saíram|estrearam|foram lançados)\s+mais filmes de\s+"
+        r"([^?,.!]+?)\s+do que\s+(?:filmes de\s+|de\s+)?([^?,.!]+)(?=[?.,!]|$)",
+        question,
+        flags=re.IGNORECASE,
+    )
+    if comparison:
+        first_year, last_year, first_group, second_group = comparison.groups()
+        return (
+            f"No catálogo, em nenhum ano de {first_year} a {last_year} "
+            f"saíram mais filmes de {first_group.strip()} do que de {second_group.strip()}."
+        )
+    return "A consulta não encontrou resultados para os critérios informados."
 
 
 def _is_conversational_message(question: str) -> bool:
@@ -475,10 +493,6 @@ def _format_evaluation_context(case) -> str:
     return context
 
 
-_MANDATORY_QUESTIONS_CONTEXT = "\n".join(
-    _format_evaluation_context(case) for case in MANDATORY_EVALUATIONS
-)
-
 _NATURAL_LANGUAGE_RULES = (
     " Regras de interpretação para perguntas livres: quando a pessoa disser "
     "'mais bem avaliado pelo IMDb', 'melhor avaliado no IMDb' ou equivalente, "
@@ -488,7 +502,30 @@ _NATURAL_LANGUAGE_RULES = (
     "quando a pergunta mencionar explicitamente quantidade de avaliações/votos ou "
     "colocar nota e quantidade como alternativas."
     " 'Mais vistos' e 'mais populares' no catálogo significam maior popularidade. "
-    "Para ranking top-N por uma métrica de fact_movies_performance exibindo título, "
+    "Os nomes de gêneros em dim_genres são gravados em inglês: terror = Horror, "
+    "comédia = Comedy, animação = Animation, documentário = Documentary e "
+    "ficção científica = Science Fiction. Use os valores do catálogo no WHERE. "
+    "Dados financeiros em BRL e notas e votos IMDb/TMDB ficam em "
+    "fact_movies_performance, não em dim_movies. Para percentual de filmes "
+    "lucrativos, exija receita e orçamento conhecidos, conte lucro positivo e "
+    "retorne 100.0 vezes a proporção. Se pedirem total, quantidade lucrativa e "
+    "percentual, devolva as três medidas na mesma linha. "
+    "Use BRL como moeda padrão, salvo se a pergunta pedir outra moeda. "
+    "Para valores em reais, use exclusivamente receita_brl e orcamento_brl, "
+    "com lucro calculado por receita_brl menos orcamento_brl. "
+    "Em perguntas com várias métricas, devolva todas as pedidas. Para lucro "
+    "mediano por produtora, ordene os lucros elegíveis com ROW_NUMBER por "
+    "produtora, conte as linhas da partição e calcule a média da posição "
+    "central ou das duas centrais. Inclua lucro_mediano_brl no SELECT final "
+    "mesmo quando o ranking for por percentual lucrativo. "
+    "Se a pessoa perguntar em quais anos um grupo superou outro, calcule os "
+    "dois totais por ano e filtre os anos em que o primeiro é estritamente "
+    "maior que o segundo. Retorne ambos os totais e a diferença para os anos "
+    "que passaram no filtro. Zero linhas é um resultado válido. "
+    "Use o alias lucro_brl para receita menos orçamento em reais. "
+    "Para um top-N com filtros seletivos, use uma consulta com ORDER BY e LIMIT; "
+    "não combine o ranking com UNION. Para um top-N que percorre o catálogo inteiro "
+    "por uma métrica de fact_movies_performance exibindo título, "
     "evite juntar os 95 mil filmes antes de ordenar: encontre primeiro a pontuação "
     "na posição N em uma CTE (ORDER BY métrica DESC LIMIT 1 OFFSET N-1), materialize "
     "os filmes com pontuação maior ou igual a esse limite, e só então junte dim_movies. "
@@ -1060,7 +1097,9 @@ _FOCUSED_METRIC_RULES = {
     ),
     "Q09": (
         "Use CTEs MATERIALIZED para separar créditos de ator e diretor e contar "
-        "filmes em comum por identificadores antes de juntar nomes; retorne todos "
+        "filmes em comum por identificadores antes de juntar nomes. No SELECT final, "
+        "leia nome_pessoa diretamente dos dois aliases de dim_people e renomeie "
+        "essas colunas para ator e diretor; retorne todos "
         "os pares empatados no máximo."
     ),
     "Q10": (
@@ -1079,7 +1118,9 @@ _FOCUSED_METRIC_RULES = {
         "antes do AVG; inclua orçamento zero, deduplique associações filme-gênero "
         "e agrupe por chave e nome. Antes de COUNT e AVG, filtre explicitamente "
         "receita_brl > 0 AND orcamento_brl IS NOT NULL: COUNT não ignora orçamento nulo "
-        "automaticamente como AVG faz."
+        "automaticamente como AVG faz. Na saída, selecione sk_genre_id, nome_genero, "
+        "COUNT(*) AS filmes_validos e AVG da margem AS margem_media, preservando "
+        "esses nomes após filtrar os vencedores."
     ),
     "Q13": (
         "Use qtd_avaliacoes_usuarios de dim_reviews por filme e retorne os empatados "
@@ -1406,8 +1447,9 @@ class AgentService:
         else:
             available_tables, schema_context = _schema_for_case(evaluation_case)
             evaluation_context = (
-                _format_evaluation_context(evaluation_case)
-                if evaluation_case else _MANDATORY_QUESTIONS_CONTEXT
+                "\nUse os aliases do caso reconhecido quando fizer sentido:\n"
+                + _format_evaluation_context(evaluation_case)
+                if evaluation_case else ""
             )
             conversation_context = self._format_conversation_context(context)
             semantic_context = (
@@ -1426,12 +1468,18 @@ class AgentService:
                 "content": (
                     "Responda em português. Para perguntas sobre o catálogo, "
                     "use exatamente a ferramenta run_sql para obter os dados. "
+                    "Envie o SQL completo e executável, sem consultas de teste "
+                    "como SELECT 1 nem comentários de rascunho. "
                     "Não invente números. Em SQLite, use 1.0 * numerador / denominador "
                     "para evitar divisão inteira. Médias de razões são calculadas por entidade "
                     "antes da agregação. Exemplo genérico: AVG(1.0 * itens_devolvidos / "
                     "itens_vendidos) é diferente de SUM(itens_devolvidos) / SUM(itens_vendidos). "
                     "Em dim_people.tipo_pessoa os valores são Ator e Diretor, com essa grafia; "
-                    "não traduza os valores para actor/director. Nota zero é válida: use "
+                    "não traduza os valores para actor/director. Ao buscar um nome de "
+                    "pessoa, compare nome_pessoa com COLLATE NOCASE: a capitalização "
+                    "no catálogo pode diferir da pergunta. Para recortes e agrupamentos "
+                    "por ano civil, prefira ano_lancamento, que é numérico. "
+                    "Nota zero é válida: use "
                     "IS NOT NULL e votos positivos, sem impor nota > 0. Em janelas até hoje, "
                     "exclua também datas futuras. Deduplique associações antes de contar "
                     "entidades. Em rankings, preserve "
@@ -1450,8 +1498,6 @@ class AgentService:
                     f"{schema_context}\n"
                     f"{_GOLD_RELATIONSHIPS_CONTEXT}\n"
                     f"\n{_NATURAL_LANGUAGE_RULES if evaluation_case is None else ''}"
-                    "\nIdentifique a intenção entre os casos obrigatórios abaixo e use "
-                    "aliases iguais às colunas esperadas quando fizer sentido:\n"
                     f"{evaluation_context}"
                     + (
                         f"\nPara esta pergunta: {_FOCUSED_METRIC_RULES[evaluation_case.query_id]}"
@@ -1621,7 +1667,7 @@ class AgentService:
 
         row_count = len(result.rows)
         if row_count == 0:
-            final_answer = "A consulta não encontrou resultados para os critérios informados."
+            final_answer = _empty_analytical_answer(normalized_question)
         else:
             final_answer = (
                 f"A consulta retornou {row_count} "

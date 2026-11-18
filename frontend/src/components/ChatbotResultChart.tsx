@@ -50,6 +50,12 @@ function temaParaColuna(column: string): TemaGrafico {
 
 function especificacao(metadata: MetadadosGenAi, rows: Array<Record<string, unknown>>): EspecificacaoGrafico | null {
   if (metadata.query_id && ESPECIFICACOES[metadata.query_id]) return ESPECIFICACOES[metadata.query_id]
+  const colunaLucro = metadata.columns.find((column) =>
+    /^(?:lucro(?:_brl|_em_reais)?|profit(?:_brl)?)$/i.test(column),
+  )
+  if (metadata.columns.includes('titulo') && colunaLucro) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: colunaLucro, titulo: 'Lucro por filme', tema: 'financeiro' }
+  }
   if (metadata.columns.includes('titulo') && metadata.columns.includes('receita_brl')) {
     return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'receita_brl', titulo: 'Receita por filme', tema: 'financeiro' }
   }
@@ -58,9 +64,6 @@ function especificacao(metadata: MetadadosGenAi, rows: Array<Record<string, unkn
   }
   if (metadata.columns.includes('titulo') && metadata.columns.includes('orcamento_usd')) {
     return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'orcamento_usd', titulo: 'Orçamento por filme', tema: 'financeiro' }
-  }
-  if (metadata.columns.includes('titulo') && metadata.columns.includes('lucro_brl')) {
-    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'lucro_brl', titulo: 'Lucro por filme', tema: 'financeiro' }
   }
   if (metadata.columns.includes('titulo') && metadata.columns.includes('margem')) {
     return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'margem', titulo: 'Margem de lucro por filme', tema: 'financeiro' }

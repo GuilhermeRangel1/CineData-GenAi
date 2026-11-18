@@ -84,7 +84,9 @@ class GeminiToolCallingModel:
                     raise ProviderTransientError("Tempo de inferência esgotado.")
                 request_config = config.model_copy(deep=True)
                 request_config.http_options = types.HttpOptions(
-                    timeout=max(1, int(remaining * 1000)),
+                    # A API rejeita prazos menores que 10 s. No cliente assíncrono,
+                    # _generate aplica o prazo local restante independentemente.
+                    timeout=max(10_000, int(remaining * 1000)),
                     retry_options=types.HttpRetryOptions(attempts=1),
                 )
                 kwargs = dict(model=selected_model, contents=self._contents(messages),
