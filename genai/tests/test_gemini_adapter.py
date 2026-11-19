@@ -33,15 +33,15 @@ class FakeClient:
 def test_timeout_budget_shared_with_internal_fallback(monkeypatch):
     import app.gemini_adapter as adapter
 
-    times = iter([0, 0, 3])
+    times = iter([0, 0, 12])
     monkeypatch.setattr(adapter.time, "monotonic", lambda: next(times))
     response = SimpleNamespace(candidates=[], text="ok")
     client = FakeClient([TimeoutError(), response])
     model = GeminiToolCallingModel("key", client=client)
     assert model.complete_for_complexity([], [], QuestionComplexity.SIMPLE,
-                                         timeout_seconds=5).answer == "ok"
-    assert client.models.calls[0]["config"].http_options.timeout == 5000
-    assert client.models.calls[1]["config"].http_options.timeout == 2000
+                                         timeout_seconds=15).answer == "ok"
+    assert client.models.calls[0]["config"].http_options.timeout == 15000
+    assert client.models.calls[1]["config"].http_options.timeout == 10000
     assert client.models.calls[0]["config"].http_options.retry_options.attempts == 1
 
 

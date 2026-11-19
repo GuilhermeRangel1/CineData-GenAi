@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     openrouter_api_key: SecretStr | None = None
     openrouter_model: str | None = None
     provider_timeout_seconds: float = Field(default=12, gt=0, allow_inf_nan=False)
+    openrouter_analytical_timeout_seconds: float = Field(default=36, gt=0, allow_inf_nan=False)
     provider_budget_seconds: float = Field(default=40, gt=0, allow_inf_nan=False)
     provider_cooldown_seconds: float = Field(default=60, gt=0, allow_inf_nan=False)
     response_cache_ttl_seconds: float = 300.0

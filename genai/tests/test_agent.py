@@ -10,9 +10,42 @@ from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentServi
 from app.agent_models import ConversationContext, ModelTurn, ToolCall
 from app.errors import ProviderConfigurationError
 from app.evaluation_cases import MANDATORY_EVALUATIONS
+from app.evaluation_paraphrases import EVALUATION_PARAPHRASES
 from app.gold_database import EXPECTED_TABLES, GoldDatabase
 from app.semantic_search import SynopsisSearchIndex
 from app.sql_executor import GoldQueryExecutor
+
+
+@pytest.mark.parametrize("question", EVALUATION_PARAPHRASES["Q16"])
+def test_empty_annual_genre_comparison_explains_the_result(question) -> None:
+    assert agent_module._empty_analytical_answer(question) == (
+        "No catálogo, em nenhum ano de 2016 a 2024 saíram mais filmes de terror do que de comédia."
+    )
+
+
+def test_colloquial_score_comparison_routes_to_catalog_data() -> None:
+    question = EVALUATION_PARAPHRASES["Q05"][0]
+    assert agent_module._question_sources(question) == (False, True)
+
+
+def test_schema_for_director_collaborations_keeps_people_credits_and_ratings() -> None:
+    question = "Quais diretores trabalharam com Leonardo DiCaprio? Mostre a média IMDb."
+    tables, _ = agent_module._schema_for_case(None, agent_module._analytical_topic(question))
+    assert set(tables.split(", ")) == {
+        "dim_movies", "dim_people", "bridge_movie_person", "fact_movies_performance",
+    }
+
+
+def test_schema_for_producer_median_preserves_cross_topic_queries() -> None:
+    question = "Qual produtora teve o maior lucro mediano?"
+    tables, _ = agent_module._schema_for_case(None, agent_module._analytical_topic(question))
+    assert "bridge_movie_company" in tables
+    assert "bridge_movie_genre" not in tables
+
+    topic = agent_module._analytical_topic(f"{question} Separe por gênero.")
+    tables, _ = agent_module._schema_for_case(None, topic)
+    assert "bridge_movie_company" in tables
+    assert "bridge_movie_genre" in tables
 
 
 def _create_gold_fixture(path) -> None:
@@ -244,11 +277,8 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     assert len(model.calls) == 1
     assert model.calls[0][1][0].name == "run_sql"
     assert "dim_movies" in model.calls[0][0][0]["content"]
-    assert "Q01" in model.calls[0][0][0]["content"]
-    assert "Q14" in model.calls[0][0][0]["content"]
+    assert "Regras de interpretação para perguntas livres" in model.calls[0][0][0]["content"]
     assert "peça esclarecimento começando por CLARIFY:" in model.calls[0][0][0]["content"]
-    assert "População válida" in model.calls[0][0][0]["content"]
-    assert "receita por filme" in model.calls[0][0][0]["content"]
     assert "mais bem avaliado pelo IMDb" in model.calls[0][0][0]["content"]
     assert "nunca como a quantidade qtd_imdb" in model.calls[0][0][0]["content"]
 

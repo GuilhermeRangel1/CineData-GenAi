@@ -152,16 +152,31 @@ def _normalize_for_routing(question: str) -> str:
 
 def _empty_analytical_answer(question: str) -> str:
     """Verbaliza uma comparação anual quando a consulta não encontrou exceções."""
-    comparison = re.search(
+    period = re.search(
         r"\b(?:de|entre)\s+(\d{4})\s+(?:a|até|e)\s+(\d{4})\s*,?\s*"
-        r"(?:teve algum ano em que|em quais anos)\s+"
-        r"(?:saíram|estrearam|foram lançados)\s+mais filmes de\s+"
-        r"([^?,.!]+?)\s+do que\s+(?:filmes de\s+|de\s+)?([^?,.!]+)(?=[?.,!]|$)",
+        r"([^?.!]+)",
         question,
         flags=re.IGNORECASE,
     )
-    if comparison:
-        first_year, last_year, first_group, second_group = comparison.groups()
+    if not period:
+        return "A consulta não encontrou resultados para os critérios informados."
+
+    first_year, last_year, request = period.groups()
+    groups = re.search(
+        r"^(?:teve algum ano em que|em quais anos|mostra só os anos em que)\s+"
+        r"(?:saíram|saiu|estrearam|estreou|foram lançados)\s+mais\s+"
+        r"(?:filmes de\s+)?([^?,.!]+?)\s+(?:do que|que)\s+"
+        r"(?:filmes de\s+|de\s+)?([^?,.!]+)",
+        request,
+        flags=re.IGNORECASE,
+    ) or re.fullmatch(
+        r"([^?,.!]+?)\s+(?:chegou a passar|superou)\s+([^?,.!]+?)\s+"
+        r"em (?:número|quantidade) de (?:estreias|lançamentos)(?: em algum ano)?",
+        request,
+        flags=re.IGNORECASE,
+    )
+    if groups:
+        first_group, second_group = groups.groups()
         return (
             f"No catálogo, em nenhum ano de {first_year} a {last_year} "
             f"saíram mais filmes de {first_group.strip()} do que de {second_group.strip()}."
@@ -238,7 +253,10 @@ def _question_sources(question: str) -> tuple[bool, bool]:
     normalized = _normalize_for_routing(question)
     if _PLATFORM_ANALYTICS_AREA.search(normalized):
         return True, False
-    analytical = bool(_ANALYTICAL_INTENT.search(normalized))
+    analytical = bool(_ANALYTICAL_INTENT.search(normalized)) or (
+        all(re.search(rf"\b{term}\b", normalized) for term in ("imdb", "tmdb"))
+        and bool(re.search(r"\b(?:notas?|votos?|avaliacoes?)\b", normalized))
+    )
     platform = bool(
         (_PLATFORM_ACTION.search(normalized) and _PLATFORM_FEATURE.search(normalized))
         or _PLATFORM_GENERAL_QUESTION.search(normalized)
@@ -510,12 +528,30 @@ _NATURAL_LANGUAGE_RULES = (
     "lucrativos, exija receita e orçamento conhecidos, conte lucro positivo e "
     "retorne 100.0 vezes a proporção. Se pedirem total, quantidade lucrativa e "
     "percentual, devolva as três medidas na mesma linha. "
+    "Quando pedirem quantos filmes entraram em uma conta, conte os filmes "
+    "elegíveis com COUNT; não some receita ou orçamento. "
     "Use BRL como moeda padrão, salvo se a pergunta pedir outra moeda. "
     "Para valores em reais, use exclusivamente receita_brl e orcamento_brl, "
     "com lucro calculado por receita_brl menos orcamento_brl. "
+    "Margem de lucro é (receita menos orçamento) / receita, com receita positiva "
+    "e orçamento informado. Ordene pela margem quando ela for pedida. "
+    "Para lucro médio por gênero, não use uma coluna de lucro pré-calculado: faça "
+    "AVG(receita_brl - orcamento_brl) e conte os filmes com as duas medidas informadas. "
+    "Ordene pela maior média de lucro e desempate pelo nome do gênero. "
+    "Uma média por ano de filmes já lançados exige data_lancamento <= date('now'); "
+    "só testar o ano ou admitir datas nulas pode incluir filmes ainda não lançados. "
+    "Em perguntas sobre quem dirigiu uma pessoa, buscar o ID dessa pessoa é "
+    "só uma etapa da consulta. Na mesma chamada, encontre seus filmes com "
+    "crédito de Ator, encontre os créditos de Diretor desses filmes e agrupe "
+    "por diretor. Separe a contagem de filmes em comum da contagem com nota "
+    "IMDb válida. Aplique o mínimo de colaborações ao total de filmes em comum "
+    "e use apenas notas com votos positivos para a média. "
     "Em perguntas com várias métricas, devolva todas as pedidas. Para lucro "
-    "mediano por produtora, ordene os lucros elegíveis com ROW_NUMBER por "
-    "produtora, conte as linhas da partição e calcule a média da posição "
+    "mediano por produtora, monte uma linha por par filme-produtora e "
+    "mantenha a chave da produtora até a saída. Não junte novamente a ponte "
+    "filme-produtora pelo filme, pois isso multiplica os lucros. Use a mesma "
+    "população de filmes elegíveis para a proporção e a mediana. Ordene os "
+    "lucros com ROW_NUMBER por produtora e calcule a média da posição "
     "central ou das duas centrais. Inclua lucro_mediano_brl no SELECT final "
     "mesmo quando o ranking for por percentual lucrativo. "
     "Se a pessoa perguntar em quais anos um grupo superou outro, calcule os "
@@ -534,7 +570,7 @@ _NATURAL_LANGUAGE_RULES = (
     "desempate por título."
     " Para Q08 (diretores com maior média IMDb), calcule a média uma única vez "
     "para cada diretor com pelo menos cinco filmes válidos e retorne todos os "
-    "empatados na maior média. Não use OFFSET nem faça uma segunda agregação "
+    "empatados na maior média. Não use LIMIT 1, OFFSET nem uma segunda agregação "
     "para procurar uma posição de ranking. A bridge_movie_person tem uma linha "
     "por filme e pessoa, e fact_movies_performance uma linha por filme; COUNT(*) "
     "é suficiente nessa associação. Para ranking de atores por quantidade de "
@@ -542,6 +578,14 @@ _NATURAL_LANGUAGE_RULES = (
     "não repita a agregação para buscar um limite com OFFSET. Quando a pergunta "
     "especificar a janela de cinco anos, aplique as datas de lançamento válidas "
     "dessa janela antes de contar."
+    " Ao comparar duplas de ator e diretor, separe os dois conjuntos de créditos "
+    "com CTEs MATERIALIZED, junte pelo filme, exclua pares da mesma pessoa "
+    "e agregue pelos dois IDs antes de buscar nomes. A ponte tem uma linha por "
+    "filme e pessoa, então COUNT(*) basta. Busque os nomes só para os pares "
+    "empatados na maior contagem."
+    " Para divergência máxima entre avaliações dos usuários e IMDb, faça o JOIN "
+    "das notas válidas uma vez e use DENSE_RANK pela diferença absoluta em ordem "
+    "decrescente, filtrando a posição 1 na consulta externa para manter empates."
 )
 
 _POPULARITY_WORD_NUMBERS = {
@@ -955,12 +999,59 @@ _CASE_TABLES = {
 }
 
 
-def _schema_for_case(case) -> tuple[str, str]:
-    """Envia apenas o esquema útil à pergunta canônica; perguntas livres veem tudo."""
+def _analytical_topic(question: str) -> str | None:
+    normalized = _normalize_for_routing(question)
+    if (
+        re.search(r"\bdiretores?\b", normalized)
+        and re.search(r"\b(?:trabalharam|fizeram)\s+(?:\w+\s+){0,3}com\b", normalized)
+        and not re.search(r"\b(?:generos?|produtoras?|tmdb|usuarios)\b", normalized)
+    ):
+        return "director_collaborations"
+    if (
+        re.search(r"\bprodutoras?\b", normalized)
+        and re.search(r"\b(?:mediana|mediano)\b", normalized)
+        and not re.search(r"\b(?:generos?|atores?|diretores?|usuarios)\b", normalized)
+    ):
+        return "producer_median_profit"
+    return None
 
-    if case is None:
+
+_TOPIC_RULES = {
+    "director_collaborations": (
+        "A chamada run_sql deve devolver os diretores, os totais e a média solicitados "
+        "em um único SELECT final. Não chame a ferramenta para consultar apenas o "
+        "cadastro ou o ID do ator. Identifique os filmes com crédito de Ator usando "
+        "nome_pessoa COLLATE NOCASE. Cruze esses filmes com os créditos Diretor "
+        "na mesma consulta. Agrupe por diretor e conte filmes distintos. "
+        "Use LEFT JOIN para preservar filmes sem nota. As colunas reais da avaliação "
+        "são nota_imdb e qtd_imdb. Conte e tire a média das notas de 0 a 10 com votos "
+        "positivos. Separe esse total do total de filmes em comum e aplique o "
+        "mínimo de colaborações ao total de filmes em comum."
+    ),
+    "producer_median_profit": (
+        "Em uma CTE, junte a ponte de produtoras ao fato e calcule lucro como "
+        "receita_brl - orcamento_brl. Inclua apenas filmes com os dois valores. "
+        "Calcule ROW_NUMBER ordenado por lucro e COUNT(*) na partição por "
+        "sk_company_id. Agregue por produtora e calcule a mediana pela média "
+        "dos lucros nas posições (total + 1) / 2 e (total + 2) / 2, com divisão "
+        "inteira nessas posições. Calcule a proporção com 100.0 * AVG(lucro > 0). "
+        "Use a mesma população para a mediana e a proporção. Junte o nome pela "
+        "chave da produtora. Em empate na proporção, priorize o maior total elegível."
+    ),
+}
+
+
+def _schema_for_case(case, topic: str | None = None) -> tuple[str, str]:
+    """Reduz o esquema em intenções claras, preservando o catálogo completo nos demais casos."""
+
+    if case is not None:
+        tables = _CASE_TABLES[case.query_id]
+    elif topic == "director_collaborations":
+        tables = _CASE_TABLES["Q08"]
+    elif topic == "producer_median_profit":
+        tables = _CASE_TABLES["Q11"]
+    else:
         return _GOLD_TABLES_CONTEXT, _GOLD_SCHEMA_CONTEXT
-    tables = _CASE_TABLES[case.query_id]
     schema = "\n".join(
         line for line in _GOLD_SCHEMA_CONTEXT.splitlines()
         if line.split(":", 1)[0] in tables
@@ -1055,7 +1146,9 @@ _FOCUSED_METRIC_RULES = {
     ),
     "Q02": (
         "Calcule AVG(receita_brl - orcamento_brl) por gênero apenas com receita e "
-        "orçamento informados; cada associação filme-gênero participa uma vez."
+        "orçamento informados; cada associação filme-gênero participa uma vez. "
+        "Retorne todos os gêneros, ordenados por lucro_medio_brl DESC e "
+        "nome_genero COLLATE NOCASE em caso de empate."
     ),
     "Q03": (
         "Calcule margem como (receita_brl - orcamento_brl) / receita_brl para filmes "
@@ -1080,9 +1173,10 @@ _FOCUSED_METRIC_RULES = {
         "e informe a quantidade de filmes por ano."
     ),
     "Q07": (
-        "Conte filmes distintos por ator nos últimos cinco anos até hoje; filtre "
-        "data_lancamento em uma CTE de filmes recentes antes de juntar créditos e "
-        "agregar; retorne os empatados no máximo."
+        "Conte filmes distintos por ator numa janela móvel. Filtre "
+        "data_lancamento BETWEEN date('now', '-5 years') AND date('now') "
+        "em uma CTE antes de juntar créditos. Não filtre por ano_lancamento ou "
+        "pelo ano extraído da data. Retorne todos os empatados no máximo."
     ),
     "Q08": (
         "Calcule a média IMDb por diretor uma vez, exigindo pelo menos cinco filmes "
@@ -1096,11 +1190,12 @@ _FOCUSED_METRIC_RULES = {
         "COLLATE NOCASE e sk_person_id."
     ),
     "Q09": (
-        "Use CTEs MATERIALIZED para separar créditos de ator e diretor e contar "
-        "filmes em comum por identificadores antes de juntar nomes. No SELECT final, "
-        "leia nome_pessoa diretamente dos dois aliases de dim_people e renomeie "
-        "essas colunas para ator e diretor; retorne todos "
-        "os pares empatados no máximo."
+        "Materialize os créditos dos atores, os créditos dos diretores e o agregado "
+        "das duplas em três CTEs. Junte os créditos pelo filme, exclua pares da mesma "
+        "pessoa e conte com COUNT(*) agrupado pelos dois IDs. A ponte já é única por "
+        "filme e pessoa. Filtre pelo máximo preservando todos os empates e só então "
+        "junte dim_people duas vezes para retornar ator, diretor e filmes_em_comum. "
+        "Ordene pelos nomes com COLLATE NOCASE."
     ),
     "Q10": (
         "Conte filmes distintos em cada associação filme-gênero; ordene pela "
@@ -1109,7 +1204,8 @@ _FOCUSED_METRIC_RULES = {
     "Q11": (
         "Não use a coluna lucro_brl: ela pode ter população diferente. Calcule "
         "SUM(receita_brl - orcamento_brl) por produtora apenas quando ambos "
-        "existirem; retorne todas as produtoras empatadas no maior lucro total."
+        "existirem. Em outra CTE, use DENSE_RANK() sobre lucro_total_brl DESC. "
+        "Retorne todas as produtoras na posição 1 para preservar empates."
     ),
     "Q12": (
         "Calcule a média das margens individuais por gênero, usando somente filmes "
@@ -1120,7 +1216,8 @@ _FOCUSED_METRIC_RULES = {
         "receita_brl > 0 AND orcamento_brl IS NOT NULL: COUNT não ignora orçamento nulo "
         "automaticamente como AVG faz. Na saída, selecione sk_genre_id, nome_genero, "
         "COUNT(*) AS filmes_validos e AVG da margem AS margem_media, preservando "
-        "esses nomes após filtrar os vencedores."
+        "esses nomes após filtrar os vencedores. Use DENSE_RANK() sobre margem_media "
+        "DESC em outra CTE e filtre pela posição 1 para preservar empates."
     ),
     "Q13": (
         "Use qtd_avaliacoes_usuarios de dim_reviews por filme e retorne os empatados "
@@ -1131,7 +1228,8 @@ _FOCUSED_METRIC_RULES = {
         "fontes têm votos positivos. nota_media_usuarios e qtd_avaliacoes_usuarios "
         "vêm de dim_reviews; nota_imdb e qtd_imdb vêm de fact_movies_performance. "
         "Junte essas tabelas por sk_movie_id; calcule a diferença absoluta e retorne todos "
-        "os filmes empatados no valor máximo."
+        "os filmes empatados no valor máximo. Use DENSE_RANK em ordem decrescente "
+        "e filtre posição 1 fora da CTE para não recalcular o JOIN numa subconsulta."
     ),
 }
 
@@ -1445,7 +1543,14 @@ class AgentService:
             query = _popularity_rank_sql(ranking_limit)
             model_seconds = 0.0
         else:
-            available_tables, schema_context = _schema_for_case(evaluation_case)
+            topic = (
+                None if context or mixed_intent or semantic_matches
+                else _analytical_topic(normalized_question)
+            )
+            available_tables, schema_context = _schema_for_case(evaluation_case, topic)
+            natural_rules = (
+                _TOPIC_RULES.get(topic, _NATURAL_LANGUAGE_RULES) if evaluation_case is None else ""
+            )
             evaluation_context = (
                 "\nUse os aliases do caso reconhecido quando fizer sentido:\n"
                 + _format_evaluation_context(evaluation_case)
@@ -1470,6 +1575,8 @@ class AgentService:
                     "use exatamente a ferramenta run_sql para obter os dados. "
                     "Envie o SQL completo e executável, sem consultas de teste "
                     "como SELECT 1 nem comentários de rascunho. "
+                    "Use JOIN explícito com ON ou USING. O executor rejeita CROSS JOIN "
+                    "e tabelas separadas por vírgula no FROM. "
                     "Não invente números. Em SQLite, use 1.0 * numerador / denominador "
                     "para evitar divisão inteira. Médias de razões são calculadas por entidade "
                     "antes da agregação. Exemplo genérico: AVG(1.0 * itens_devolvidos / "
@@ -1497,7 +1604,7 @@ class AgentService:
                     "nem invente aliases para colunas usadas nos JOINs:\n"
                     f"{schema_context}\n"
                     f"{_GOLD_RELATIONSHIPS_CONTEXT}\n"
-                    f"\n{_NATURAL_LANGUAGE_RULES if evaluation_case is None else ''}"
+                    f"\n{natural_rules}"
                     f"{evaluation_context}"
                     + (
                         f"\nPara esta pergunta: {_FOCUSED_METRIC_RULES[evaluation_case.query_id]}"
@@ -1523,7 +1630,14 @@ class AgentService:
                 if semantic_context
                 else []
             ),
-            {"role": "user", "content": normalized_question},
+            {
+                "role": "user",
+                "content": (
+                    f"{normalized_question}\nEntregue a análise completa em uma chamada run_sql, "
+                    "com todas as métricas pedidas."
+                    if topic and evaluation_case is None else normalized_question
+                ),
+            },
             ]
             model_started_at = time.perf_counter()
             complete_for_complexity = getattr(self.model, "complete_for_complexity", None)
