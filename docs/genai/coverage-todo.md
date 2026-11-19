@@ -20,12 +20,20 @@ com vários filtros, sozinho, conta como um caso de filtros combinados.
   linhas, um resultado esperado que a resposta precisa explicar.
 - [x] Integrar Q15–Q24 ao avaliador de chamadas reais com
   `--expansion-reference`, preservando a rodada padrão de 14 casos.
-- [ ] Medir as 14 originais e as 10 novas antes de alterar o agente. Registrar
+- [x] Medir as 14 originais e as 10 novas antes dos ajustes desta revisão. Registrar
   modelo, SQL gerado e executado, resultado, fallback e latência. Classificar
   erros de interpretação, SQL, texto e indisponibilidade.
-- [ ] Corrigir os padrões que se repetem e comparar as 24 antes e depois.
+- [x] Corrigir os padrões que se repetem e comparar as 24 antes e depois.
   Contar como acerto direto apenas as respostas corretas geradas pelo agente
   sem correção por SQL de referência.
+- [x] Criar reformulações separadas das instruções do agente e rodar uma
+  por caso. Manter uma segunda formulação de Q15–Q24 reservada para próxima
+  avaliação.
+- [x] Confirmar pelo menos um acerto direto do Gemini com cada uma das 24
+  perguntas originais e com a primeira reformulação de cada caso.
+- [ ] Confirmar 24 acertos diretos do Gemini em uma única rodada por
+  formulação. Validar os casos bloqueados no Groq e no OpenRouter quando
+  as APIs voltarem a aceitar chamadas.
 
 ### Primeira rodada com APIs reais
 
@@ -102,6 +110,121 @@ O agente agora recebe também orientações sobre os nomes dos gêneros no
 catálogo, a localização das colunas financeiras e a escala dos percentuais.
 O reteste da Q09 orientou o uso da coluna real de nome das pessoas. A Q21
 passou após explicitar a fórmula de lucro e a ordem dos campos solicitados.
+
+### Revisão das 24 com reformulações
+
+As chamadas usaram um provedor por processo e `--model-only`. A referência
+Gold foi usada somente para conferir os dados. O relatório por pergunta
+registra o SQL proposto e o que chegou ao executor, a origem da resposta,
+o modelo configurado, as rotas observadas, o texto e o tempo total. Os
+registros distinguem acerto direto (`model`) de reparo (`model_repaired`).
+Para reproduzir a rodada a partir da raiz de `genai`, em um ambiente com
+acesso ao Gold e às credenciais do provedor:
+
+```powershell
+python -m scripts.evaluate_live_providers --model-only --providers gemini --reference ../docs/genai/reference-queries.sql --expansion-reference ../docs/genai/expansion-reference-queries.sql --interval 3 --output ./gemini-canonical.json
+python -m scripts.evaluate_live_providers --model-only --providers gemini --reference ../docs/genai/reference-queries.sql --expansion-reference ../docs/genai/expansion-reference-queries.sql --interval 3 --paraphrases --output ./gemini-paraphrases.json
+```
+
+Na primeira rodada canônica, o Gemini acertou diretamente 23/24. A Q14
+excedeu o prazo de execução do SQL. O Groq acertou diretamente 11/24,
+teve 12 falhas temporárias e um erro de SQL (Q14). O OpenRouter teve 24
+falhas temporárias. Os retestes de Groq e OpenRouter registraram HTTP 429.
+
+Um reteste posterior do Groq confirmou Q01 e Q14 diretamente. A Q09
+gerou SQL em 1,64 s, mas o executor interrompeu a consulta no prazo de
+15 s. Q20 e Q23 ficaram sem SQL avaliável. O diagnóstico de Q20 confirmou
+HTTP 429 pelo limite diário de tokens do modelo: 199.889 de 200.000
+usados, com 3.764 tokens solicitados na tentativa.
+
+O executor passou a reconhecer a agregação de duplas pela estrutura da
+consulta, mesmo quando o modelo escolhe nomes diferentes para as CTEs.
+Com o ajuste, o SQL já gerado pelo Groq para Q09 foi reexecutado sem
+alterações e bateu com o Gold em 9,09 s. Essa reprodução não conta como
+uma nova chamada nem confirma um novo acerto direto. A verificação com
+as 24 referências confirmou que somente Q09 recebe o prazo específico de
+duplas. Após a janela de nova tentativa indicada pelo Groq, Q09, Q14,
+Q20 e Q23 ainda receberam HTTP 429 antes de gerar SQL.
+
+Na rodada seguinte, o Groq acertou Q09 diretamente em 17,58 s, incluindo
+geração e execução. Q14, Q20 e Q23 voltaram a receber HTTP 429 nesse lote.
+
+O lote seguinte com as 11 pendências canônicas de `openai/gpt-oss-20b`
+recebeu HTTP 429 em todos os casos. Para Q15, a API confirmou o limite
+diário: 199.393 de 200.000 tokens usados e 3.356 solicitados.
+O avaliador passou a aceitar `--stop-on-rate-limit`, que salva o progresso,
+registra o prazo informado pelo provedor e encerra no primeiro HTTP 429.
+
+Ao reexecutar o SQL que o Groq gerou para a reformulação da Q05, as dez
+linhas bateram com o Gold após reconhecer os aliases e alinhar as
+colunas. Esse caso tinha sido marcado como divergente antes desse
+ajuste de comparação.
+
+O Groq também foi avaliado com `openai/gpt-oss-120b`, definido apenas
+no processo de teste. O modelo obteve acerto direto em cada uma das
+24 perguntas canônicas em lotes somados com a mesma versão final do
+agente, sem SQL de referência. Houve
+pausas entre chamadas para respeitar HTTP 429 de curta duração.
+A Q08 passou após explicitar no prompt que o executor exige JOIN com
+ON ou USING. Q11 e Q12 passaram sem reparo após orientar o uso de
+DENSE_RANK para preservar empates. Na Q18, o comparador passou a
+reconhecer o alias `diff` e a comparar as métricas pelos nomes.
+Esse resultado é do 120B. O 20B continua com casos sem resultado
+avaliável pelo limite diário.
+
+O reteste do OpenRouter recebeu HTTP 429 antes de produzir SQL em Q01,
+Q05, Q20 e Q24. Uma chamada curta confirmou o limite diário
+`free-models-per-day`, com 0 de 50 chamadas restantes e horário de
+reinício informado pela API. As quatro perguntas seguem sem uma
+resposta do modelo para comparar com o Gold.
+
+Após a renovação da cota, o OpenRouter com
+`nvidia/nemotron-3.5-lightning:free` voltou a responder. Das seis
+pendências históricas, Q18 e Q21 passaram diretamente. Q07 comparou
+anos civis em vez da janela móvel de cinco anos, Q12 usou uma coluna
+ausente na CTE e Q20 retornou apenas o cadastro do ator. Q23 esgotou
+os 12 segundos de inferência. O lote não confirmou as 24 na versão atual.
+
+Na rodada canônica completa seguinte, o mesmo modelo concluiu 24
+tentativas sem HTTP 429 e obteve 18 acertos diretos. Q02, Q07 e Q20
+divergiram do resultado esperado. Q09, Q11 e Q23 esgotaram o prazo
+de 12 segundos de inferência antes de gerar SQL.
+
+Nos retestes dos seis casos, Q02, Q07, Q09, Q11 e Q20 passaram
+diretamente. O agente explicita a ordenação do lucro médio, usa as datas
+da janela móvel e pede a consulta completa para colaborações. Para
+colaborações e medianas de produtoras, usa um esquema e instruções menores
+quando a pergunta se limita a esse assunto. O prazo analítico do OpenRouter
+é configurável, com padrão de 36 s e teto pelo orçamento restante da pergunta
+(40 s no total por padrão). Q23 passou em 35,28 s com 36 s disponíveis,
+mas outro reteste no mesmo prazo expirou antes de gerar SQL. O resultado
+combina rodadas e não confirma 24/24 em uma rodada final única.
+
+As reformulações expuseram, entre outros problemas, uma comparação de
+notas roteada para busca por sinopse (Q05), confusão entre lucro e margem
+(Q03) e ausência de contexto na resposta vazia da Q16. O agente ganhou
+regras reutilizáveis para esses casos e para a consulta de divergência da
+Q14. O avaliador preserva a comparação dos valores solicitados e permite
+que uma reformulação omita IDs internos ou use aliases conhecidos.
+
+Nos retestes, Q14 passou com uma única agregação para obter a divergência
+máxima. Q23 passou depois que a regra de mediana passou a exigir uma
+linha por par filme e produtora, evitando multiplicar o lucro dos filmes
+com coprodutoras. O Gemini acertou diretamente as 24 originais e uma
+reformulação por caso, em rodadas somadas. A primeira rodada de
+reformulações deu 9/24 diretos com o comparador anterior, que também
+marcava como erro diferenças de IDs e nomes de colunas. Os resultados
+dessas duas etapas medem critérios diferentes.
+
+Na rodada canônica completa com a versão final, o Gemini obteve 23/24
+acertos diretos. A única falha foi HTTP 503 na Q23, antes de gerar SQL.
+A mesma versão acertou Q23 diretamente no reteste isolado.
+
+A revisão de texto confirmou que a Q16 precisa dizer que nenhum ano
+atendeu à comparação, com o período e os gêneros. Onde há linhas, o texto
+padrão ainda encaminha para a tabela. A rodada mede o texto do serviço
+analítico com os insights opcionais desativados, então não valida a
+naturalidade desses insights na interface.
 
 ### Triagem inicial das 10 perguntas
 
