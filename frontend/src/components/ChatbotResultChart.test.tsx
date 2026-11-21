@@ -19,6 +19,24 @@ const metadata: MetadadosGenAi = {
 }
 
 describe('ChatbotResultChart', () => {
+  it.each([
+    ['variação da bilheteria anual', 'receita_brl', 'Bilheteria registrada por ano'],
+    ['lucro total', 'lucro_brl', 'Lucro total por ano'],
+    ['nota média simples no IMDb', 'nota_media_imdb', 'Nota média no IMDb por ano'],
+  ])('mostra %s mesmo quando a contagem vem primeiro', (metric, column, title) => {
+    const annual = { ...metadata, metric, columns: ['ano_lancamento', 'total_filmes', column] }
+    const rows = [
+      { ano_lancamento: 2022, total_filmes: 400, [column]: 6.2 },
+      { ano_lancamento: 2023, total_filmes: 324, [column]: 6.3 },
+    ]
+
+    render(<ChatbotResultChart metadata={annual} rows={rows} />)
+
+    expect(screen.getByRole('img', { name: new RegExp(title) })).toBeInTheDocument()
+    expect(screen.queryByText('400')).not.toBeInTheDocument()
+    expect(temGraficoDeResultado(annual, [rows[0], { ...rows[1], [column]: null }])).toBe(false)
+  })
+
   it('mostra um gráfico para rankings de receita sem depender do código da pergunta', () => {
     const rows = [
       { sk_movie_id: 'm1', titulo: 'Filme A', receita_brl: 1200 },

@@ -122,4 +122,73 @@ EVALUATION_PARAPHRASES = {
         "mil votos ou mais. Filtra os de orçamento positivo que arrecadaram mais que o dobro "
         "dele. Inclui título, ano, nota, votos e lucro em reais.",
     ),
+    "Q25": (
+        "Dos dez filmes campeões de bilheteria de 2023, que fatia da grana daquele ano veio "
+        "deles? Em porcentagem.",
+    ),
+    "Q26": ("Quais 5 filmes deram mais preju em 2023? Me diz o tamanho da perda.",),
+    "Q27": ("Que animações do ano anterior recuperaram pelo menos o orçamento?",),
+    "Q28": (
+        "Me mostra os filmes de ação já lançados esse ano que têm custo e bilhetria. Quero os "
+        "dois valores.",
+    ),
+    "Q29": (
+        "Dos cinco filmes de maior orçamento de 2023, quais ficaram no vermelho e por quanto?",
+    ),
+    "Q30": ("Quanto deu o orçamento mediano dos filmes de terror de 2024?",),
+    "Q31": (
+        "Em quais anos saiu mais comédia que terror, só que terror lucrou mais na média? "
+        "Mostra ano, as duas quantidades e as duas médias. Conta lançamento mesmo sem dados de "
+        "grana.",
+    ),
+    "Q32": (
+        "De 2022 pra 2023, qual gênero teve o maior salto na bilheteria total? Quanto em reais?",
+    ),
+    "Q33": (
+        "Quais filmes de 2023 entraram tanto no top 10 de bilheteria como no top 10 de lucro?",
+    ),
+    "Q34": (
+        "De 2024, qual gênero teve a maior proporção de filmes com bilheteria e custo "
+        "registrados? Manda o percentual.",
+    ),
+    "Q35": (
+        "Na soma das animações de 2023, entrou quanto de bilheteria pra cada real de orçamento?",
+    ),
+    "Q36": ("Que filmes estouraram ano passado?",),
+    "Q37": ("De 5 anos pra cá, quantos filmes estrearam por gênero?",),
+    "Q38": ("Quem tá no elenco de Barbie, de 2023?",),
+    "Q39": (
+        "Que filmes o Martin Scorsese dirigiu com Leonardo DiCaprio no elenco? Manda título e "
+        "ano.",
+    ),
+    "Q40": (
+        "Quem são as 5 duplas de atores que mais contracenaram em terror em 2023? Bota quantos "
+        "filmes fizeram juntos. Ordena os dois nomes de cada dupla de A a Z e desempata pelos "
+        "nomes.",
+    ),
+    "Q41": (
+        "Desde 2016, que diretores fizeram pelo menos um terror e uma comédia? Até 10 nomes de "
+        "A a Z.",
+    ),
+    "Q42": (
+        "Quais 5 produtoras fizeram mais filmes em coprodução em 2024? Manda o número de "
+        "filmes em parceria por produtora.",
+    ),
+    "Q43": (
+        "Das 5 produtoras com mais títulos em 2023, pega o filme que mais arrecadou de cada "
+        "uma naquele ano. Quero o título e a bilheteria em reais.",
+    ),
+    "Q44": ("Que produtora trabalhou com mais diretores diferentes em 2024? Quantos ao todo?",),
+    "Q45": (
+        "Quais filmes de 2019 pegaram nota 8 pra cima e 10 mil votos ou mais tanto no imdb "
+        "quanto no tmdb? Manda nota e votos dos dois.",
+    ),
+    "Q46": (
+        "Quem sai do top 10 por nota IMDb se o mínimo de votos subir de mil pra 10 mil? Quero "
+        "nota e votos. Empatou a nota, ganha quem tem mais votos.",
+    ),
+    "Q47": ("E dessas aí, quais tiraram mais que 7 no imdb? Diz a nota também.",),
+    "Q48": ("E se trocar pra terror?",),
+    "Q49": ("Refaz esse ranking só de 2020 pra cá.",),
+    "Q50": ("E quem dirigiu esse?",),
 }

@@ -122,3 +122,33 @@ na versão posterior ao ajuste. A primeira rodada do Gemini continua registrada
 como 12/14; somando as repetições e a correção, todas as 14 têm resultado correto
 observado, com Q04 precisando de reparo pelo modelo na rodada anterior.
 A alteração de Q08 e os relatórios são versionados em commits separados por escopo.
+
+# Conferência do texto e dos insights com chamadas reais
+
+O avaliador aceita `--through-api` para executar o mesmo fluxo de resposta
+pública usado pelo chat e registrar `answer`, `insights` e as colunas retornadas.
+Combine com `--model-only --providers gemini` para medir a geração de SQL sem
+cache nem consulta de referência como fallback. A referência só compara os
+valores. `--paraphrases` seleciona frases alternativas de Q01–Q50, e
+`--formulations` recebe um JSON com objeto por ID contendo `question` e,
+quando o pedido for parcial, `columns` a comparar na Gold.
+
+### Consolidação da cobertura com Gemini
+
+- Q01–Q24 canônicas: **24/24 acertos diretos** em uma execução, sem reparo
+  de SQL nem fallback para consultas de referência.
+- Q01–Q50 com frases alternativas: **50/50** acumuladas entre a execução e
+  retestes. A confirmação das 24 primeiras alternativas em uma única execução
+  ficou pendente. Ambos os modelos Gemini retornaram HTTP 429 com
+  `GenerateRequestsPerDayPerProjectPerModel-FreeTier` e espera de 32.721 s.
+- Q25–Q50 canônicas: **26/26** em uma execução. As 24 consultas bateram direto
+  com a Gold e as duas ambiguidades receberam pedido de esclarecimento.
+- Q15–Q50 pela API: **36/36** entre a bateria e os retestes. As 34 respostas
+  tabulares incluíram insights e os dois casos ambíguos pediram esclarecimento.
+- Frases inéditas com abreviações, erros de digitação e continuação foram
+  comparadas com a Gold. A continuação “E qual teve menos?” retornou apenas
+  o filme com 113 votos no IMDb no recorte de 2025.
+- As investigações de lucro e nota média também foram conferidas em modo
+  leitura com agregações independentes na Gold. A API produz essas investigações
+  diretamente com os dados, e versões de comparação anual por Gemini foram
+  avaliadas separadamente.

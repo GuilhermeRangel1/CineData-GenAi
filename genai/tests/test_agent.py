@@ -262,7 +262,7 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     _create_gold_fixture(database_path)
     model = FakeModel(
         [
-            ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT id, title FROM dim_movies"})),
+            ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT id, title AS titulo FROM dim_movies"})),
         ]
     )
 
@@ -271,8 +271,8 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
         GoldQueryExecutor(GoldDatabase(database_path)),
     ).answer("Quais filmes existem?")
 
-    assert response.answer == "A consulta retornou 1 resultado; os valores estão na tabela."
-    assert response.rows == (({"id": 1, "title": "A"}),)
+    assert response.answer == "Encontrei A."
+    assert response.rows == (({"id": 1, "titulo": "A"}),)
     assert response.tool_calls == 1
     assert len(model.calls) == 1
     assert model.calls[0][1][0].name == "run_sql"
@@ -889,6 +889,16 @@ def test_company_profit_follow_up_replaces_the_previous_year(tmp_path) -> None:
     assert response.query_id == "Q11"
     assert response.period == "ano de 2017"
     assert [row["nome_produtora"] for row in response.rows] == ["Produtora B"]
+
+
+def test_profit_drop_without_comparison_asks_for_two_years(tmp_path) -> None:
+    model = FakeModel([])
+    service = AgentService(model, GoldQueryExecutor(GoldDatabase(tmp_path / "gold.db")))
+
+    with pytest.raises(AgentClarification, match="Quais dois anos"):
+        service.answer("Por que o lucro total caiu mesmo com uma proporção maior de filmes lucrativos?")
+
+    assert model.calls == []
 
 
 def test_top_company_profit_does_not_discard_filters(tmp_path) -> None:
