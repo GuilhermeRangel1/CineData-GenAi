@@ -191,12 +191,13 @@ def answer_question(
         (payload.conversation_id or shared_case_id)
         and isinstance(service, AgentService)
         and service.provider_configured
+        and not service.model_only
     ):
         settings = get_settings()
         try:
-            rules_version = settings.response_cache_rules_version
-            if shared_case_id in {"Q06", "Q07"}:
-                rules_version += f":{datetime.now(UTC).date().isoformat()}"
+            rules_version = (
+                f"{settings.response_cache_rules_version}:{datetime.now(UTC).date().isoformat()}"
+            )
             cache_key = make_cache_key(
                 conversation_id=(
                     f"fixed:{shared_case_id}"

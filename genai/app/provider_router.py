@@ -212,6 +212,8 @@ def build_provider_router(settings):
         budget_seconds=settings.provider_budget_seconds,
         cooldown_seconds=settings.provider_cooldown_seconds,
         analytical_timeouts={
+            "gemini": max(settings.provider_timeout_seconds,
+                          settings.gemini_analytical_timeout_seconds),
             "openrouter": max(settings.provider_timeout_seconds,
                               settings.openrouter_analytical_timeout_seconds),
         },

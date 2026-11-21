@@ -34,6 +34,12 @@ const ESPECIFICACOES: Record<string, EspecificacaoGrafico> = {
 
 type PontoGrafico = { rotulo: string; valor: number }
 
+const COMPARACOES_ANUAIS: Record<string, EspecificacaoGrafico> = {
+  'variação da bilheteria anual': { tipo: 'barras', colunaRotulo: 'ano_lancamento', colunaValor: 'receita_brl', titulo: 'Bilheteria registrada por ano', tema: 'financeiro' },
+  'lucro total': { tipo: 'barras', colunaRotulo: 'ano_lancamento', colunaValor: 'lucro_brl', titulo: 'Lucro total por ano', tema: 'financeiro' },
+  'nota média simples no IMDb': { tipo: 'barras', colunaRotulo: 'ano_lancamento', colunaValor: 'nota_media_imdb', titulo: 'Nota média no IMDb por ano', tema: 'notas' },
+}
+
 function numero(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
@@ -50,6 +56,10 @@ function temaParaColuna(column: string): TemaGrafico {
 
 function especificacao(metadata: MetadadosGenAi, rows: Array<Record<string, unknown>>): EspecificacaoGrafico | null {
   if (metadata.query_id && ESPECIFICACOES[metadata.query_id]) return ESPECIFICACOES[metadata.query_id]
+  const comparacao = metadata.metric ? COMPARACOES_ANUAIS[metadata.metric] : undefined
+  if (comparacao && metadata.columns.includes(comparacao.colunaRotulo) && metadata.columns.includes(comparacao.colunaValor)) {
+    return rows.filter((row) => numero(row[comparacao.colunaValor]) !== null).length >= 2 ? comparacao : null
+  }
   const colunaLucro = metadata.columns.find((column) =>
     /^(?:lucro(?:_brl|_em_reais)?|profit(?:_brl)?)$/i.test(column),
   )
