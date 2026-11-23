@@ -471,6 +471,50 @@ python -m scripts.evaluate_live_providers --providers gemini --model-only --refe
   ajustar a orientação da consulta. Q23 e Q30 ficaram pendentes por 429,
   e Q31–Q50 ficaram fora da execução atual.
 
+Em 23/11/2026, o Groq confirmou Q07–Q24 contra a Gold em várias execuções.
+Q25 retornou 429 nas quatro tentativas de retomada, mesmo respeitando o
+intervalo informado nas respostas. O OpenRouter confirmou 20 dos 22 casos
+pendentes, incluindo Q23 e Q30. Faltam Q48 e Q49, que ficaram sem resposta
+avaliável nas repetições. As correções validadas nessa rodada abrangem o
+recorte de avaliações válidas da Q19, os créditos da Q20 e Q39, a mediana
+da Q23, a base financeira da Q35, o desempate da Q42 e o seguimento da Q47.
+
+Considerando as chamadas reais de 23/11 em conjunto, as 50 perguntas
+canônicas passaram em pelo menos um provedor, incluindo os esclarecimentos
+esperados de Q36 e Q50. A Q25 passou no OpenRouter após padronizar a
+porcentagem na escala de 0 a 100. O Gemini confirmou 29 das 49 canônicas
+selecionadas (Q02–Q50). No reteste dirigido das reformulações pela API,
+confirmou Q20, Q35 e Q39. As demais reformulações continuam pendentes.
+Os resultados combinados não certificam a bateria completa por provedor.
+
+Na retomada, o Gemini confirmou mais seis canônicas (Q03, Q07, Q09,
+Q10, Q12 e Q14), chegando a 35 das 49 selecionadas desde Q02. Houve
+novos HTTP 429 e timeouts antes de completar o restante e as reformulações.
+O OpenRouter confirmou Q49 após a correção de rota das continuações.
+Q48 usa a rota analítica no teste local, mas voltou a receber HTTP 429
+na chamada real. Pela API, o novo reteste confirmou as reformulações
+Q01, Q03 e Q04 no Gemini e Q19, Q23, Q25 e Q35 no OpenRouter.
+
+O Groq confirmou mais 14 canônicas: Q25–Q28, Q30–Q32, Q35–Q37 e Q39–Q42.
+Faltam Q29, Q33, Q34, Q38 e Q43–Q50 nessa retomada. As orientações de
+SQL para população do ranking, período e créditos foram ajustadas. Os
+últimos retestes isolados voltaram a receber 429 em Q19 no Gemini, Q29 no
+Groq e Q48 no OpenRouter. Os 203 testes locais passaram, incluindo os dois
+novos casos de roteamento para continuações curtas.
+
+No reteste seguinte, o Groq confirmou Q29, Q33, Q34 e Q38. Em Q33, cada
+ranking passou a ter seus próprios filtros financeiros. Em Q34, a
+proporção foi calculada sobre os filmes do ano pedido. Q43 ainda apresentou
+SQL inválido no Groq. O OpenRouter voltou a retornar 429 na Q48 e na
+primeira reformulação da API. O Gemini aprovou oito reformulações na nova
+execução pela API antes de um 429 na Q13. Esses resultados não encerram a
+validação individual de todas as perguntas e reformulações.
+
+O Groq também confirmou Q44–Q46. Somando os retestes canônicos desta
+expansão, ficaram pendentes Q43 e Q47–Q50 no Groq. A Q47 retornou 429
+na tentativa de reparo. A retomada das reformulações voltou a receber
+429, com uma reformulação confirmada no Groq nesta rodada.
+
 ### Períodos na fala cotidiana
 
 - [x] Reconhecer também “ano anterior”, “esse ano” e “de 5 anos pra cá”.
@@ -508,3 +552,19 @@ python -m scripts.evaluate_live_providers --providers gemini --model-only --refe
   como “e desses aí, quais se pagaram?”.
 - [x] Usar as frases como casos de avaliação. Ensinar conceitos e relações
   reutilizáveis ao agente e medir a generalização com frases reservadas.
+
+### Atualização de retestes em 23/11/2026
+
+O Groq passou Q43 e Q47 em chamadas isoladas, com SQL gerado pelo modelo e
+resultados conferidos contra a Gold. Para Q43, a orientação passou a limitar
+os filmes às cinco produtoras antes do ranking de bilheteria. Para Q47, o
+reparo de SQL agora inclui o detalhe do erro do SQLite e reforça os nomes
+reais das colunas. Q48–Q50 já haviam passado no Groq; Q47 também passou no
+Gemini e no OpenRouter nesta data. O OpenRouter continuou sem resposta
+avaliável para Q48 por HTTP 429.
+
+Assim, todas as perguntas canônicas Q01–Q50 têm ao menos um acerto direto
+registrado em algum provedor, somando as execuções. Isso não equivale a uma
+execução completa por provedor: a bateria inteira ainda não foi repetida sem
+limites e várias reformulações continuam pendentes. O teste local mais recente
+passou com 204 testes, e o Ruff passou nos arquivos alterados.

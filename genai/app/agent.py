@@ -119,7 +119,8 @@ _CONVERSATIONAL_MESSAGE = re.compile(
     r")[!?.\s]*$"
 )
 _ANALYTICAL_INTENT = re.compile(
-    r"\b(?:quantos?|quantas?|quantidade|receita|bilheteria|bilhetria|lucro|popularidade|top\s*\d*|"
+    r"\b(?:quantos?|quantas?|quantidade|receita|bilheteria|bilhetria|lucro|lucrativ[oa]s?|"
+    r"popularidade|top\s*\d*|"
     r"maior(?:es)?\s+(?:nota|margem|lucro|receita)|nota\s+(?:m[eé]dia|imdb|tmdb)|"
     r"diverg[eê]ncia|margem(?:\s+m[eé]dia)?|m[eé]dia\s+de)\b|"
     r"\bator(?:es)?\b.{0,35}\b(?:mais|maior|numero)\b|"
@@ -547,7 +548,7 @@ _NATURAL_LANGUAGE_RULES = (
     "colocar nota e quantidade como alternativas."
     " 'Mais vistos' e 'mais populares' no catálogo significam maior popularidade. "
     "Os nomes de gêneros em dim_genres são gravados em inglês: terror = Horror, "
-    "comédia = Comedy, animação = Animation, documentário = Documentary e "
+    "comédia = Comedy, ação = Action, animação = Animation, documentário = Documentary e "
     "ficção científica = Science Fiction. Use os valores do catálogo no WHERE. "
     "Dados financeiros em BRL e notas e votos IMDb/TMDB ficam em "
     "fact_movies_performance, não em dim_movies. Para percentual de filmes "
@@ -606,13 +607,17 @@ _NATURAL_LANGUAGE_RULES = (
     "selecionadas. Só então junte filmes e receita e ranqueie dentro da produtora. "
     "Ao pedir receita por real de orçamento 'somando tudo', divida "
     "SUM(receita_brl) por NULLIF(SUM(orcamento_brl), 0) no mesmo conjunto de "
-    "filmes com os dois dados. Não some nem tire a média das razões individuais. "
+    "filmes com os dois dados. Antes das duas somas aplique no WHERE "
+    "receita_brl IS NOT NULL AND orcamento_brl IS NOT NULL. "
+    "Não some nem tire a média das razões individuais. "
     "Se a pessoa pedir apenas a bilheteria por real investido, retorne só essa "
     "razão com o alias receita_por_real, sem adicionar os totais como colunas. "
     "Para participação de um top-N no total do período, use a CTE do ranking "
     "em uma subconsulta escalar para somar a receita do top-N. No SELECT "
     "externo, calcule a soma do período a partir da CTE de receitas e use "
-    "NULLIF no denominador. Evite repetir no FROM externo uma CTE de totais "
+    "NULLIF no denominador. Se pedirem porcentagem, use 100.0 * receita_do_top "
+    "/ NULLIF(receita_total, 0) para entregar valores na escala de 0 a 100. "
+    "Evite repetir no FROM externo uma CTE de totais "
     "cujos campos já foram lidos por subconsultas escalares. "
     "Para comparar contagens e médias dos mesmos grupos por ano, calcule "
     "COUNT e AVG juntos em uma CTE por ano e grupo, antes de comparar os grupos. "
@@ -1090,6 +1095,54 @@ _CASE_TABLES = {
 
 
 _ANALYTICAL_QUERY_HINTS = (
+    (r"(?=.*\b(?:elenco|atores?)\b)(?=.*\bmais filmes\b)"
+     r"(?=.*\b(?:ultimos|ultimas)\s+(?:cinco|5)\s+anos\b)",
+     "Materialize os filmes da janela móvel antes de juntar os créditos. Conte uma "
+     "vez por ator em uma CTE agregada. Use DENSE_RANK por contagem decrescente "
+     "e traga os empatados na posição 1 sem repetir a junção dos créditos."),
+    (r"(?=.*\bgenero\b)(?=.*\b(?:proporcao|porcentagem)\b)(?=.*\binformados\b)"
+     r"(?=.*\borcamento\b)(?=.*\bbilheteria\b)",
+     "Na cobertura de dados financeiros, aplique m.ano_lancamento ao universo de "
+     "filmes antes de agrupar por gênero. Preserve filmes sem dados com LEFT JOIN. "
+     "Calcule 100.0 * AVG(orcamento_brl IS NOT NULL AND receita_brl IS NOT NULL) "
+     "sobre esse universo, sem mover esses testes para o WHERE."),
+    (r"\belenco\b",
+     "Para listar o elenco, junte os créditos à dimensão de pessoas e filtre "
+     "explicitamente p.tipo_pessoa = 'Ator'. Se a pergunta também pedir direção, "
+     "inclua os créditos de Diretor e identifique o papel de cada pessoa."),
+    (r"(?=.*\btop\s*\d+\b)(?=.*\bbilheteria\b)(?=.*\blucro\b)(?=.*\btanto\b)",
+     "Aplique o ano pedido na CTE comum de filmes antes de gerar os dois rankings. "
+     "Na CTE comum derive lucro_brl como receita_brl - orcamento_brl e não exclua "
+     "filmes por dados financeiros ausentes. Filtre receita não nula só no top "
+     "de receita e lucro não nulo só no top de lucro. Cruze os tops por sk_movie_id "
+     "após os LIMITs e retorne apenas as colunas pedidas."),
+    (r"(?=.*\b(?:porcentagem|percentual)\b)(?=.*\bbilheteria total\b)"
+     r"(?=.*\bmais arrecadaram\b)",
+     "Use a coluna real f.receita_brl no conjunto do ano solicitado. Calcule "
+     "100.0 * (SELECT SUM(receita_brl) FROM top_filmes) / "
+     "NULLIF(SUM(receita_brl), 0) FROM filmes_do_ano. "
+     "Extraia top_filmes desse mesmo conjunto com ORDER BY receita_brl DESC e LIMIT. "
+     "Use apenas filmes_do_ano no FROM externo, sem cruzar duas CTEs de totais."),
+    (r"(?=.*\bprodutoras?\b)(?=.*\bmais filmes\b)(?=.*\bmaior bilheteria\b)",
+     "Faça a consulta em quatro CTEs MATERIALIZED, nesta ordem: (1) filmes do ano, "
+     "com sk_company_id e sk_movie_id da bridge_movie_company ligados a dim_movies; "
+     "(2) contagem por produtora, usando COUNT(DISTINCT sk_movie_id) e dim_companies; "
+     "(3) top_produtoras, ordenando contagem DESC, nome_produtora COLLATE NOCASE, "
+     "ID e aplicando LIMIT 5; (4) filmes ranqueáveis, começando em top_produtoras, "
+     "juntando os créditos do ano e só então fact_movies_performance. Filtre "
+     "receita_brl IS NOT NULL antes de ROW_NUMBER() OVER (PARTITION BY sk_company_id "
+     "ORDER BY receita_brl DESC, sk_movie_id). A contagem de produtoras não pode "
+     "depender da existência de receita. O ID vem da ponte de créditos, nunca do fato. "
+     "O nome da coluna é receita_brl, não revenue_brl nem recurso_brl. SQLite não aceita "
+     "QUALIFY: calcule ROW_NUMBER em uma CTE e filtre rn = 1 em uma CTE seguinte. "
+     "Retorne nome_produtora, titulo e receita_brl; ordene pelas contagens já projetadas. "
+     "Não ranqueie todos os filmes/produtoras antes de restringir aos cinco IDs."),
+    (r"(?=.*\b(?:em qual ano|em que ano)\b)(?=.*\b(?:maior|melhor)\b)"
+     r"(?=.*\bmedia\b)(?=.*\bimdb\b)",
+     "No mesmo WHERE aplique o período, o gênero e f.qtd_imdb > 0 AND "
+     "f.nota_imdb BETWEEN 0 AND 10. Use AVG(f.nota_imdb) sem arredondar. "
+     "Agrupe por ano, conte as avaliações válidas, aplique o mínimo no HAVING "
+     "e retorne o ano vencedor com ORDER BY média DESC, ano ASC LIMIT 1."),
     (r"\b(?:ano passado|ano anterior)\b", "Ano passado é o ano civil anterior à data atual. Use "
      "data_lancamento >= DATE('now','start of year','-1 year') e "
      "data_lancamento < DATE('now','start of year')."),
@@ -1116,7 +1169,9 @@ _ANALYTICAL_QUERY_HINTS = (
     (r"(?=.*\bfilmes?\b)(?=.*\b(?:dirigiu|dirigid[oa]s?|direcao)\b)"
      r"(?=.*\b(?:ator|atriz|atuou|elenco)\b)",
      "Ao cruzar elenco e direção, compare cada nome com COLLATE NOCASE. "
-     "Use os créditos Ator e Diretor e cruze pelo ID do filme."),
+     "Use os créditos Ator e Diretor e cruze pelo ID do filme. "
+     "Busque os dois créditos e retorne título e ano dos filmes na mesma chamada. "
+     "Não termine a consulta com IDs ou dados cadastrais das pessoas."),
     (r"\b(?:prejuizo|preju|perda|rombos?)\b", "Aplique o ano explícito ao universo de filmes. "
      "Retorne a perda como orçamento menos receita."),
     (r"\bbilhetria\b", "Interprete 'bilhetria' como bilheteria, medida por receita_brl."),
@@ -1124,9 +1179,10 @@ _ANALYTICAL_QUERY_HINTS = (
      "Ranqueie dim_reviews primeiro com DENSE_RANK() OVER "
      "(ORDER BY qtd_avaliacoes_usuarios DESC). Só depois filtre posição 1 e junte "
      "dim_movies para obter o título. Evite reler dim_reviews para calcular MAX."),
-    (r"\b(?:ponto de equilibrio|nao se pagaram|ficaram no vermelho)\b",
+    (r"\b(?:ponto de equilibrio|nao se pagaram|ficaram no vermelho|mais caros)\b",
      "Se a pergunta parte dos filmes mais caros, selecione o top por orçamento em uma "
-     "CTE antes de filtrar por receita abaixo do orçamento. Para 'quais e quanto faltou', "
+     "CTE sem filtrar receita. Aplique receita abaixo do orçamento no WHERE externo. "
+     "Para 'quais e quanto faltou', "
      "retorne apenas titulo e orcamento_brl - receita_brl AS prejuizo_brl."),
     (r"(?=.*\bcomedia\b)(?=.*\bterror\b)(?=.*\blucro medio\b)",
      "Use uma CTE agregada por ano e gênero, com COUNT(*) AS estreias e "
@@ -1157,7 +1213,9 @@ _ANALYTICAL_QUERY_HINTS = (
      "HAVING COUNT(DISTINCT sk_company_id) >= 2. No SELECT externo, junte esses IDs "
      "com a ponte de produtoras novamente e agrupe por produtora para contar filmes "
      "distintos. Obtenha c.nome_produtora de dim_companies c, juntando pelo sk_company_id "
-     "da ponte. Use o HAVING de duas produtoras somente na CTE por filme."),
+     "da ponte. Agrupe por ID e nome da produtora. Ordene pela contagem decrescente "
+     "e desempate por c.nome_produtora COLLATE NOCASE e c.sk_company_id antes do LIMIT. "
+     "Use o HAVING de duas produtoras somente na CTE por filme."),
     (r"(?=.*\btop\b)(?=.*\bimdb\b)(?=.*\bvotos\b)(?=.*\b(?:deixam|cai|saem|perde)\b)",
      "Retorne apenas os itens que saíram do top original: LEFT JOIN entre os tops "
      "por ID e filtro de ID nulo no top novo. Junte dim_movies antes de cada LIMIT e "
@@ -1207,8 +1265,9 @@ _TOPIC_RULES = {
         "A chamada run_sql deve devolver os diretores, os totais e a média solicitados "
         "em um único SELECT final. Não chame a ferramenta para consultar apenas o "
         "cadastro ou o ID do ator. Identifique os filmes com crédito de Ator usando "
-        "nome_pessoa COLLATE NOCASE. Cruze esses filmes com os créditos Diretor "
-        "na mesma consulta. Agrupe por diretor e conte filmes distintos. "
+        "nome_pessoa COLLATE NOCASE e tipo_pessoa = 'Ator' na mesma CTE. "
+        "Materialize a lista de filmes e só então cruze com os créditos Diretor "
+        "pelo sk_movie_id. Agrupe por ID e nome do diretor e conte filmes distintos. "
         "Use LEFT JOIN para preservar filmes sem nota. As colunas reais da avaliação "
         "são nota_imdb e qtd_imdb. Conte e tire a média das notas de 0 a 10 com votos "
         "positivos. Separe esse total do total de filmes em comum e aplique o "
@@ -1222,7 +1281,9 @@ _TOPIC_RULES = {
         "Em uma CTE, junte a ponte de produtoras ao fato e calcule lucro como "
         "receita_brl - orcamento_brl. Inclua apenas filmes com os dois valores. "
         "Calcule ROW_NUMBER ordenado por lucro e COUNT(*) na partição por "
-        "sk_company_id. Agregue por produtora e calcule a mediana pela média "
+        "sk_company_id em uma CTE que preserve uma linha por filme e produtora. "
+        "Nessa CTE use somente funções de janela, sem agregações sem OVER nem GROUP BY. "
+        "Na CTE seguinte, agregue por produtora e calcule a mediana pela média "
         "dos lucros nas posições (total + 1) / 2 e (total + 2) / 2, com divisão "
         "inteira nessas posições. Na agregação final, use "
         "AVG(CASE WHEN posicao IN ((total + 1) / 2, (total + 2) / 2) THEN lucro END) "
@@ -1389,9 +1450,9 @@ _FOCUSED_METRIC_RULES = {
         "Use a cláusula AS MATERIALIZED do SQLite nas três CTEs: créditos de atores, "
         "créditos de diretores e contagem por dupla. Em cada CTE de créditos, use "
         "JOIN entre dim_people e bridge_movie_person pelo sk_person_id e filtre "
-        "tipo_pessoa pelo papel correspondente. Junte os créditos pelo filme, exclua pares da mesma "
-        "pessoa e conte com COUNT(*) agrupado pelos dois IDs. A ponte já é única por "
-        "filme e pessoa. Filtre pelo máximo preservando todos os empates e só então "
+        "tipo_pessoa pelo papel correspondente. Junte os créditos pelo filme, exclua "
+        "pares da mesma pessoa. Use COUNT(*) agrupado pelos dois IDs. A ponte é única "
+        "por filme e pessoa. Filtre pelo máximo preservando todos os empates e só então "
         "junte dim_people duas vezes para retornar ator, diretor e filmes_em_comum. "
         "Ordene pelos nomes com COLLATE NOCASE."
     ),
@@ -1559,7 +1620,11 @@ class AgentService:
         ):
             for turn in reversed(context):
                 period = re.fullmatch(r"((?:19|20)\d{2}) e ((?:19|20)\d{2})", turn.period or "")
-                if turn.metric == "lucro total" and period and "filmes do catalogo" in _normalize_for_routing(turn.question):
+                if (
+                    turn.metric == "lucro total"
+                    and period
+                    and "filmes do catalogo" in _normalize_for_routing(turn.question)
+                ):
                     start, end = period.groups()
                     normalized_routing_question = (
                         "o que explica a mudanca no lucro total dos filmes do catalogo "
@@ -1567,7 +1632,9 @@ class AgentService:
                     )
                     break
             else:
-                raise AgentClarification("Quais dois anos você quer comparar para explicar a queda do lucro?")
+                raise AgentClarification(
+                    "Quais dois anos você quer comparar para explicar a queda do lucro?"
+                )
         if investigation := investigate_profit_or_rating(
             normalized_routing_question, self.executor, self.max_rows
         ):
@@ -1593,6 +1660,11 @@ class AgentService:
             _DESCRIPTIVE_MOVIE_INTENT.search(normalized_routing_question)
         )
         platform_intent, analytical_intent = _question_sources(normalized_question)
+        if context and re.search(
+            r"\b(?:dessas ai|desses ai|desse grupo|desse top|faz o mesmo|agora so de)\b",
+            normalized_routing_question,
+        ):
+            analytical_intent |= _question_sources(context[-1].question)[1]
         catalog_comparison_intent = bool(
             _CATALOG_COMPARISON_INTENT.search(normalized_routing_question)
         )
@@ -1621,6 +1693,8 @@ class AgentService:
             platform_intent = False
         mixed_intent = platform_intent and analytical_intent
         complexity = classify_question(normalized_question, has_context=bool(context))
+        if context and analytical_intent and complexity == QuestionComplexity.SIMPLE:
+            complexity = QuestionComplexity.COMPLEX
         semantic_matches = ()
         semantic_revenue_ranking = False
         if platform_intent and not analytical_intent:
@@ -1840,15 +1914,22 @@ class AgentService:
                     "limite. Compare as duas categorias apenas se o pedido solicitar comparação."
                 )
             if context and re.search(
-                r"\b(?:desse grupo|desse top|dessas)\b", normalized_routing_question
+                r"\b(?:desse grupo|desse top|dessas|desses)\b", normalized_routing_question
             ):
                 query_hints.append(
-                    "Filtre o top anterior após seu LIMIT, sem repor filmes ou reordenar "
-                    "pela nova métrica. Se a métrica original era lucro, use "
-                    "f.receita_brl - f.orcamento_brl AS lucro_brl, com os dois valores informados. "
-                    "Selecione titulo e nota_imdb se forem os únicos dados pedidos. "
-                    "Preserve a ordem do top com ORDER BY lucro_brl DESC, "
-                    "titulo, sk_movie_id no SELECT final. Nota IMDb válida exige qtd_imdb > 0."
+                    "A pergunta anterior define exatamente a população a que 'dessas/desses' "
+                    "se refere. Reconstrua essa consulta anterior em uma CTE, preservando gênero, "
+                    "ano, métrica, direção da ordenação e LIMIT; filtre a CTE apenas por fora, "
+                    "sem repor itens nem recalcular o top após o novo filtro. Use somente nomes "
+                    "reais do esquema: no fato financeiro a coluna é receita_brl (nunca "
+                    "revenue_brl nem recurso_brl), junto de orcamento_brl; lucro_brl é uma "
+                    "expressão receita_brl - orcamento_brl, não uma coluna do fato. Para um "
+                    "top de lucratividade, exija os dois valores, projete a expressão como "
+                    "lucro_brl e ordene DESC antes do LIMIT anterior. Projete na CTE o ID, "
+                    "título, nota_imdb, qtd_imdb e lucro_brl necessários ao filtro/ordenação. "
+                    "Para 'nota acima de 7 no IMDb', aplique nota_imdb > 7 e qtd_imdb > 0 "
+                    "somente depois do LIMIT, preservando a ordem anterior por lucro_brl DESC, "
+                    "título e ID."
                 )
             semantic_context = (
                 "Filmes encontrados pela busca nas sinopses para esta pergunta híbrida: "
@@ -2045,12 +2126,22 @@ class AgentService:
                 if query_source == "model" and isinstance(
                     exc, (SqlValidationError, QueryExecutionError)
                 ):
+                    sqlite_detail = (
+                        str(exc.__cause__)[:300]
+                        if isinstance(exc, QueryExecutionError) and exc.__cause__
+                        else ""
+                    )
+                    repair_error = str(exc)
+                    if sqlite_detail:
+                        repair_error += f" Detalhe do SQLite: {sqlite_detail}"
                     repair_messages = [*messages, {
                         "role": "user",
                         "content": (
                             "A consulta proposta não passou na validação ou execução. "
-                            f"SQL proposto: {candidate}\nErro: {exc}\n"
-                            "Corrija usando somente o esquema informado e chame run_sql. "
+                            f"SQL proposto: {candidate}\nErro: {repair_error}\n"
+                            "Corrija somente o problema indicado, consultando os nomes exatos "
+                            "de tabelas e colunas no esquema informado. Não renomeie colunas "
+                            "Gold para inglês nem invente campos; chame run_sql. "
                             "Preserve a métrica e os filtros solicitados."
                         ),
                     }]

@@ -396,7 +396,7 @@ def main():
             Path(args.output).write_text(
                 json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8",
             )
-            print(json.dumps(entry, ensure_ascii=False), flush=True)
+            print(json.dumps(entry), flush=True)
             rate_limited = any(error["status"] == "429" for error in provider_errors)
             if args.stop_on_rate_limit and rate_limited:
                 return

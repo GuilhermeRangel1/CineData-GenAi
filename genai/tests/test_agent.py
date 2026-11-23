@@ -262,7 +262,9 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     _create_gold_fixture(database_path)
     model = FakeModel(
         [
-            ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT id, title AS titulo FROM dim_movies"})),
+            ModelTurn(tool_call=ToolCall(
+                "run_sql", {"sql": "SELECT id, title AS titulo FROM dim_movies"}
+            )),
         ]
     )
 
@@ -393,6 +395,37 @@ def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) ->
     assert "pontos IMDb" in context_message
     assert "sk_movie_id" not in context_message
     assert messages[-1] == {"role": "user", "content": "E em 2020?"}
+
+
+@pytest.mark.parametrize("question,previous_question", [
+    ("Faz o mesmo pra terror.", "Quais foram as cinco comédias mais lucrativas de 2023?"),
+    ("E dessas aí, quais tiveram nota acima de 7 no IMDb?",
+     "Quais foram as cinco comédias mais lucrativas de 2023?"),
+    ("Agora só de 2020 pra cá.", "Quais cinco animações tiveram a maior bilheteria em reais?"),
+])
+def test_short_follow_up_uses_analytical_route(tmp_path, question, previous_question) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+
+    class RoutedModel(FakeModel):
+        def complete_for_complexity(self, messages, tools, complexity):
+            assert complexity == agent_module.QuestionComplexity.COMPLEX
+            if question.startswith("E dessas aí"):
+                instruction = messages[-1]["content"]
+                assert "revenue_brl" in instruction
+                assert "nota_imdb > 7" in instruction
+                assert "sem repor itens" in instruction
+            return self.complete(messages, tools)
+
+    model = RoutedModel([
+        ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT id, title FROM dim_movies"})),
+    ])
+    result = AgentService(model, GoldQueryExecutor(GoldDatabase(database_path))).answer(
+        question, context=(ConversationContext(question=previous_question),),
+    )
+
+    assert result.tool_calls == 1
+    assert len(model.calls) == 1
 
 
 def test_platform_question_uses_guide_without_model_or_sql(tmp_path) -> None:
@@ -896,7 +929,9 @@ def test_profit_drop_without_comparison_asks_for_two_years(tmp_path) -> None:
     service = AgentService(model, GoldQueryExecutor(GoldDatabase(tmp_path / "gold.db")))
 
     with pytest.raises(AgentClarification, match="Quais dois anos"):
-        service.answer("Por que o lucro total caiu mesmo com uma proporção maior de filmes lucrativos?")
+        service.answer(
+            "Por que o lucro total caiu mesmo com uma proporção maior de filmes lucrativos?"
+        )
 
     assert model.calls == []
 
@@ -1015,3 +1050,4 @@ def test_invalid_sql_can_be_repaired_once_by_model(tmp_path):
     assert response.tool_calls == 2
     assert len(model.calls) == 2
     assert "Erro:" in model.calls[1][0][-1]["content"]
+    assert "no such column: inexistente" in model.calls[1][0][-1]["content"]
