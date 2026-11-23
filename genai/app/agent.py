@@ -1124,19 +1124,25 @@ _ANALYTICAL_QUERY_HINTS = (
      "Extraia top_filmes desse mesmo conjunto com ORDER BY receita_brl DESC e LIMIT. "
      "Use apenas filmes_do_ano no FROM externo, sem cruzar duas CTEs de totais."),
     (r"(?=.*\bprodutoras?\b)(?=.*\bmais filmes\b)(?=.*\bmaior bilheteria\b)",
-     "Faça a consulta em quatro CTEs MATERIALIZED, nesta ordem: (1) filmes do ano, "
+     "Identifique separadamente o período da contagem por produtora e o período "
+     "da busca do filme de maior bilheteria. Organize a consulta em CTEs MATERIALIZED: "
+     "(1) créditos dos filmes no período da contagem, se houver, "
      "com sk_company_id e sk_movie_id da bridge_movie_company ligados a dim_movies; "
      "(2) contagem por produtora, usando COUNT(DISTINCT sk_movie_id) e dim_companies; "
      "(3) top_produtoras, ordenando contagem DESC, nome_produtora COLLATE NOCASE, "
-     "ID e aplicando LIMIT 5; (4) filmes ranqueáveis, começando em top_produtoras, "
-     "juntando os créditos do ano e só então fact_movies_performance. Filtre "
+     "ID e aplicando o LIMIT de produtoras pedido pelo usuário, se houver; "
+     "(4) filmes ranqueáveis, começando em top_produtoras, "
+     "e usando os créditos dos filmes no período da busca de bilheteria. "
+     "Reutilize a primeira CTE somente quando os recortes coincidirem. Quando forem "
+     "diferentes, junte bridge_movie_company e dim_movies novamente para aplicar "
+     "o segundo recorte. Em seguida, junte fact_movies_performance. Filtre "
      "receita_brl IS NOT NULL antes de ROW_NUMBER() OVER (PARTITION BY sk_company_id "
      "ORDER BY receita_brl DESC, sk_movie_id). A contagem de produtoras não pode "
      "depender da existência de receita. O ID vem da ponte de créditos, nunca do fato. "
      "O nome da coluna é receita_brl, não revenue_brl nem recurso_brl. SQLite não aceita "
      "QUALIFY: calcule ROW_NUMBER em uma CTE e filtre rn = 1 em uma CTE seguinte. "
      "Retorne nome_produtora, titulo e receita_brl; ordene pelas contagens já projetadas. "
-     "Não ranqueie todos os filmes/produtoras antes de restringir aos cinco IDs."),
+     "Quando houver limite, restrinja aos IDs selecionados antes de ranquear os filmes."),
     (r"(?=.*\b(?:em qual ano|em que ano)\b)(?=.*\b(?:maior|melhor)\b)"
      r"(?=.*\bmedia\b)(?=.*\bimdb\b)",
      "No mesmo WHERE aplique o período, o gênero e f.qtd_imdb > 0 AND "
@@ -1660,10 +1666,12 @@ class AgentService:
             _DESCRIPTIVE_MOVIE_INTENT.search(normalized_routing_question)
         )
         platform_intent, analytical_intent = _question_sources(normalized_question)
-        if context and re.search(
-            r"\b(?:dessas ai|desses ai|desse grupo|desse top|faz o mesmo|agora so de)\b",
-            normalized_routing_question,
-        ):
+        filters_previous_ranking = bool(context) and bool(re.search(
+            r"\b(?:desse grupo|desse top|dessas|desses)\b", normalized_routing_question
+        ))
+        if filters_previous_ranking or (context and re.search(
+            r"\b(?:faz o mesmo|agora so de)\b", normalized_routing_question
+        )):
             analytical_intent |= _question_sources(context[-1].question)[1]
         catalog_comparison_intent = bool(
             _CATALOG_COMPARISON_INTENT.search(normalized_routing_question)
@@ -1913,9 +1921,7 @@ class AgentService:
                     "categoria. Consulte só a nova categoria com a mesma métrica, período e "
                     "limite. Compare as duas categorias apenas se o pedido solicitar comparação."
                 )
-            if context and re.search(
-                r"\b(?:desse grupo|desse top|dessas|desses)\b", normalized_routing_question
-            ):
+            if filters_previous_ranking:
                 query_hints.append(
                     "A pergunta anterior define exatamente a população a que 'dessas/desses' "
                     "se refere. Reconstrua essa consulta anterior em uma CTE, preservando gênero, "
@@ -1924,12 +1930,11 @@ class AgentService:
                     "reais do esquema: no fato financeiro a coluna é receita_brl (nunca "
                     "revenue_brl nem recurso_brl), junto de orcamento_brl; lucro_brl é uma "
                     "expressão receita_brl - orcamento_brl, não uma coluna do fato. Para um "
-                    "top de lucratividade, exija os dois valores, projete a expressão como "
-                    "lucro_brl e ordene DESC antes do LIMIT anterior. Projete na CTE o ID, "
-                    "título, nota_imdb, qtd_imdb e lucro_brl necessários ao filtro/ordenação. "
-                    "Para 'nota acima de 7 no IMDb', aplique nota_imdb > 7 e qtd_imdb > 0 "
-                    "somente depois do LIMIT, preservando a ordem anterior por lucro_brl DESC, "
-                    "título e ID."
+                    "top de lucratividade, exija os dois valores e calcule lucro_brl para "
+                    "preservar a ordenação anterior. Projete na CTE as colunas necessárias "
+                    "ao novo filtro e aos desempates. Para filtros de nota, use nota_imdb ou "
+                    "nota_tmdb e os votos da mesma fonte, conforme o pedido atual. Aplique "
+                    "o operador e o valor pedidos somente após o LIMIT e preserve a ordem anterior."
                 )
             semantic_context = (
                 "Filmes encontrados pela busca nas sinopses para esta pergunta híbrida: "

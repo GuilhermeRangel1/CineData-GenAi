@@ -401,6 +401,8 @@ def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) ->
     ("Faz o mesmo pra terror.", "Quais foram as cinco comédias mais lucrativas de 2023?"),
     ("E dessas aí, quais tiveram nota acima de 7 no IMDb?",
      "Quais foram as cinco comédias mais lucrativas de 2023?"),
+    ("E desses, quais tiveram nota acima de 8 no TMDB?",
+     "Quais foram os cinco filmes de maior bilheteria de 2023?"),
     ("Agora só de 2020 pra cá.", "Quais cinco animações tiveram a maior bilheteria em reais?"),
 ])
 def test_short_follow_up_uses_analytical_route(tmp_path, question, previous_question) -> None:
@@ -410,10 +412,11 @@ def test_short_follow_up_uses_analytical_route(tmp_path, question, previous_ques
     class RoutedModel(FakeModel):
         def complete_for_complexity(self, messages, tools, complexity):
             assert complexity == agent_module.QuestionComplexity.COMPLEX
-            if question.startswith("E dessas aí"):
+            if question.startswith(("E dessas", "E desses")):
                 instruction = messages[-1]["content"]
                 assert "revenue_brl" in instruction
-                assert "nota_imdb > 7" in instruction
+                assert "nota_imdb ou nota_tmdb" in instruction
+                assert "o operador e o valor pedidos somente após o LIMIT" in instruction
                 assert "sem repor itens" in instruction
             return self.complete(messages, tools)
 
