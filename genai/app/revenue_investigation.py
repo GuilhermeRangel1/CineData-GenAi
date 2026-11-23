@@ -381,8 +381,9 @@ def investigate_profit_or_rating(
                 volume = (n1 - n0) * average0
                 average = n1 * (average1 - average0)
                 answer += (
-                    f" O número de filmes com receita e orçamento registrados passou de {n0} para {n1}, "
-                    f"e o lucro médio por filme passou de {format_result_value('lucro_brl', average0)} "
+                    " O número de filmes com receita e orçamento registrados "
+                    f"passou de {n0} para {n1}, e o lucro médio por filme passou de "
+                    f"{format_result_value('lucro_brl', average0)} "
                     f"para {format_result_value('lucro_brl', average1)}."
                 )
                 observations.append(
