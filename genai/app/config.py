@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     gold_pair_query_timeout_seconds: float = 45.0
     cors_origins: str = "http://localhost:8080,http://localhost:5173"
     gemini_api_key: SecretStr | None = None
+    tmdb_api_token: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_complex_model: str | None = "gemini-3.5-flash"
     gemini_fallback_model: str | None = "gemini-3.5-flash"

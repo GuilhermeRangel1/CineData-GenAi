@@ -41,6 +41,7 @@ from app.revenue_investigation import (
 from app.semantic_search import SemanticResult, SynopsisSearchIndex, _query_tokens
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
+from app.title_synopsis import answer_title_synopsis
 
 
 class AgentError(RuntimeError):
@@ -1514,6 +1515,7 @@ class AgentService:
         semantic_search: SynopsisSearchIndex | None = None,
         provider_configured: bool = True,
         model_only: bool = False,
+        tmdb_api_token: str | None = None,
     ):
         self.model = model
         self.model_only = model_only
@@ -1522,6 +1524,7 @@ class AgentService:
         self.insight_service = insight_service
         self.semantic_search = semantic_search
         self.provider_configured = provider_configured
+        self.tmdb_api_token = tmdb_api_token
         self._reference_pool = ThreadPoolExecutor(
             max_workers=2, thread_name_prefix="gold-reference"
         )
@@ -1609,6 +1612,12 @@ class AgentService:
                 tool_calls=0,
                 source="platform",
             )
+        synopsis = answer_title_synopsis(
+            normalized_question, context, self.executor.database, self.model,
+            self.provider_configured, tmdb_token=self.tmdb_api_token,
+        )
+        if synopsis is not None:
+            return synopsis
         normalized_routing_question = _normalize_for_routing(normalized_question)
         if not context and re.fullmatch(
             r"(?:e )?quem (?:foi que )?dirigiu (?:esse|este|aquele)(?: filme| ai)?[?.!]*",

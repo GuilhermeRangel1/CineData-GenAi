@@ -127,6 +127,9 @@ def get_agent_service() -> AgentService:
         insight_service=InsightService(model),
         semantic_search=SynopsisSearchIndex(database),
         provider_configured=bool(available),
+        tmdb_api_token=(
+            settings.tmdb_api_token.get_secret_value() if settings.tmdb_api_token else None
+        ),
     )
 
 
