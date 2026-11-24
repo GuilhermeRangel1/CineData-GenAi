@@ -40,7 +40,7 @@ def test_timeout_budget_shared_with_internal_fallback(monkeypatch):
     model = GeminiToolCallingModel("key", client=client)
     assert model.complete_for_complexity([], [], QuestionComplexity.SIMPLE,
                                          timeout_seconds=15).answer == "ok"
-    assert client.models.calls[0]["config"].http_options.timeout == 15000
+    assert client.models.calls[0]["config"].http_options.timeout == 10000
     assert client.models.calls[1]["config"].http_options.timeout == 10000
     assert client.models.calls[0]["config"].http_options.retry_options.attempts == 1
 

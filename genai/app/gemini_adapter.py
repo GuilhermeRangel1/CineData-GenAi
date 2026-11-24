@@ -82,11 +82,15 @@ class GeminiToolCallingModel:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise ProviderTransientError("Tempo de inferência esgotado.")
+                # Reserve one third of the original deadline for the second model.
+                attempt_timeout = remaining
+                if index == 0 and len(models) > 1:
+                    attempt_timeout = min(remaining, timeout_seconds * 2 / 3)
                 request_config = config.model_copy(deep=True)
                 request_config.http_options = types.HttpOptions(
                     # A API rejeita prazos menores que 10 s. No cliente assíncrono,
                     # _generate aplica o prazo local restante independentemente.
-                    timeout=max(10_000, int(remaining * 1000)),
+                    timeout=max(10_000, int(attempt_timeout * 1000)),
                     retry_options=types.HttpRetryOptions(attempts=1),
                 )
                 kwargs = dict(model=selected_model, contents=self._contents(messages),
@@ -94,7 +98,7 @@ class GeminiToolCallingModel:
                 response = (
                     self.client.models.generate_content(**kwargs)
                     if self.client is not None
-                    else asyncio.run(self._generate(kwargs, remaining))
+                    else asyncio.run(self._generate(kwargs, attempt_timeout))
                 )
                 result = self._normalize_response(response)
                 logger.info(
