@@ -125,6 +125,32 @@ A alteração de Q08 e os relatórios são versionados em commits separados por 
 
 # Conferência do texto e dos insights com chamadas reais
 
+### Bateria fixa de regressão
+
+Execute a partir de `genai`, com as credenciais e a base Gold configuradas.
+A primeira execução cobre as 50 perguntas oficiais. A segunda repete dez
+variações registradas, incluindo continuações e pedidos ambíguos.
+
+```powershell
+python -m scripts.evaluate_live_providers --providers gemini --through-api --reference ../docs/genai/reference-queries.sql --expansion-reference ../docs/genai/expansion-reference-queries.sql --round-two-reference ../docs/genai/round-two-reference-queries.sql --output gemini-official.json
+python -m scripts.evaluate_live_providers --providers gemini --through-api --reference ../docs/genai/reference-queries.sql --expansion-reference ../docs/genai/expansion-reference-queries.sql --round-two-reference ../docs/genai/round-two-reference-queries.sql --formulations tests/fixtures/gemini_regression_formulations.json --cases Q06,Q11,Q19,Q25,Q36,Q43,Q47,Q48,Q49,Q50 --output gemini-variations.json
+```
+
+O relatório registra a origem da consulta em `query_source` e os pedidos de
+esclarecimento esperados em `outcome`. Use os campos pedidos em cada enunciado
+para avaliar as variações. Reexecute a bateria após mudanças relevantes no
+agente, nas métricas ou no catálogo.
+
+Em 27/11/2026, a bateria pela API passou nas 50 oficiais e nas dez variações,
+somando a execução completa e os retestes dirigidos. Nas oficiais, 42
+usaram SQL do Gemini, seis usaram a consulta de referência (Q09, Q25,
+Q35, Q43, Q47 e Q49) e duas pediram esclarecimento (Q36 e Q50).
+Nas variações, sete usaram SQL do Gemini, a Q43 usou a referência e
+Q36 e Q50 pediram esclarecimento. A Q26 oficial e a variação da Q49
+passaram após indisponibilidade temporária do provedor. A variação da
+Q11 passou após aceitar os nomes alternativos para lucro acumulado e
+quantidade de filmes com dados financeiros, mantendo a comparação dos valores.
+
 O avaliador aceita `--through-api` para executar o mesmo fluxo de resposta
 pública usado pelo chat e registrar `answer`, `insights` e as colunas retornadas.
 Combine com `--model-only --providers gemini` para medir a geração de SQL sem

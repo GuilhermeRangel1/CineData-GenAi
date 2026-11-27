@@ -55,7 +55,13 @@ _EVALUATION_ALIASES = {
         "qtd_filmes_avaliados": "filmes_validos",
         "qtd_filmes": "filmes_validos",
     },
-    "Q11": {"lucro_brl": "lucro_total_brl", "qtd_filmes": "filmes_elegiveis"},
+    "Q11": {
+        "lucro_brl": "lucro_total_brl",
+        "lucro_acumulado_brl": "lucro_total_brl",
+        "qtd_filmes": "filmes_elegiveis",
+        "qtd_filmes_financeiros": "filmes_elegiveis",
+        "qtd_filmes_financeiro": "filmes_elegiveis",
+    },
     "Q12": {"total_filmes": "filmes_validos", "qtd_filmes": "filmes_validos"},
     "Q14": {"diferenca": "divergencia"},
     "Q18": {"diff": "diferenca", "diferenca_notas": "diferenca"},
@@ -357,7 +363,11 @@ def main():
                     rows=len(response.rows), returned_columns=list(columns),
                 )
                 if clarification:
-                    raise EvaluationMismatch("O agente deveria pedir esclarecimento.")
+                    if response.rows or sql_attempts or not re.search(
+                        clarification, response.answer, re.I
+                    ):
+                        raise EvaluationMismatch("O agente deveria pedir esclarecimento.")
+                    raise AgentClarification(response.answer)
                 if not log.events:
                     raise EvaluationMismatch("O agente não executou uma consulta analítica.")
                 rows = response.rows
