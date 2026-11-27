@@ -32,7 +32,7 @@ As 34 consultas de referência foram executadas na Gold e suas linhas foram usad
 | Q40 | 5 | 5 resultados empatam no maior valor de número de filmes da lista (25). |
 | Q41 | 10 | A lista mostra diretores com créditos nos dois gêneros. A ordem alfabética não indica quem dirigiu mais filmes. |
 | Q42 | 5 | Paramount e Zdf empatam no maior valor de total de coproduções da lista (7). |
-| Q43 | 2 | Entre os resultados exibidos, The Three Musketeers: D'artagnan lidera em bilheteria e supera Scarlet em R$ 155.748.509,00. Só esse título responde por 99,08% do total de bilheteria entre as 2 linhas exibidas. |
+| Q43 | 5 | Das cinco produtoras selecionadas, somente Arte e ZDF têm filme com bilheteria registrada no recorte. As outras três permanecem na tabela, com bilheteria ausente. |
 | Q44 | 1 | A contagem é de diretores distintos. Um diretor com vários filmes da mesma produtora entra uma única vez. |
 | Q45 | 3 | A maior diferença entre IMDb e TMDB nos títulos exibidos foi de 0,14 pontos, em Avengers: Endgame. |
 | Q46 | 8 | 8 dos 8 títulos que saíram do ranking tinham menos de 10.000 votos. Esses títulos ficam inelegíveis pelo novo corte, independentemente da nota. |

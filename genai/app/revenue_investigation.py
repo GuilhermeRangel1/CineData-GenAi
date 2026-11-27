@@ -4,7 +4,7 @@ import re
 from math import isclose
 
 from app.agent_models import AgentResponse
-from app.result_summary import format_result_value
+from app.result_summary import format_result_value, genre_label
 from app.sql_executor import GoldQueryExecutor
 from app.sql_guard import validate_sql
 
@@ -50,7 +50,7 @@ def revenue_growth_context(
         percentage = 100 * (end_amount - start_amount) / start_amount
         growth = f" Isso equivale a uma alta de {format_result_value('', percentage)}%."
     return (
-        f"Em {genre}, a bilheteria registrada foi de "
+        f"No gênero {genre_label(genre)}, a bilheteria registrada foi de "
         f"{format_result_value('receita_brl', start_amount)} em {start} "
         f"({before['filmes_com_receita']} filmes com dados) e "
         f"{format_result_value('receita_brl', end_amount)} em {end} "
@@ -65,7 +65,7 @@ def finance_coverage_context(
     animation = bool(
         re.fullmatch(
             r"(?:quais|que|das) (?:filmes de )?animac[a-z]+\b.*\bano (?:passado|anterior)\b"
-            r".*\b(?:pagaram|recuperaram|empataram)\b.*",
+            r".*\b(?:pagar(?:am)?|recuperaram|empataram)\b.*",
             question,
         )
     )
@@ -85,7 +85,9 @@ def finance_coverage_context(
         if animation else "m.data_lancamento BETWEEN DATE('now','start of year') AND DATE('now')"
     )
     sql = f"""
-        SELECT COUNT(*) AS total,
+        SELECT CAST(STRFTIME('%Y', DATE('now', 'start of year', '-1 year'))
+                    AS INTEGER) AS ano_anterior,
+               COUNT(*) AS total,
                COUNT(CASE WHEN f.receita_brl IS NOT NULL AND f.orcamento_brl IS NOT NULL
                           THEN 1 END) AS completos,
                COUNT(CASE WHEN f.receita_brl >= f.orcamento_brl THEN 1 END) AS se_pagaram
@@ -104,10 +106,13 @@ def finance_coverage_context(
         result.rows[0][key] for key in ("total", "completos", "se_pagaram")
     )
     if not total:
-        return ("O catálogo não registra lançamentos desse gênero no período.",)
+        if animation and (year := result.rows[0].get("ano_anterior")):
+            return (f"Não há estreias de animação registradas no banco de dados em {year}. "
+                    "Por isso, não há filmes para avaliar pelo ponto de equilíbrio.",)
+        return ("Não há lançamentos desse gênero registrados no banco de dados no período.",)
     if not complete:
         return (
-            f"O catálogo registra {format_result_value('', total)} lançamentos do gênero, "
+            f"O banco de dados registra {format_result_value('', total)} lançamentos do gênero, "
             "mas nenhum tem orçamento e bilheteria informados juntos.",
         )
     if animation and not break_even:
@@ -349,7 +354,7 @@ def investigate_profit_or_rating(
     """
     result = executor.execute(validate_sql(sql, max_rows=max_rows))
     label = "lucro total" if profit else "nota média simples no IMDb"
-    answer = "A Gold não tem dados suficientes para comparar os dois anos nesse recorte."
+    answer = "Não há dados suficientes no banco de dados para comparar os dois anos nesse recorte."
     insights: tuple[str, ...] = ()
     if len(result.rows) == 2:
         before, after = result.rows
@@ -364,9 +369,8 @@ def investigate_profit_or_rating(
             else:
                 direction = "subiu" if delta > 0 else "caiu"
                 movement = f"{direction} {amount}" if delta else "ficou igual"
-            answer = f"Na Gold, o {label} {movement} entre {start} e {end}." if profit else (
-                f"Na Gold, a {label} {movement} entre {start} e {end}."
-            )
+            article = "o" if profit else "a"
+            answer = f"Pelos dados registrados, {article} {label} {movement} entre {start} e {end}."
             n0, n1 = before["filmes_elegiveis"], after["filmes_elegiveis"]
             share0 = format_result_value("", 100 * before[category] / n0)
             share1 = format_result_value("", 100 * after[category] / n1)

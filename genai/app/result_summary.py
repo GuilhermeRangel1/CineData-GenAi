@@ -22,16 +22,34 @@ _LABELS = {
     "percentual_bilheteria": "participação na bilheteria",
     "receita_por_real": "bilheteria por real de orçamento",
     "aumento_brl": "aumento da bilheteria",
+    "margem": "margem",
+    "margem_media": "margem média",
 }
 _ENTITIES = ("titulo", "nome_genero", "nome_produtora", "diretor", "nome_pessoa")
 _ID_COLUMN = re.compile(r"^(?:id|id_.*|.*_id)$", re.IGNORECASE)
+_GENRES = {
+    "action": "Ação", "adventure": "Aventura", "animation": "Animação",
+    "comedy": "Comédia", "crime": "Crime", "documentary": "Documentário",
+    "drama": "Drama", "family": "Família", "fantasy": "Fantasia", "history": "História",
+    "horror": "Terror", "music": "Música", "mystery": "Mistério", "romance": "Romance",
+    "science fiction": "Ficção científica", "thriller": "Suspense", "tv movie": "Filme para TV",
+    "war": "Guerra", "western": "Faroeste",
+}
+
+
+def genre_label(value: str) -> str:
+    return _GENRES.get(value.strip().casefold(), value)
 
 
 def format_result_value(column: str, value: str | int | float) -> str:
     if isinstance(value, str):
+        if column in {"nome_genero", "genero"}:
+            return genre_label(value)
         return " ".join(value.split())
     if column in {"ano", "ano_lancamento"}:
         return str(value)
+    if column in {"margem", "margem_media"}:
+        return format_result_value("percentual_margem", value * 100)
     is_currency = column.endswith("_brl")
     number = f"{value:,.2f}" if is_currency or isinstance(value, float) else f"{value:,}"
     number = number.translate(str.maketrans(",.", ".,"))

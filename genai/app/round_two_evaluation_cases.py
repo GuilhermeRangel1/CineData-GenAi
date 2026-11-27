@@ -70,7 +70,7 @@ ROUND_TWO_EVALUATIONS = (
     EvaluationCase(
         "Q33",
         "Quais filmes de 2023 ficaram no top 10 tanto em bilheteria quanto em lucro?",
-        ("titulo",),
+        ("titulo", "receita_brl", "lucro_brl"),
     ),
     EvaluationCase(
         "Q34",
@@ -138,6 +138,6 @@ ROUND_TWO_EVALUATIONS = (
         ("titulo", "nota_imdb"),
     ),
     EvaluationCase("Q48", "Faz o mesmo pra terror.", ("titulo", "lucro_brl")),
-    EvaluationCase("Q49", "Agora só de 2020 pra cá.", ("titulo", "receita_brl")),
+    EvaluationCase("Q49", "Agora só de 2020 pra cá.", ("titulo", "receita_brl", "ano_lancamento")),
     EvaluationCase("Q50", "Quem dirigiu esse filme?", ()),
 )

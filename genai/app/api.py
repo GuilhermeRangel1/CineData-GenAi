@@ -53,7 +53,7 @@ class QuestionRequest(BaseModel):
     """Entrada pública para uma pergunta analítica."""
 
     question: str = Field(min_length=1, max_length=1000)
-    context: list[ConversationTurn] = Field(default_factory=list, max_length=3)
+    context: list[ConversationTurn] = Field(default_factory=list, max_length=10)
     conversation_id: str | None = Field(default=None, min_length=12, max_length=80)
 
     @field_validator("question")

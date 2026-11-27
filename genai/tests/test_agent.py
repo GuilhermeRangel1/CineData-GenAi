@@ -28,6 +28,26 @@ def test_colloquial_score_comparison_routes_to_catalog_data() -> None:
     assert agent_module._question_sources(question) == (False, True)
 
 
+@pytest.mark.parametrize(("question", "expected"), [
+    (EVALUATION_PARAPHRASES["Q05"][0], "Q05"),
+    (EVALUATION_PARAPHRASES["Q08"][0], "Q08"),
+    ("Quem dirigiu o DiCaprio pelo menos duas vezes?", "Q20"),
+    ("Quantos lançamentos teve por gênero nos cinco anos mais recentes?", "Q37"),
+    ("Quem tá no elenco de Barbie, aquele filme de 2023?", "Q38"),
+    ("Quem dirigiu pelo menos um terror e uma comédia de 2016 pra cá?", "Q41"),
+    ("Quais 5 produtoras mais fizeram filmes em parceria com outras em 2024?", "Q42"),
+    ("Pega as cinco produtoras com mais filmes de 2023 e me diz qual filme de cada uma "
+     "arrecadou mais naquele ano, com o valor em reais.", "Q43"),
+    ("Quem dirigiu Barbie?", None),
+    ("Quem dirigiu o DiCaprio pelo menos três vezes?", None),
+    ("Quantos lançamentos teve por gênero nos três anos mais recentes?", None),
+    ("Quem tá no elenco de Barbie, aquele filme de 2022?", None),
+])
+def test_reviewed_analytics_preserve_the_requested_scope(question, expected) -> None:
+    case = agent_module.match_reviewed_case(agent_module._normalize_for_routing(question))
+    assert (case.query_id if case else None) == expected
+
+
 def test_schema_for_director_collaborations_keeps_people_credits_and_ratings() -> None:
     question = "Quais diretores trabalharam com Leonardo DiCaprio? Mostre a média IMDb."
     tables, _ = agent_module._schema_for_case(None, agent_module._analytical_topic(question))
@@ -398,9 +418,9 @@ def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) ->
 
 
 @pytest.mark.parametrize("question,previous_question", [
-    ("Faz o mesmo pra terror.", "Quais foram as cinco comédias mais lucrativas de 2023?"),
+    ("Faz o mesmo pra terror.", "Quais foram as quatro comédias mais lucrativas de 2022?"),
     ("E dessas aí, quais tiveram nota acima de 7 no IMDb?",
-     "Quais foram as cinco comédias mais lucrativas de 2023?"),
+     "Quais foram as quatro comédias mais lucrativas de 2022?"),
     ("E desses, quais tiveram nota acima de 8 no TMDB?",
      "Quais foram os cinco filmes de maior bilheteria de 2023?"),
     ("Agora só de 2020 pra cá.", "Quais cinco animações tiveram a maior bilheteria em reais?"),

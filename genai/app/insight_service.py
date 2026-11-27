@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import Any, Protocol
 
 from app.agent_models import AgentResponse, ModelTurn, ToolDefinition
+from app.result_summary import genre_label
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,44 @@ _CHARTABLE_CASES = frozenset(
     {"Q01", "Q02", "Q03", "Q04", "Q05", "Q06", "Q07", "Q08", "Q10", "Q11", "Q12", "Q13", "Q14"}
 )
 _ID_COLUMN = re.compile(r"^(?:id|id_.*|.*_id)$", re.IGNORECASE)
+_ENGLISH_NUMBER = (
+    r"(?<![\w.,])(?:\d{1,3}(?:,\d{3})+\.\d+|\d+\.\d+)"
+    r"(?!\w|[.,]\d)"
+)
+
+
+def _localize_insight(text: str, rows: Sequence[dict[str, Any]]) -> str:
+    genres = {
+        value.casefold(): genre_label(value)
+        for row in rows
+        for column in ("nome_genero", "genero")
+        if isinstance(value := row.get(column), str) and genre_label(value) != value
+    }
+    names = {
+        value
+        for row in rows
+        for column in ("titulo", "nome_produtora", "nome_pessoa", "ator", "diretor")
+        if isinstance(value := row.get(column), str) and value.strip()
+    }
+    # Match names before numbers so a title like "Film 2.0" keeps its original spelling.
+    alternatives = [re.escape(value) for value in sorted(names | genres.keys(), key=len,
+                                                       reverse=True)]
+    vocabulary = rf"(?P<label>(?<!\w)(?:{'|'.join(alternatives)})(?!\w))|" if alternatives else ""
+    pattern = re.compile(vocabulary + rf"(?P<number>{_ENGLISH_NUMBER})", re.IGNORECASE)
+
+    def replace(match: re.Match[str]) -> str:
+        value = match[0]
+        if match.lastgroup == "label":
+            return genres.get(value.casefold(), value)
+        integer, fraction = value.rsplit(".", 1)
+        if "," not in integer and len(integer) <= 3 and len(fraction) == 3:
+            return value  # In pt-BR, “28.086” may already be an integer.
+        groups = f"{int(integer.replace(',', '')):,}".replace(",", ".")
+        return f"{groups},{fraction}"
+
+    return pattern.sub(replace, text)
+
+
 _INSIGHT_COLUMNS = {
     "Q01": ("titulo", "receita_brl"),
     "Q02": ("nome_genero", "lucro_medio_brl"),
@@ -68,7 +107,8 @@ class InsightService:
                     "e não invente números. Os sinais calculados são evidências prioritárias: "
                     "use-os para explicar diferenças relevantes, concentração, tendência, "
                     "empates ou exceções. Não apenas repita a primeira linha ou descreva "
-                    "o gráfico. Responda em português "
+                    "o gráfico. Escreva em português do Brasil, com vírgula decimal "
+                    "e ponto para separar milhares. Preserve os nomes próprios. Responda "
                     "com até três observações curtas, cada uma iniciada por '- '. Se os dados não "
                     "permitirem uma observação segura, responda somente com uma lista vazia."
                 ),
@@ -95,7 +135,10 @@ class InsightService:
         except Exception:  # The analytical answer remains useful if this optional call fails.
             logger.warning("Não foi possível gerar insights para a resposta GenAI.", exc_info=True)
             return ()
-        return self._parse(turn.answer)
+        return tuple(
+            _localize_insight(text, response.rows[:len(rows)])
+            for text in self._parse(turn.answer)
+        )
 
     @staticmethod
     def _is_chartable(response: AgentResponse) -> bool:
@@ -112,7 +155,12 @@ class InsightService:
         # exatamente esse mesmo recorte para não descrever outro período.
         limit = 16 if response.query_id == "Q06" else 8
         return [
-            {column: row[column] for column in visible_columns if column in row}
+            {
+                column: genre_label(row[column])
+                if column in {"nome_genero", "genero"} and isinstance(row[column], str)
+                else row[column]
+                for column in visible_columns if column in row
+            }
             for row in response.rows[:limit]
         ]
 

@@ -74,6 +74,35 @@ def analytical_insights(
         r.get("nome_produtora") and _number(r.get("qtd_filmes")) for r in rows
     ):
         rows = tuple({"total_coproducoes": r["qtd_filmes"], **r} for r in rows)
+    if len(rows) > 1 and all(r.get("titulo") and _number(r.get("margem")) for r in rows):
+        best = max(r["margem"] for r in rows)
+        worst = min(r["margem"] for r in rows)
+        spread = 100 * (best - worst)
+        return (
+            f"As margens dos {len(rows)} filmes exibidos vão de "
+            f"{format_result_value('percentual_margem', 100 * worst)} a "
+            f"{format_result_value('percentual_margem', 100 * best)}. A distância entre "
+            f"os extremos é de {format_result_value('', spread)} pontos percentuais.",
+        )
+    percentage_column = next((
+        column for column in ("percentual_lucrativo", "percentual_lucrativos",
+                              "porcentagem_lucrativos", "percentual_lucro", "porcentagem_lucro")
+        if all(r.get("nome_produtora") and _number(r.get(column)) for r in rows)
+    ), None)
+    if percentage_column:
+        best = max(r[percentage_column] for r in rows)
+        leaders = [r for r in rows if r[percentage_column] == best]
+        if len(leaders) > 1:
+            names = []
+            for leader in leaders:
+                name = leader["nome_produtora"]
+                total = leader.get("filmes_elegiveis", leader.get("total_elegivel"))
+                names.append(f"{name} ({total} filmes)" if _number(total) else name)
+            joined = ", ".join(names[:-1]) + " e " + names[-1]
+            return (
+                f"{joined} empataram na liderança entre as produtoras exibidas, "
+                f"com {format_result_value('percentual_lucrativo', best)} de filmes lucrativos.",
+            )
     row = rows[0]
     total = row.get("filmes_elegiveis", row.get("total_filmes", row.get("filmes")))
     profitable = row.get(
@@ -262,7 +291,7 @@ def analytical_insights(
                     f"A porcentagem considera {larger['filmes_elegiveis']} filmes da primeira "
                     f"e {smaller['filmes_elegiveis']} da segunda.",
                 )
-        tied = [str(r[label]) for r in ordered if r[metric] == highest]
+        tied = [format_result_value(label, r[label]) for r in ordered if r[metric] == highest]
         names = " e ".join(tied) if len(tied) == 2 else f"{len(tied)} resultados"
         return (
             f"{names} empatam no maior valor de {metric_label} da lista "
@@ -275,8 +304,8 @@ def analytical_insights(
         else format_result_value(metric, difference)
     )
     lead = (
-        f"Entre os resultados exibidos, {first[label]} lidera em {metric_label} "
-        f"e supera {second[label]} em {gap}."
+        f"Entre os resultados exibidos, {format_result_value(label, first[label])} "
+        f"lidera em {metric_label} e supera {format_result_value(label, second[label])} em {gap}."
     )
     if metric in {"lucro_brl", "receita_brl", "prejuizo_brl"} and all(
         r[metric] >= 0 for r in ordered

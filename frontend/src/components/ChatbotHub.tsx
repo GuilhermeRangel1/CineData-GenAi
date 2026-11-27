@@ -149,7 +149,7 @@ function contextoDaConversa(mensagens: MensagemAssistente[]): ContextoConversaGe
       population: metadata.population,
     }]
   })
-  return contexto.length ? [contexto.at(-1)!] : []
+  return contexto.slice(-10)
 }
 
 function criarIdConversa() {
@@ -166,7 +166,7 @@ function SendIcon() {
 
 export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdmin?: boolean; isAuthenticated?: boolean }) {
   const [mensagens, setMensagens] = useState<MensagemAssistente[]>([])
-  const ultimaPerguntaRespondida = contextoDaConversa(mensagens)[0]?.question
+  const ultimaPerguntaRespondida = contextoDaConversa(mensagens).at(-1)?.question
   const [texto, setTexto] = useState('')
   const [erro, setErro] = useState('')
   const [perguntaFalhou, setPerguntaFalhou] = useState('')
@@ -607,7 +607,9 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
                   <tr key={index}>
                     {columns.map((column) => (
                       <td key={column} className={typeof row[column] === 'number' ? 'chatbot-result-number' : undefined}>
-                        {formatarCelula(column, row[column])}
+                        {resposta.metadata.query_id === 'Q43' && column === 'receita_brl' && row[column] == null
+                          ? 'Não informada'
+                          : formatarCelula(column, row[column])}
                       </td>
                     ))}
                   </tr>

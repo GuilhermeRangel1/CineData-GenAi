@@ -2,10 +2,61 @@ import sqlite3
 from unittest.mock import Mock
 
 import httpx
+import pytest
 
 from app.agent_models import ConversationContext, ModelTurn
 from app.gold_database import GoldDatabase
-from app.title_synopsis import answer_title_synopsis
+from app.title_synopsis import _detail_request, _request, answer_title_synopsis
+
+
+def test_synopsis_request_keeps_a_compound_spoiler_instruction_out_of_the_title():
+    question = "Pode me contar a história de O Menu, só a premissa e sem revelar o final?"
+    assert _request(question) == ("O Menu", None)
+
+
+def test_synopsis_request_keeps_character_outcome_out_of_the_title():
+    question = "Me conta a premissa de O Homem do Norte, sem revelar quem sobrevive."
+    assert _request(question) == ("O Homem do Norte", None)
+
+
+@pytest.mark.parametrize(("question", "metrics", "title"), [
+    ("Quem dirigiu Barbie e quanto ela arrecadou?",
+     ("quem dirigiu", "quanto arrecadou"), ("Barbie", None)),
+    ("Quanto custou Duna (2021) e quem dirigiu?",
+     ("orçamento", "quem dirigiu"), ("Duna", 2021)),
+    ("Quem dirigiu, quanto custou e que nota tem Oppenheimer?",
+     ("quem dirigiu", "orçamento", "nota"), ("Oppenheimer", None)),
+    ("Quanto tempo dura e em que ano estreou Barbie?",
+     ("duração", "estreia"), ("Barbie", None)),
+    ("E a nota?", ("nota",), None),
+    ("E quanto tempo dura ele?", ("duração",), None),
+    ("E qual é a duração dele?", ("duração",), None),
+    ("Qual o orçamento desse filme?", ("orçamento",), None),
+    ("E a nota desse filme?", ("nota",), None),
+    ("Quanto tempo ele dura?", ("duração",), None),
+    ("Quem foi que dirigiu mesmo?", ("quem dirigiu",), None),
+    ("E quem tá no elenco?", ("quem atuou",), None),
+    ("E quanto arrecadou o último filme que você achou?", ("quanto arrecadou",), None),
+    ("E quem dirigiu Logan mesmo?", ("quem dirigiu",), ("Logan", None)),
+    ("Quanto tempo dura Zotopia, aquela da coelha policial?", ("duração",), ("Zotopia", None)),
+    ("Quanto tempo dura Elementl, aquela dos elementos?", ("duração",), ("Elementl", None)),
+    ("Qual foi a nota de A Forma da Água no TMDB?", ("nota tmdb",), ("A Forma da Água", None)),
+    ("Me passa a duração de Top Gun: Maverick.", ("duração",), ("Top Gun: Maverick", None)),
+    ("Quem dirigiu Ford vs Ferrari e que nota ele tem no IMDb?",
+     ("quem dirigiu", "nota imdb"), ("Ford vs Ferrari", None)),
+])
+def test_movie_details_extract_one_title_for_all_metrics(question, metrics, title):
+    assert _detail_request(question) == (metrics, title)
+
+
+@pytest.mark.parametrize("question", [
+    "Qual é o lucro médio em BRL por gênero?",
+    "Qual foi o orçamento mediano dos filmes de terror de 2024?",
+    "Quem dirigiu mais filmes?",
+    "Quem dirigiu Barbie e qual foi o orçamento de Oppenheimer?",
+])
+def test_movie_details_leave_other_intents_to_analytical_agent(question):
+    assert _detail_request(question) is None
 
 
 def test_catalog_synopsis_lookup_and_translation(tmp_path):
@@ -41,12 +92,29 @@ def test_catalog_synopsis_lookup_and_translation(tmp_path):
     assert "não tem sinopse" in ask("Qual é a sinopse do filme O Castelo?").answer
     assert "Não encontrei" in ask("Do que trata Filme Inexistente?").answer
     assert ask("Quais filmes falam sobre detetives?") is None
+    duration_question = "Quanto tempo dura O Farol?"
+    assert "2015, 2020" in ask(duration_question).answer
+    previous = (
+        ConversationContext(question="Quanto tempo dura O Farol (2020)?"),
+        ConversationContext(question="Quanto tempo dura Filme Inexistente?"),
+    )
+    assert "100 minutos" in ask("E quanto tempo dura esse aí?", previous).answer
+    duration = ask("De 2020", (ConversationContext(question=duration_question),))
+    assert duration.answer == "O Farol (2020)\n\nDuração: 100 minutos."
     model.complete.assert_not_called()
 
     response = ask("De 2020", (ConversationContext(question=question),))
     assert response.answer == f"O Farol (2020)\n\n{portuguese}"
     assert original in model.complete.call_args.args[0][1]["content"]
     assert model.complete.call_args.args[1] == ()
+
+    model.complete.reset_mock()
+    model.complete.side_effect = [
+        ModelTurn(answer="A detetive investiga o caso relying-se nas pistas do porto."),
+        ModelTurn(answer=portuguese),
+    ]
+    assert portuguese in ask("Qual a sinopse de O Farol de 2020, sem spoilers?").answer
+    assert model.complete.call_count == 2
 
     model.complete.side_effect = TimeoutError
     fallback = ask("Qual a sinopse de O Farol de 2020?").answer

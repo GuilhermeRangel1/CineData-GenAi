@@ -103,7 +103,7 @@ WITH filmes AS (
     SELECT sk_movie_id FROM filmes WHERE lucro_brl IS NOT NULL
     ORDER BY lucro_brl DESC, titulo, sk_movie_id LIMIT 10
 )
-SELECT r.titulo FROM por_receita r JOIN por_lucro USING (sk_movie_id)
+SELECT r.titulo, r.receita_brl, r.lucro_brl FROM por_receita r JOIN por_lucro USING (sk_movie_id)
 ORDER BY r.receita_brl DESC, r.titulo, r.sk_movie_id;
 
 -- Q34: Gênero com maior cobertura de orçamento e bilheteria.
@@ -135,23 +135,22 @@ ORDER BY total_filmes DESC, g.nome_genero, g.sk_genre_id;
 SELECT DISTINCT p.nome_pessoa
 FROM dim_movies m JOIN bridge_movie_person b USING (sk_movie_id)
 JOIN dim_people p USING (sk_person_id)
-WHERE m.titulo = 'Barbie' COLLATE NOCASE AND m.ano_lancamento = 2023
+WHERE m.id_filme = '346698' AND m.ano_lancamento = 2023
   AND p.tipo_pessoa = 'Ator'
 ORDER BY p.nome_pessoa COLLATE NOCASE, p.nome_pessoa;
 
 -- Q39: Filmes em que DiCaprio atuou sob direção de Scorsese.
-SELECT m.titulo, m.ano_lancamento
-FROM dim_movies m
-WHERE EXISTS (
-    SELECT 1 FROM bridge_movie_person b JOIN dim_people p USING (sk_person_id)
-    WHERE b.sk_movie_id = m.sk_movie_id AND p.tipo_pessoa = 'Ator'
-      AND p.nome_pessoa = 'Leonardo DiCaprio' COLLATE NOCASE
-) AND EXISTS (
-    SELECT 1 FROM bridge_movie_person b JOIN dim_people p USING (sk_person_id)
-    WHERE b.sk_movie_id = m.sk_movie_id AND p.tipo_pessoa = 'Diretor'
-      AND p.nome_pessoa = 'Martin Scorsese' COLLATE NOCASE
+WITH creditos AS MATERIALIZED (
+    SELECT b.sk_movie_id, p.tipo_pessoa
+    FROM dim_people p JOIN bridge_movie_person b USING (sk_person_id)
+    WHERE (p.tipo_pessoa = 'Ator' AND p.nome_pessoa = 'Leonardo DiCaprio' COLLATE NOCASE)
+       OR (p.tipo_pessoa = 'Diretor' AND p.nome_pessoa = 'Martin Scorsese' COLLATE NOCASE)
 )
-ORDER BY m.ano_lancamento, m.titulo, m.sk_movie_id;
+SELECT titulo, ano_lancamento FROM dim_movies
+WHERE sk_movie_id IN (
+    SELECT sk_movie_id FROM creditos GROUP BY sk_movie_id HAVING COUNT(DISTINCT tipo_pessoa) = 2
+)
+ORDER BY ano_lancamento, titulo, sk_movie_id;
 
 -- Q40: As cinco duplas de atores com mais filmes de terror em comum em 2023.
 WITH elenco AS MATERIALIZED (
@@ -221,8 +220,9 @@ WITH creditos_ano AS MATERIALIZED (
     JOIN dim_movies m USING (sk_movie_id) JOIN fact_movies_performance f USING (sk_movie_id)
     WHERE f.receita_brl IS NOT NULL
 )
-SELECT nome_produtora, titulo, receita_brl FROM filmes WHERE posicao = 1
-ORDER BY total DESC, nome_produtora COLLATE NOCASE, sk_company_id;
+SELECT p.nome_produtora, filmes.titulo, filmes.receita_brl FROM maiores p
+LEFT JOIN filmes ON filmes.sk_company_id = p.sk_company_id AND filmes.posicao = 1
+ORDER BY p.total DESC, p.nome_produtora COLLATE NOCASE, p.sk_company_id;
 
 -- Q44: Produtora com mais diretores distintos em 2024.
 SELECT c.nome_produtora, COUNT(DISTINCT p.sk_person_id) AS total_diretores
@@ -278,7 +278,7 @@ WHERE m.ano_lancamento = 2023 AND g.nome_genero = 'Horror'
 ORDER BY lucro_brl DESC, m.titulo, m.sk_movie_id LIMIT 5;
 
 -- Q49: Mesmo ranking de animações com um novo período.
-SELECT m.titulo, f.receita_brl
+SELECT m.titulo, f.receita_brl, m.ano_lancamento
 FROM dim_movies m JOIN fact_movies_performance f USING (sk_movie_id)
 JOIN bridge_movie_genre b USING (sk_movie_id) JOIN dim_genres g USING (sk_genre_id)
 WHERE m.data_lancamento BETWEEN '2020-01-01' AND DATE('now')

@@ -55,6 +55,25 @@ function temaParaColuna(column: string): TemaGrafico {
 }
 
 function especificacao(metadata: MetadadosGenAi, rows: Array<Record<string, unknown>>): EspecificacaoGrafico | null {
+  if (metadata.query_id === 'Q31' || ['qtd_comedia', 'qtd_terror', 'lucro_medio_comedia', 'lucro_medio_terror'].every((column) => metadata.columns.includes(column))) {
+    return null
+  }
+  const percentualLucrativo = metadata.columns.find((column) => /^(?:percentual|porcentagem)_(?:lucro|lucrativos?)$/.test(column))
+  if (percentualLucrativo && metadata.columns.includes('nome_produtora')) {
+    return { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: percentualLucrativo, titulo: 'Percentual de filmes lucrativos por produtora', tema: 'financeiro' }
+  }
+  if (metadata.query_id === 'Q42') {
+    return { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: 'total_coproducoes', titulo: 'Coproduções por produtora em 2024', tema: 'catalogo' }
+  }
+  if (metadata.query_id === 'Q43') {
+    return { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: 'receita_brl', titulo: 'Maior bilheteria registrada por produtora em 2023', tema: 'financeiro' }
+  }
+  if (metadata.query_id === 'Q49') {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'receita_brl', titulo: `Bilheteria de animações · ${metadata.period ?? 'período selecionado'}`, tema: 'financeiro' }
+  }
+  if (metadata.metric === 'interseção dos rankings de bilheteria e lucro') {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'receita_brl', titulo: 'Bilheteria dos filmes presentes nos dois rankings', tema: 'financeiro' }
+  }
   if (metadata.query_id && ESPECIFICACOES[metadata.query_id]) return ESPECIFICACOES[metadata.query_id]
   const comparacao = metadata.metric ? COMPARACOES_ANUAIS[metadata.metric] : undefined
   if (comparacao && metadata.columns.includes(comparacao.colunaRotulo) && metadata.columns.includes(comparacao.colunaValor)) {
@@ -237,7 +256,10 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
   if (!spec) return null
   const specForExport = spec
   const maxPontos = spec.tipo === 'linha' ? 16 : spec.tipo === 'rosca' ? 7 : 8
-  const pontos = rows.flatMap((row) => {
+  const linhas = metadata.metric === 'interseção dos rankings de bilheteria e lucro'
+    ? [...rows].sort((a, b) => (numero(b.receita_brl) ?? 0) - (numero(a.receita_brl) ?? 0))
+    : rows
+  const pontos = linhas.flatMap((row) => {
     const valor = numero(row[spec.colunaValor])
     if (valor === null || row[spec.colunaRotulo] === undefined || row[spec.colunaRotulo] === null) return []
     return [{ rotulo: formatarCelula(spec.colunaRotulo, row[spec.colunaRotulo]), valor }]
@@ -270,7 +292,11 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
     {spec.tipo === 'barras' && <GraficoDeBarras pontos={pontosOrdenados} spec={spec} />}
     {spec.tipo === 'rosca' && <GraficoDeRosca pontos={pontosOrdenados} spec={spec} />}
     {spec.tipo === 'dispersao' && <GraficoDeDispersao rows={rows} spec={spec} metadata={metadata} />}
-    {rows.length > pontos.length && <p>O gráfico mostra os primeiros {pontos.length} resultados; a tabela contém a lista completa.</p>}
+    {metadata.metric === 'interseção dos rankings de bilheteria e lucro' &&
+      <p>Ordem decrescente de bilheteria. A tabela também mostra o lucro de cada filme.</p>}
+    {rows.length > pontos.length && <p>{metadata.query_id === 'Q43'
+      ? 'O gráfico mostra as produtoras com bilheteria registrada. A tabela inclui todas as selecionadas.'
+      : `O gráfico mostra os primeiros ${pontos.length} resultados; a tabela contém a lista completa.`}</p>}
     {erroExportacao && <p className="chatbot-chart-export-error" role="alert">{erroExportacao}</p>}
   </figure>
 }

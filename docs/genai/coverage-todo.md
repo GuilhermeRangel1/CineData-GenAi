@@ -568,3 +568,16 @@ registrado em algum provedor, somando as execuções. Isso não equivale a uma
 execução completa por provedor: a bateria inteira ainda não foi repetida sem
 limites e várias reformulações continuam pendentes. O teste local mais recente
 passou com 204 testes, e o Ruff passou nos arquivos alterados.
+
+### Reteste da Q48 em 27/11/2026
+
+O OpenRouter passou a Q48 em uma chamada real isolada, em 17,4 s.
+Ao receber “Faz o mesmo pra terror”, manteve o ano de 2023, o ranking
+por lucro e o limite de cinco filmes. Os cinco resultados do SQL gerado
+pelo modelo bateram com a Gold. Groq e OpenRouter agora têm cobertura
+das 50 perguntas canônicas somando as execuções e os retestes.
+As reformulações por provedor continuam pendentes.
+
+A ordem ativa no Docker foi confirmada como Gemini → Groq → OpenRouter.
+Os 46 testes do roteador e dos adaptadores passaram, incluindo os
+cenários de fallback com falhas simuladas.
