@@ -42,6 +42,7 @@ from app.round_two_repairs import (
     MODEL_HINTS,
     REFERENCES,
     animation_ranking,
+    horror_producer_ranking,
     match_reviewed_case,
     profit_ranking_followup,
     reviewed_summary,
@@ -1146,14 +1147,18 @@ _ANALYTICAL_QUERY_HINTS = (
      "e usando os créditos dos filmes no período da busca de bilheteria. "
      "Reutilize a primeira CTE somente quando os recortes coincidirem. Quando forem "
      "diferentes, junte bridge_movie_company e dim_movies novamente para aplicar "
-     "o segundo recorte. Em seguida, junte fact_movies_performance. Filtre "
+     "o segundo recorte. Aplique o gênero solicitado às etapas correspondentes; "
+     "materialize os créditos já filtrados por ano e gênero. Em seguida, junte "
+     "fact_movies_performance. Filtre "
      "receita_brl IS NOT NULL antes de ROW_NUMBER() OVER (PARTITION BY sk_company_id "
      "ORDER BY receita_brl DESC, sk_movie_id). A contagem de produtoras não pode "
      "depender da existência de receita. O ID vem da ponte de créditos, nunca do fato. "
      "O nome da coluna é receita_brl, não revenue_brl nem recurso_brl. SQLite não aceita "
      "QUALIFY: calcule ROW_NUMBER em uma CTE e filtre rn = 1 em uma CTE seguinte. "
      "Retorne nome_produtora, titulo e receita_brl; ordene pelas contagens já projetadas. "
-     "Quando houver limite, restrinja aos IDs selecionados antes de ranquear os filmes."),
+     "Quando houver limite, restrinja aos IDs selecionados antes de ranquear os filmes. "
+     "No SELECT final, parta das produtoras selecionadas e faça LEFT JOIN com o filme "
+     "de posição 1, preservando produtoras sem bilheteria registrada."),
     (r"(?=.*\b(?:em qual ano|em que ano)\b)(?=.*\b(?:maior|melhor)\b)"
      r"(?=.*\bmedia\b)(?=.*\bimdb\b)",
      "No mesmo WHERE aplique o período, o gênero e f.qtd_imdb > 0 AND "
@@ -1888,7 +1893,14 @@ class AgentService:
         all_time_company_count = False
         period_override = None
         query_source = "local"
-        if semantic_revenue_ranking:
+        horror_ranking = (
+            horror_producer_ranking(normalized_routing_question)
+            if not mixed_intent and not self.model_only else None
+        )
+        if horror_ranking:
+            query = horror_ranking
+            model_seconds = 0.0
+        elif semantic_revenue_ranking:
             evaluation_case = None
             query = _semantic_revenue_sql([match.movie_id for match in semantic_matches])
             model_seconds = 0.0

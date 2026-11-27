@@ -38,6 +38,14 @@ def test_colloquial_score_comparison_routes_to_catalog_data() -> None:
     ("Quais 5 produtoras mais fizeram filmes em parceria com outras em 2024?", "Q42"),
     ("Pega as cinco produtoras com mais filmes de 2023 e me diz qual filme de cada uma "
      "arrecadou mais naquele ano, com o valor em reais.", "Q43"),
+    ("Qual porcentagem da bilheteria de 2023 em reais veio dos dez filmes "
+     "com maior receita?", "Q25"),
+    ("Qual porcentagem da bilheteria de 2023 em dólares veio dos dez filmes "
+     "com maior receita?", None),
+    ("Qual porcentagem da bilheteria de 2023 em US$ veio dos dez filmes "
+     "com maior receita?", None),
+    ("Das cinco produtoras com mais filmes de terror em 2023, qual foi o filme "
+     "de maior bilheteria de cada uma?", None),
     ("Quem dirigiu Barbie?", None),
     ("Quem dirigiu o DiCaprio pelo menos três vezes?", None),
     ("Quantos lançamentos teve por gênero nos três anos mais recentes?", None),

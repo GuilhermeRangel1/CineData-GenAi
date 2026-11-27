@@ -12,6 +12,17 @@ _CASES = {
     case.query_id: case
     for case in MANDATORY_EVALUATIONS + EXPANSION_EVALUATIONS + ROUND_TWO_EVALUATIONS
 }
+_Q25_NON_BRL = re.compile(
+    r"\b(?:dolar(?:es)?|usd|euros?|eur|libras?|gbp|ienes?|jpy)\b|(?:us|u)\$|[€£¥]"
+)
+_Q43_GENRE = re.compile(
+    r"\b(?:generos?|terror|horror|comedia|comedy|acao|action|animacao|animation|"
+    r"aventura|adventure|documentarios?|documentary|drama|familia|family|"
+    r"fantasia|fantasy|historia|history|musica|music|misterio|mystery|romance|"
+    r"ficcao cientifica|science fiction|sci[- ]?fi|suspense|thriller|guerra|war|"
+    r"faroeste|western|crime|filme de tv|tv movie)\b"
+)
+
 _PATTERNS = {
     "Q13": r"^(?:que|quais) (?:titulos|filmes) receberam mais avaliacoes "
            r"(?:dos|de) usuarios(?: do cinedata)?[?.!]*"
@@ -339,6 +350,22 @@ MODEL_HINTS = {
 }
 
 
+def horror_producer_ranking(question: str) -> str | None:
+    if not re.fullmatch(
+        r"das (?:cinco|5) produtoras com mais filmes de terror em 2023,? "
+        r"qual foi o filme(?: de terror)? de maior bilheteria de cada uma[?.!]*",
+        question,
+    ):
+        return None
+    return REFERENCES["Q43"].replace(
+        "WHERE m.ano_lancamento = 2023",
+        "JOIN bridge_movie_genre USING (sk_movie_id) "
+        "JOIN dim_genres USING (sk_genre_id) "
+        "WHERE m.ano_lancamento = 2023 AND nome_genero = 'Horror'",
+        1,
+    )
+
+
 def match_reviewed_case(question: str):
     if re.search(r"\b(?:exatamente|somente|igual a|apenas)\s+(?:a\s+)?(?:nota\s+)?8\b", question):
         return None
@@ -352,6 +379,10 @@ def match_reviewed_case(question: str):
     years = set(re.findall(r"\b(?:19|20)\d{2}\b", question))
     for key, pattern in _PATTERNS.items():
         if years == expected[key] and re.match(pattern, question):
+            if key == "Q25" and _Q25_NON_BRL.search(question):
+                return None
+            if key == "Q43" and _Q43_GENRE.search(question):
+                return None
             return _CASES[key]
     return None
 
