@@ -82,7 +82,7 @@ describe('ChatbotHub GenAI', () => {
     await user.click(screen.getByRole('button', { name: 'Enviar mensagem' }))
 
     expect(await screen.findByText('Filme A')).toBeInTheDocument()
-    expect(screen.queryByText('Resposta: Os filmes foram ordenados pela receita.')).not.toBeInTheDocument()
+    expect(screen.getByText('Resposta: Os filmes foram ordenados pela receita.')).toBeInTheDocument()
     expect(screen.getByText('Filmes com maior receita')).toBeInTheDocument()
     expect(screen.getByText(/R\$.*1\.250,00/)).toBeInTheDocument()
     expect(screen.queryByText('sk_movie_id')).not.toBeInTheDocument()
@@ -166,7 +166,7 @@ describe('ChatbotHub GenAI', () => {
     }))))
     expect(screen.getByRole('status')).toHaveTextContent('Prontinho!')
     expect(screen.queryByLabelText('Chatbot está respondendo')).not.toBeInTheDocument()
-    expect(screen.getByText(/Não encontrei resultados/)).toBeInTheDocument()
+    expect(screen.getByText('Nenhum resultado.')).toBeInTheDocument()
     expect(input).toBeEnabled()
     expect(input).toHaveFocus()
   })
@@ -199,7 +199,7 @@ describe('ChatbotHub GenAI', () => {
     const input = screen.getByLabelText('Escreva sua mensagem')
     await user.type(input, 'Qual é a nota IMDb média por ano?')
     await user.click(screen.getByRole('button', { name: 'Enviar mensagem' }))
-    await screen.findByText(/Não encontrei resultados/)
+    await screen.findByText('Dados encontrados.')
     await user.type(input, 'E em 2020?')
     await user.click(screen.getByRole('button', { name: 'Enviar mensagem' }))
 

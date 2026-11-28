@@ -34,6 +34,12 @@ const ESPECIFICACOES: Record<string, EspecificacaoGrafico> = {
 
 type PontoGrafico = { rotulo: string; valor: number }
 
+const COMPARACOES_ANUAIS: Record<string, EspecificacaoGrafico> = {
+  'variação da bilheteria anual': { tipo: 'barras', colunaRotulo: 'ano_lancamento', colunaValor: 'receita_brl', titulo: 'Bilheteria registrada por ano', tema: 'financeiro' },
+  'lucro total': { tipo: 'barras', colunaRotulo: 'ano_lancamento', colunaValor: 'lucro_brl', titulo: 'Lucro total por ano', tema: 'financeiro' },
+  'nota média simples no IMDb': { tipo: 'barras', colunaRotulo: 'ano_lancamento', colunaValor: 'nota_media_imdb', titulo: 'Nota média no IMDb por ano', tema: 'notas' },
+}
+
 function numero(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
@@ -49,7 +55,36 @@ function temaParaColuna(column: string): TemaGrafico {
 }
 
 function especificacao(metadata: MetadadosGenAi, rows: Array<Record<string, unknown>>): EspecificacaoGrafico | null {
+  if (metadata.query_id === 'Q31' || ['qtd_comedia', 'qtd_terror', 'lucro_medio_comedia', 'lucro_medio_terror'].every((column) => metadata.columns.includes(column))) {
+    return null
+  }
+  const percentualLucrativo = metadata.columns.find((column) => /^(?:percentual|porcentagem)_(?:lucro|lucrativos?)$/.test(column))
+  if (percentualLucrativo && metadata.columns.includes('nome_produtora')) {
+    return { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: percentualLucrativo, titulo: 'Percentual de filmes lucrativos por produtora', tema: 'financeiro' }
+  }
+  if (metadata.query_id === 'Q42') {
+    return { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: 'total_coproducoes', titulo: 'Coproduções por produtora em 2024', tema: 'catalogo' }
+  }
+  if (metadata.query_id === 'Q43') {
+    return { tipo: 'barras', colunaRotulo: 'nome_produtora', colunaValor: 'receita_brl', titulo: 'Maior bilheteria registrada por produtora em 2023', tema: 'financeiro' }
+  }
+  if (metadata.query_id === 'Q49') {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'receita_brl', titulo: `Bilheteria de animações · ${metadata.period ?? 'período selecionado'}`, tema: 'financeiro' }
+  }
+  if (metadata.metric === 'interseção dos rankings de bilheteria e lucro') {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'receita_brl', titulo: 'Bilheteria dos filmes presentes nos dois rankings', tema: 'financeiro' }
+  }
   if (metadata.query_id && ESPECIFICACOES[metadata.query_id]) return ESPECIFICACOES[metadata.query_id]
+  const comparacao = metadata.metric ? COMPARACOES_ANUAIS[metadata.metric] : undefined
+  if (comparacao && metadata.columns.includes(comparacao.colunaRotulo) && metadata.columns.includes(comparacao.colunaValor)) {
+    return rows.filter((row) => numero(row[comparacao.colunaValor]) !== null).length >= 2 ? comparacao : null
+  }
+  const colunaLucro = metadata.columns.find((column) =>
+    /^(?:lucro(?:_brl|_em_reais)?|profit(?:_brl)?)$/i.test(column),
+  )
+  if (metadata.columns.includes('titulo') && colunaLucro) {
+    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: colunaLucro, titulo: 'Lucro por filme', tema: 'financeiro' }
+  }
   if (metadata.columns.includes('titulo') && metadata.columns.includes('receita_brl')) {
     return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'receita_brl', titulo: 'Receita por filme', tema: 'financeiro' }
   }
@@ -58,9 +93,6 @@ function especificacao(metadata: MetadadosGenAi, rows: Array<Record<string, unkn
   }
   if (metadata.columns.includes('titulo') && metadata.columns.includes('orcamento_usd')) {
     return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'orcamento_usd', titulo: 'Orçamento por filme', tema: 'financeiro' }
-  }
-  if (metadata.columns.includes('titulo') && metadata.columns.includes('lucro_brl')) {
-    return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'lucro_brl', titulo: 'Lucro por filme', tema: 'financeiro' }
   }
   if (metadata.columns.includes('titulo') && metadata.columns.includes('margem')) {
     return { tipo: 'barras', colunaRotulo: 'titulo', colunaValor: 'margem', titulo: 'Margem de lucro por filme', tema: 'financeiro' }
@@ -224,7 +256,10 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
   if (!spec) return null
   const specForExport = spec
   const maxPontos = spec.tipo === 'linha' ? 16 : spec.tipo === 'rosca' ? 7 : 8
-  const pontos = rows.flatMap((row) => {
+  const linhas = metadata.metric === 'interseção dos rankings de bilheteria e lucro'
+    ? [...rows].sort((a, b) => (numero(b.receita_brl) ?? 0) - (numero(a.receita_brl) ?? 0))
+    : rows
+  const pontos = linhas.flatMap((row) => {
     const valor = numero(row[spec.colunaValor])
     if (valor === null || row[spec.colunaRotulo] === undefined || row[spec.colunaRotulo] === null) return []
     return [{ rotulo: formatarCelula(spec.colunaRotulo, row[spec.colunaRotulo]), valor }]
@@ -257,7 +292,11 @@ export function ChatbotResultChart({ metadata, rows }: { metadata: MetadadosGenA
     {spec.tipo === 'barras' && <GraficoDeBarras pontos={pontosOrdenados} spec={spec} />}
     {spec.tipo === 'rosca' && <GraficoDeRosca pontos={pontosOrdenados} spec={spec} />}
     {spec.tipo === 'dispersao' && <GraficoDeDispersao rows={rows} spec={spec} metadata={metadata} />}
-    {rows.length > pontos.length && <p>O gráfico mostra os primeiros {pontos.length} resultados; a tabela contém a lista completa.</p>}
+    {metadata.metric === 'interseção dos rankings de bilheteria e lucro' &&
+      <p>Ordem decrescente de bilheteria. A tabela também mostra o lucro de cada filme.</p>}
+    {rows.length > pontos.length && <p>{metadata.query_id === 'Q43'
+      ? 'O gráfico mostra as produtoras com bilheteria registrada. A tabela inclui todas as selecionadas.'
+      : `O gráfico mostra os primeiros ${pontos.length} resultados; a tabela contém a lista completa.`}</p>}
     {erroExportacao && <p className="chatbot-chart-export-error" role="alert">{erroExportacao}</p>}
   </figure>
 }

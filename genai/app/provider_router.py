@@ -2,6 +2,7 @@
 
 import logging
 import time
+from collections.abc import Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -49,9 +50,11 @@ class ProviderRouter:
     """Usa apenas falhas de provedor para failover; erros locais continuam visíveis."""
 
     def __init__(self, providers, *, timeout_seconds=12, budget_seconds=40,
-                 cooldown_seconds=60, clock=time.monotonic):
+                 cooldown_seconds=60, clock=time.monotonic,
+                 analytical_timeouts: Mapping[str, float] | None = None):
         self.providers = list(providers)
         self.timeout_seconds = timeout_seconds
+        self.analytical_timeouts = dict(analytical_timeouts or {})
         self.budget_seconds = budget_seconds
         self.cooldown_seconds = cooldown_seconds
         self.clock = clock
@@ -93,9 +96,13 @@ class ProviderRouter:
             started = self.clock()
             failed = False
             try:
+                attempt_timeout = (
+                    self.timeout_seconds if complexity == QuestionComplexity.SIMPLE
+                    else self.analytical_timeouts.get(name, self.timeout_seconds)
+                )
                 result = model.complete_for_complexity(
                     messages, tools, complexity,
-                    timeout_seconds=min(self.timeout_seconds, question.remaining),
+                    timeout_seconds=min(attempt_timeout, question.remaining),
                 )
                 self._validate_turn(result, tools)
                 question.preferred = name
@@ -204,4 +211,10 @@ def build_provider_router(settings):
         providers, timeout_seconds=settings.provider_timeout_seconds,
         budget_seconds=settings.provider_budget_seconds,
         cooldown_seconds=settings.provider_cooldown_seconds,
+        analytical_timeouts={
+            "gemini": max(settings.provider_timeout_seconds,
+                          settings.gemini_analytical_timeout_seconds),
+            "openrouter": max(settings.provider_timeout_seconds,
+                              settings.openrouter_analytical_timeout_seconds),
+        },
     )

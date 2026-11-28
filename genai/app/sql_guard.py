@@ -84,6 +84,34 @@ class ValidatedQuery:
 
     sql: str
     tables: frozenset[str]
+    aggregates_credit_pairs: bool = False
+
+
+def _aggregates_credit_pairs(expression: exp.Expression, credit_reads: int) -> bool:
+    if credit_reads < 2:
+        return False
+    groups_by_two_ids = any(
+        sum(
+            isinstance(key, exp.Column) and key.name.casefold().endswith("_id")
+            for key in group.expressions
+        ) >= 2
+        for group in expression.find_all(exp.Group)
+    )
+    if not groups_by_two_ids:
+        return False
+
+    roles = set()
+    for condition in expression.find_all(exp.EQ):
+        left, right = condition.this, condition.expression
+        column, value = (right, left) if isinstance(right, exp.Column) else (left, right)
+        if (
+            isinstance(column, exp.Column)
+            and column.name.casefold() == "tipo_pessoa"
+            and isinstance(value, exp.Literal)
+            and value.is_string
+        ):
+            roles.add(value.this.casefold())
+    return {"ator", "diretor"} <= roles
 
 
 def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
@@ -129,6 +157,7 @@ def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
 
     cte_names = {cte.alias_or_name for cte in expression.find_all(exp.CTE)}
     tables: set[str] = set()
+    credit_reads = 0
     for table in expression.find_all(exp.Table):
         if table.name in cte_names:
             continue
@@ -137,6 +166,7 @@ def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
         if table.name not in EXPECTED_TABLES:
             raise SqlValidationError("A consulta usa uma tabela não permitida.")
         tables.add(table.name)
+        credit_reads += table.name == "bridge_movie_person"
 
     if not tables:
         raise SqlValidationError("A consulta precisa ler uma tabela Gold.")
@@ -154,4 +184,8 @@ def validate_sql(sql: str, max_rows: int = 100) -> ValidatedQuery:
             ):
                 limit.set("expression", exp.Literal.number(max_rows))
 
-    return ValidatedQuery(sql=expression.sql(dialect="sqlite"), tables=frozenset(tables))
+    return ValidatedQuery(
+        sql=expression.sql(dialect="sqlite"),
+        tables=frozenset(tables),
+        aggregates_credit_pairs=_aggregates_credit_pairs(expression, credit_reads),
+    )

@@ -194,6 +194,7 @@
 .chatbot-result-table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; color: #e0eaeb; }
 .chatbot-result-table th { padding: 12px 14px; color: #9bd6c7; background: #9bd6c70a; font-size: 10px; font-weight: 650; white-space: nowrap; }
 .chatbot-result-table td { padding: 12px 14px; border-top: 1px solid #b4dcd212; line-height: 1.55; overflow-wrap: anywhere; }
+.chatbot-result-table td.chatbot-result-number { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chatbot-result-table tbody tr:nth-child(even) { background: #b4dcd203; }
 .chatbot-result-table tbody tr:hover { background: #b4dcd20a; }
 .chatbot-result-note { margin: 14px 0 0; color: #9fb6bd; font-size: 11px; line-height: 1.65; }

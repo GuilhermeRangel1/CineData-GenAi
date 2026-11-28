@@ -1,0 +1,282 @@
+[
+  {
+    "id": "sinopse-klaus",
+    "question": "Dá pra me contar do que trata Klaus sem estragar o final?",
+    "include": [
+      "Klaus \\(2019\\)",
+      "Jesper",
+      "(?:carteir|postal|correio)"
+    ],
+    "exclude": [
+      "indisponível",
+      "When Jesper"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "premissa-parasita",
+    "question": "Me diz a premissa de Parasita de 2019?",
+    "include": [
+      "Parasita \\(2019\\)",
+      "família"
+    ],
+    "exclude": [
+      "Sem descrição"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "enredo-oppenheimer",
+    "question": "Pode me mostrar o enredo de Oppenheimer?",
+    "include": [
+      "Oppenheimer \\(2023\\)",
+      "bomba atômica"
+    ],
+    "exclude": [
+      "indisponível",
+      "World War"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "sinopse-aranhaverso",
+    "question": "Pode me resumir a história de Homem-Aranha: Através do Aranhaverso, sem spoilers?",
+    "include": [
+      "Aranhaverso \\(2023\\)",
+      "Gwen|Miles",
+      "multiverso"
+    ],
+    "exclude": [
+      "indisponível"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "duna-sem-ano",
+    "question": "Me conta um pouco da história de Duna, sem revelar o final?",
+    "include": [
+      "Qual ano",
+      "2020",
+      "2021"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "estreia-menu",
+    "question": "Que ano saiu O Menu de 2022?",
+    "include": [
+      "O Menu \\(2022\\)",
+      "Ano de estreia: 2022"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "duracao-menu-2016",
+    "question": "Quando saiu e quanto tempo dura O Menu (2016)?",
+    "include": [
+      "\\(2016\\)",
+      "Ano de estreia: 2016",
+      "89 minutos"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "duracao-corra",
+    "question": "O filme Corra! tem quantos minutos?",
+    "include": [
+      "Corra! \\(2017\\)",
+      "104 minutos"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "duracao-direcao-pantera",
+    "question": "Quanto tempo dura e quem dirigiu Pantera Negra de 2018?",
+    "include": [
+      "Pantera Negra \\(2018\\)",
+      "135 minutos",
+      "Ryan Coogler"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "direcao-barbie",
+    "question": "Quem é o diretor de Barbie?",
+    "include": [
+      "Barbie \\(2023\\)",
+      "Greta Gerwig"
+    ],
+    "exclude": [
+      "Alex Magaña"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "ator-ausente",
+    "question": "O Ryan Gosling tá em Oppenheimer?",
+    "include": [
+      "Não encontrei Ryan Gosling no elenco cadastrado de Oppenheimer \\(2023\\)"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "elenco-tudo-em-todo-lugar",
+    "question": "Quem atuou em Tudo em Todo Lugar ao Mesmo Tempo?",
+    "include": [
+      "Tudo em Todo Lugar ao Mesmo Tempo \\(2022\\)",
+      "Michelle Yeoh"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "notas-oppenheimer",
+    "question": "Que nota deram pro Oppenheimer?",
+    "include": [
+      "Oppenheimer",
+      "8,2\\b",
+      "8,25[6]?\\b|8,26\\b"
+    ],
+    "text_only": false
+  },
+  {
+    "id": "nota-contextual",
+    "question": "E a nota dela?",
+    "context": [
+      "Me fala do filme Barbie"
+    ],
+    "include": [
+      "Barbie \\(2023\\)",
+      "7,279",
+      "Sem nota no IMDb"
+    ],
+    "exclude": [
+      "6,6/10"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "bilheteria-desse-ai",
+    "question": "Qual foi a bilheteria desse aí?",
+    "context": [
+      "Quanto tempo dura Oppenheimer?"
+    ],
+    "include": [
+      "Oppenheimer \\(2023\\)",
+      "R\\$ 4\\.481\\.199\\.780,00"
+    ],
+    "exclude": [
+      "duração",
+      "minutos"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "orcamento-direcao-barbie",
+    "question": "Quanto foi o orçamento e quem fez a direção de Barbie?",
+    "include": [
+      "Barbie \\(2023\\)",
+      "R\\$ 695\\.913\\.000,00",
+      "Greta Gerwig"
+    ],
+    "exclude": [
+      "Alex Magaña"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "lucro-em-reais",
+    "question": "Quanto ele lucrou em reais?",
+    "context": [
+      "Quem dirigiu Oppenheimer?"
+    ],
+    "include": [
+      "Oppenheimer \\(2023\\)",
+      "R\\$ 4\\.001\\.259\\.780,00"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "lucro-ausente",
+    "question": "Duna (2021) deu lucro?",
+    "include": [
+      "Duna \\(2021\\)",
+      "não há dados suficientes no banco de dados"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "lucro-pantera-barbie",
+    "question": "Quem lucrou mais: Pantera Negra (2018) ou Barbie?",
+    "include": [
+      "Barbie \\(2023\\) teve lucro estimado R\\$ 2\\.386\\.763\\.566,02 maior que Pantera Negra \\(2018\\)"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "lucro-compara",
+    "question": "Compara o lucro de Oppenheimer com o de Corra!",
+    "include": [
+      "Oppenheimer \\(2023\\) teve lucro estimado R\\$ 3\\.223\\.771\\.256,46 maior que Corra! \\(2017\\)"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "lucro-mais-que",
+    "question": "Barbie lucrou mais que Corra!?",
+    "include": [
+      "Barbie \\(2023\\) teve lucro estimado R\\$ 5\\.382\\.757\\.483,84 maior que Corra! \\(2017\\)"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "preserva-artigo",
+    "question": "Me indica uns filmes parecidos com A Origem.",
+    "include": [
+      "Não encontrei o filme .A Origem."
+    ],
+    "exclude": [
+      "filme .Origem."
+    ],
+    "text_only": true
+  },
+  {
+    "id": "recomendacao-klaus",
+    "question": "Consegue me recomendar alguns filmes similares com Klaus?",
+    "include": [
+      "gêneros em comum com Klaus \\(2019\\)"
+    ],
+    "text_only": true,
+    "suggestions": 5
+  },
+  {
+    "id": "duracao-mesmo",
+    "question": "Quanto durou mesmo?",
+    "context": [
+      "Quanto durou O Menu?",
+      "2022"
+    ],
+    "include": [
+      "O Menu \\(2022\\)",
+      "107 minutos"
+    ],
+    "exclude": [
+      "89 minutos"
+    ],
+    "text_only": true
+  },
+  {
+    "id": "ano-retoma-direcao",
+    "question": "2021",
+    "context": [
+      "Quem dirigiu Duna?"
+    ],
+    "include": [
+      "Duna \\(2021\\)",
+      "Denis Villeneuve"
+    ],
+    "exclude": [
+      "2020"
+    ],
+    "text_only": true
+  }
+]

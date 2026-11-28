@@ -56,6 +56,30 @@ def test_insight_service_skips_non_chartable_results() -> None:
     assert model.calls == []
 
 
+def test_insight_service_localizes_labels_and_numbers_without_changing_titles() -> None:
+    model = FakeInsightModel(
+        "- Science Fiction chegou a 12.39 e Adventure a 1,234.56.\n"
+        "- Film 2.0 tem 28.086 votos e popularidade de 2994.357."
+    )
+    response = AgentResponse(
+        answer="Resultado.",
+        rows=(
+            {"titulo": "Film 2.0", "nome_genero": "Science Fiction", "lucro_medio_brl": 12.39},
+            {"titulo": "Outro", "nome_genero": "Adventure", "lucro_medio_brl": 1234.56},
+        ),
+        truncated=False,
+        tool_calls=1,
+        columns=("titulo", "nome_genero", "lucro_medio_brl"),
+        query_id="Q02",
+    )
+
+    assert InsightService(model).generate(response) == (
+        "Ficção científica chegou a 12,39 e Aventura a 1.234,56.",
+        "Film 2.0 tem 28.086 votos e popularidade de 2.994,357.",
+    )
+    assert "Ficção científica" in model.calls[0][0][1]["content"]
+
+
 def test_imdb_average_by_year_explains_small_samples_without_calling_model() -> None:
     model = FakeInsightModel("- Este texto não deve ser usado.")
     response = AgentResponse(

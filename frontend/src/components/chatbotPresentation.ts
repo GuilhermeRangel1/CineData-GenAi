@@ -40,11 +40,31 @@ const ROTULOS: Record<string, string> = {
   nome_produtora: 'Produtora',
   nome_pessoa: 'Pessoa',
   ano_lancamento: 'Ano',
+  ano: 'Ano',
+  quantidade_filmes: 'Filmes avaliados',
+  qtd_comedia: 'Estreias de comédia',
+  qtd_terror: 'Estreias de terror',
+  lucro_medio_comedia: 'Lucro médio de comédias',
+  lucro_medio_terror: 'Lucro médio de filmes de terror',
+  total_elegivel: 'Filmes considerados',
+  qtd_lucro: 'Filmes lucrativos',
+  total_lucrativos: 'Filmes lucrativos',
+  porcentagem_lucrativos: 'Filmes lucrativos (%)',
+  porcentagem_lucro: 'Filmes lucrativos (%)',
+  percentual_lucro: 'Filmes lucrativos (%)',
+  percentual_lucrativo: 'Filmes lucrativos (%)',
+  lucro_mediano: 'Lucro mediano',
+  lucro_mediano_brl: 'Lucro mediano',
   total_filmes: 'Filmes',
   filmes_validos: 'Filmes avaliados',
   filmes_elegiveis: 'Filmes considerados',
+  filmes_com_receita: 'Filmes com bilheteria registrada',
+  filmes_lucrativos: 'Filmes lucrativos',
+  filmes_com_nota_oito_ou_mais: 'Filmes com nota 8 ou mais',
   filmes_em_comum: 'Filmes juntos',
   receita_brl: 'Receita',
+  receita_media_brl: 'Bilheteria média',
+  receita_top_3_brl: 'Bilheteria dos três maiores',
   orcamento_brl: 'Orçamento',
   lucro_brl: 'Lucro',
   lucro_medio_brl: 'Lucro médio',
@@ -56,6 +76,7 @@ const ROTULOS: Record<string, string> = {
   nota_tmdb: 'Nota TMDB',
   nota_media: 'Nota média',
   nota_imdb_media: 'Média IMDb',
+  nota_media_imdb: 'Média IMDb',
   nota_media_usuarios: 'Nota do público',
   qtd_imdb: 'Votos no IMDb',
   qtd_tmdb: 'Votos no TMDB',
@@ -190,6 +211,10 @@ export function colunasVisiveis(columns: string[]): string[] {
 }
 
 export function rotuloColuna(column: string, metadata: MetadadosGenAi): string {
+  if (metadata.query_id === 'Q19' || metadata.columns.includes('media') && metadata.columns.includes('ano')) {
+    if (column === 'media') return 'Nota média no IMDb'
+    if (['quantidade', 'qtd_filmes', 'qtd_filmes_avaliados', 'qtd_animacoes'].includes(column)) return 'Filmes avaliados'
+  }
   if (column === 'nome_pessoa' && (metadata.query_id === 'Q07' || metadata.metric === 'quantidade de filmes por ator')) return 'Ator'
   if (column === 'nome_pessoa' && metadata.query_id === 'Q08') return 'Diretor'
   return ROTULOS[column] ?? column.replaceAll('_', ' ').replace(/^\w/, (letter) => letter.toUpperCase())
@@ -198,10 +223,11 @@ export function rotuloColuna(column: string, metadata: MetadadosGenAi): string {
 export function formatarCelula(column: string, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'number') {
-    if (column === 'ano_lancamento') return String(value)
-    if (column.endsWith('_brl')) return moedaBrl.format(value)
+    if (column === 'ano_lancamento' || column === 'ano') return String(value)
+    if (column.endsWith('_brl') || ['lucro_mediano', 'lucro_medio_comedia', 'lucro_medio_terror'].includes(column)) return moedaBrl.format(value)
     if (column.endsWith('_usd')) return moedaUsd.format(value)
     if (column === 'margem' || column === 'margem_media') return percentual.format(value)
+    if (/^(?:percentual|porcentagem)(?:_|$)/.test(column)) return `${numero.format(value)}%`
     return numero.format(value)
   }
   const text = String(value)

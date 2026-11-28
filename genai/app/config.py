@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     gold_pair_query_timeout_seconds: float = 45.0
     cors_origins: str = "http://localhost:8080,http://localhost:5173"
     gemini_api_key: SecretStr | None = None
+    tmdb_api_token: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
     gemini_complex_model: str | None = "gemini-3.5-flash"
     gemini_fallback_model: str | None = "gemini-3.5-flash"
@@ -28,11 +29,13 @@ class Settings(BaseSettings):
     openrouter_api_key: SecretStr | None = None
     openrouter_model: str | None = None
     provider_timeout_seconds: float = Field(default=12, gt=0, allow_inf_nan=False)
+    gemini_analytical_timeout_seconds: float = Field(default=20, gt=0, allow_inf_nan=False)
+    openrouter_analytical_timeout_seconds: float = Field(default=36, gt=0, allow_inf_nan=False)
     provider_budget_seconds: float = Field(default=40, gt=0, allow_inf_nan=False)
     provider_cooldown_seconds: float = Field(default=60, gt=0, allow_inf_nan=False)
     response_cache_ttl_seconds: float = 300.0
     canonical_response_cache_ttl_seconds: float = 3600.0
-    response_cache_rules_version: str = "1"
+    response_cache_rules_version: str = "2"
 
     model_config = SettingsConfigDict(
         env_file=".env",

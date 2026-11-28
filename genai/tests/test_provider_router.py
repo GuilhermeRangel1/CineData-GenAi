@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.agent_models import ModelTurn, ToolCall, ToolDefinition
+from app.complexity_router import QuestionComplexity
 from app.config import Settings
 from app.errors import ProviderTransientError
 from app.provider_router import ProviderRouter, configured_providers
@@ -154,6 +155,26 @@ def test_sql_time_is_not_inference_time_and_expired_insights_preserve_data():
         assert response.answer == "Dados prontos"
         assert len(response.rows) == 2
         assert len(model.calls) == 2
+
+
+def test_openrouter_analytical_timeout_respects_question_budget():
+    clock = Clock()
+    primary = Model([TimeoutError()], clock, 10)
+    openrouter = Model(["analytical", "simple"])
+    router = ProviderRouter(
+        [("groq", primary), ("openrouter", openrouter)],
+        clock=clock,
+        timeout_seconds=12,
+        budget_seconds=30,
+        analytical_timeouts={"openrouter": 22},
+    )
+
+    assert router.complete_for_complexity([], [], QuestionComplexity.ANALYTICAL).answer == (
+        "analytical"
+    )
+    assert router.complete([], []).answer == "simple"
+    assert primary.calls == [12]
+    assert openrouter.calls == [20, 12]
 
 
 def test_scope_budget_isolated_between_threads():

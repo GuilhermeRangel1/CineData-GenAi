@@ -53,7 +53,7 @@ class QuestionRequest(BaseModel):
     """Entrada pública para uma pergunta analítica."""
 
     question: str = Field(min_length=1, max_length=1000)
-    context: list[ConversationTurn] = Field(default_factory=list, max_length=3)
+    context: list[ConversationTurn] = Field(default_factory=list, max_length=10)
     conversation_id: str | None = Field(default=None, min_length=12, max_length=80)
 
     @field_validator("question")
@@ -127,6 +127,9 @@ def get_agent_service() -> AgentService:
         insight_service=InsightService(model),
         semantic_search=SynopsisSearchIndex(database),
         provider_configured=bool(available),
+        tmdb_api_token=(
+            settings.tmdb_api_token.get_secret_value() if settings.tmdb_api_token else None
+        ),
     )
 
 
@@ -191,12 +194,13 @@ def answer_question(
         (payload.conversation_id or shared_case_id)
         and isinstance(service, AgentService)
         and service.provider_configured
+        and not service.model_only
     ):
         settings = get_settings()
         try:
-            rules_version = settings.response_cache_rules_version
-            if shared_case_id in {"Q06", "Q07"}:
-                rules_version += f":{datetime.now(UTC).date().isoformat()}"
+            rules_version = (
+                f"{settings.response_cache_rules_version}:{datetime.now(UTC).date().isoformat()}"
+            )
             cache_key = make_cache_key(
                 conversation_id=(
                     f"fixed:{shared_case_id}"

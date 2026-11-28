@@ -10,9 +10,70 @@ from app.agent import AgentClarification, AgentError, AgentGuardrail, AgentServi
 from app.agent_models import ConversationContext, ModelTurn, ToolCall
 from app.errors import ProviderConfigurationError
 from app.evaluation_cases import MANDATORY_EVALUATIONS
+from app.evaluation_paraphrases import EVALUATION_PARAPHRASES
 from app.gold_database import EXPECTED_TABLES, GoldDatabase
 from app.semantic_search import SynopsisSearchIndex
 from app.sql_executor import GoldQueryExecutor
+
+
+@pytest.mark.parametrize("question", EVALUATION_PARAPHRASES["Q16"])
+def test_empty_annual_genre_comparison_explains_the_result(question) -> None:
+    assert agent_module._empty_analytical_answer(question) == (
+        "No catálogo, em nenhum ano de 2016 a 2024 saíram mais filmes de terror do que de comédia."
+    )
+
+
+def test_colloquial_score_comparison_routes_to_catalog_data() -> None:
+    question = EVALUATION_PARAPHRASES["Q05"][0]
+    assert agent_module._question_sources(question) == (False, True)
+
+
+@pytest.mark.parametrize(("question", "expected"), [
+    (EVALUATION_PARAPHRASES["Q05"][0], "Q05"),
+    (EVALUATION_PARAPHRASES["Q08"][0], "Q08"),
+    ("Quem dirigiu o DiCaprio pelo menos duas vezes?", "Q20"),
+    ("Quantos lançamentos teve por gênero nos cinco anos mais recentes?", "Q37"),
+    ("Quem tá no elenco de Barbie, aquele filme de 2023?", "Q38"),
+    ("Quem dirigiu pelo menos um terror e uma comédia de 2016 pra cá?", "Q41"),
+    ("Quais 5 produtoras mais fizeram filmes em parceria com outras em 2024?", "Q42"),
+    ("Pega as cinco produtoras com mais filmes de 2023 e me diz qual filme de cada uma "
+     "arrecadou mais naquele ano, com o valor em reais.", "Q43"),
+    ("Qual porcentagem da bilheteria de 2023 em reais veio dos dez filmes "
+     "com maior receita?", "Q25"),
+    ("Qual porcentagem da bilheteria de 2023 em dólares veio dos dez filmes "
+     "com maior receita?", None),
+    ("Qual porcentagem da bilheteria de 2023 em US$ veio dos dez filmes "
+     "com maior receita?", None),
+    ("Das cinco produtoras com mais filmes de terror em 2023, qual foi o filme "
+     "de maior bilheteria de cada uma?", None),
+    ("Quem dirigiu Barbie?", None),
+    ("Quem dirigiu o DiCaprio pelo menos três vezes?", None),
+    ("Quantos lançamentos teve por gênero nos três anos mais recentes?", None),
+    ("Quem tá no elenco de Barbie, aquele filme de 2022?", None),
+])
+def test_reviewed_analytics_preserve_the_requested_scope(question, expected) -> None:
+    case = agent_module.match_reviewed_case(agent_module._normalize_for_routing(question))
+    assert (case.query_id if case else None) == expected
+
+
+def test_schema_for_director_collaborations_keeps_people_credits_and_ratings() -> None:
+    question = "Quais diretores trabalharam com Leonardo DiCaprio? Mostre a média IMDb."
+    tables, _ = agent_module._schema_for_case(None, agent_module._analytical_topic(question))
+    assert set(tables.split(", ")) == {
+        "dim_movies", "dim_people", "bridge_movie_person", "fact_movies_performance",
+    }
+
+
+def test_schema_for_producer_median_preserves_cross_topic_queries() -> None:
+    question = "Qual produtora teve o maior lucro mediano?"
+    tables, _ = agent_module._schema_for_case(None, agent_module._analytical_topic(question))
+    assert "bridge_movie_company" in tables
+    assert "bridge_movie_genre" not in tables
+
+    topic = agent_module._analytical_topic(f"{question} Separe por gênero.")
+    tables, _ = agent_module._schema_for_case(None, topic)
+    assert "bridge_movie_company" in tables
+    assert "bridge_movie_genre" in tables
 
 
 def _create_gold_fixture(path) -> None:
@@ -229,7 +290,9 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
     _create_gold_fixture(database_path)
     model = FakeModel(
         [
-            ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT id, title FROM dim_movies"})),
+            ModelTurn(tool_call=ToolCall(
+                "run_sql", {"sql": "SELECT id, title AS titulo FROM dim_movies"}
+            )),
         ]
     )
 
@@ -238,17 +301,14 @@ def test_agent_executes_one_tool_call_and_returns_rows(tmp_path) -> None:
         GoldQueryExecutor(GoldDatabase(database_path)),
     ).answer("Quais filmes existem?")
 
-    assert response.answer == "A consulta retornou 1 resultado; os valores estão na tabela."
-    assert response.rows == (({"id": 1, "title": "A"}),)
+    assert response.answer == "Encontrei A."
+    assert response.rows == (({"id": 1, "titulo": "A"}),)
     assert response.tool_calls == 1
     assert len(model.calls) == 1
     assert model.calls[0][1][0].name == "run_sql"
     assert "dim_movies" in model.calls[0][0][0]["content"]
-    assert "Q01" in model.calls[0][0][0]["content"]
-    assert "Q14" in model.calls[0][0][0]["content"]
+    assert "Regras de interpretação para perguntas livres" in model.calls[0][0][0]["content"]
     assert "peça esclarecimento começando por CLARIFY:" in model.calls[0][0][0]["content"]
-    assert "População válida" in model.calls[0][0][0]["content"]
-    assert "receita por filme" in model.calls[0][0][0]["content"]
     assert "mais bem avaliado pelo IMDb" in model.calls[0][0][0]["content"]
     assert "nunca como a quantidade qtd_imdb" in model.calls[0][0][0]["content"]
 
@@ -363,6 +423,40 @@ def test_agent_sends_only_semantic_context_for_a_follow_up_question(tmp_path) ->
     assert "pontos IMDb" in context_message
     assert "sk_movie_id" not in context_message
     assert messages[-1] == {"role": "user", "content": "E em 2020?"}
+
+
+@pytest.mark.parametrize("question,previous_question", [
+    ("Faz o mesmo pra terror.", "Quais foram as quatro comédias mais lucrativas de 2022?"),
+    ("E dessas aí, quais tiveram nota acima de 7 no IMDb?",
+     "Quais foram as quatro comédias mais lucrativas de 2022?"),
+    ("E desses, quais tiveram nota acima de 8 no TMDB?",
+     "Quais foram os cinco filmes de maior bilheteria de 2023?"),
+    ("Agora só de 2020 pra cá.", "Quais cinco animações tiveram a maior bilheteria em reais?"),
+])
+def test_short_follow_up_uses_analytical_route(tmp_path, question, previous_question) -> None:
+    database_path = tmp_path / "gold.db"
+    _create_gold_fixture(database_path)
+
+    class RoutedModel(FakeModel):
+        def complete_for_complexity(self, messages, tools, complexity):
+            assert complexity == agent_module.QuestionComplexity.COMPLEX
+            if question.startswith(("E dessas", "E desses")):
+                instruction = messages[-1]["content"]
+                assert "revenue_brl" in instruction
+                assert "nota_imdb ou nota_tmdb" in instruction
+                assert "o operador e o valor pedidos somente após o LIMIT" in instruction
+                assert "sem repor itens" in instruction
+            return self.complete(messages, tools)
+
+    model = RoutedModel([
+        ModelTurn(tool_call=ToolCall("run_sql", {"sql": "SELECT id, title FROM dim_movies"})),
+    ])
+    result = AgentService(model, GoldQueryExecutor(GoldDatabase(database_path))).answer(
+        question, context=(ConversationContext(question=previous_question),),
+    )
+
+    assert result.tool_calls == 1
+    assert len(model.calls) == 1
 
 
 def test_platform_question_uses_guide_without_model_or_sql(tmp_path) -> None:
@@ -861,6 +955,18 @@ def test_company_profit_follow_up_replaces_the_previous_year(tmp_path) -> None:
     assert [row["nome_produtora"] for row in response.rows] == ["Produtora B"]
 
 
+def test_profit_drop_without_comparison_asks_for_two_years(tmp_path) -> None:
+    model = FakeModel([])
+    service = AgentService(model, GoldQueryExecutor(GoldDatabase(tmp_path / "gold.db")))
+
+    with pytest.raises(AgentClarification, match="Quais dois anos"):
+        service.answer(
+            "Por que o lucro total caiu mesmo com uma proporção maior de filmes lucrativos?"
+        )
+
+    assert model.calls == []
+
+
 def test_top_company_profit_does_not_discard_filters(tmp_path) -> None:
     database_path = tmp_path / "gold.db"
     _create_company_gold_fixture(database_path)
@@ -975,3 +1081,4 @@ def test_invalid_sql_can_be_repaired_once_by_model(tmp_path):
     assert response.tool_calls == 2
     assert len(model.calls) == 2
     assert "Erro:" in model.calls[1][0][-1]["content"]
+    assert "no such column: inexistente" in model.calls[1][0][-1]["content"]

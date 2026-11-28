@@ -43,6 +43,9 @@ class OpenAICompatibleModel:
                 "name": tool.name, "description": tool.description,
                 "parameters": tool.parameters,
             }} for tool in tools]
+            if self.provider == "groq" and self.model.startswith("openai/gpt-oss-"):
+                # Leave room for the tool call within the default completion budget.
+                payload["reasoning_effort"] = "low"
         if self.provider == "openrouter":
             payload["provider"] = {"require_parameters": True}
         response = asyncio.run(self._post(payload, timeout_seconds))

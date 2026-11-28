@@ -59,6 +59,40 @@ fornecida pela fonte.
 
 ## Definição por pergunta
 
+### Datas e termos do cotidiano
+
+| Expressão | Como interpretar na Gold |
+| --- | --- |
+| “Ano passado” | De 1º de janeiro do ano anterior até 31 de dezembro, inclusive. Em SQL, use o primeiro dia do ano atual como limite superior exclusivo. |
+| “Esse ano”, para filmes já lançados | De 1º de janeiro até hoje. Se a pessoa pedir próximas estreias, selecione as datas futuras do ano. |
+| “Desde 2016”, “de 2016 pra cá” | De 1º de janeiro de 2016 até hoje para filmes já lançados. |
+| “Últimos cinco anos” | Janela móvel inclusiva, com data de referência fixa na avaliação e data atual em produção. |
+| “Arrecadou”, “custou”, “deu prejuízo” | Bilheteria usa receita, custo usa orçamento e tamanho do prejuízo usa orçamento menos receita. Um filme com dado desconhecido não conta como prejuízo. |
+| “Pelo menos se pagou” | Receita maior ou igual ao orçamento, ambos informados. Para “deu lucro”, use receita estritamente maior. |
+| “Bombou” | Peça qual métrica interessa se a frase não indicar bilheteria, popularidade, votos ou nota. |
+| “E qual teve menos?” | Inverta a ordenação no universo elegível da pergunta anterior. “E desses aí?” restringe a análise à lista anterior. |
+
+Os casos de referência da expansão estão em
+[`expansion-reference-queries.sql`](expansion-reference-queries.sql) e
+[`round-two-reference-queries.sql`](round-two-reference-queries.sql).
+
+### Cuidados nas perguntas de investigação
+
+- **Bilheteria anual:** some a receita registrada e informe quantos lançamentos
+  têm valor conhecido. A variação dos três maiores de cada ano mais a variação
+  dos demais compõe a diferença total. Os títulos do top podem mudar entre anos.
+- **Lucro total anual:** conte só filmes com receita e orçamento informados.
+  A mudança no total pode ser decomposta em variação de volume com a média
+  inicial e variação de média com o volume final. Os dois termos somam a
+  diferença observada, mas a ordem da decomposição é uma convenção.
+- **Nota média anual no IMDb:** a nota média é simples por filme com votos
+  positivos, sem ponderar pelos votos. Mostre a cobertura e a porcentagem com
+  nota pelo menos 8 para contextualizar uma mudança na média.
+- Um registro ausente reduz a cobertura. Ele não equivale a zero e não
+  estabelece uma causa externa para a mudança.
+
+### Perguntas originais
+
 | Pergunta | Regra / população |
 | --- | --- |
 | Top 10 por receita em BRL | Uma linha por filme com `receita_brl` não nula; ordenar pela receita decrescente. Orçamento não é necessário. |
