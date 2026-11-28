@@ -117,7 +117,7 @@ flowchart LR
 
 ## Cobertura obrigatória e avaliações locais
 
-A suíte atual reúne 50 perguntas, incluindo as 14 iniciais listadas abaixo. O [catálogo de casos](docs/genai/evaluation-cases.md) reúne os três lotes. A [validação com provedores](docs/genai/provider-validation.md) registra as 50 oficiais e 10 variações aprovadas pela API, somando a rodada e os retestes.
+A suíte atual reúne 50 perguntas, listadas abaixo. O [catálogo de casos](docs/genai/evaluation-cases.md) reúne os três lotes. A [validação com provedores](docs/genai/provider-validation.md) registra as 50 oficiais e 10 variações aprovadas pela API, somando a rodada e os retestes.
 
 O agente transforma perguntas em SQL e valida a consulta antes de executá-la.
 Uma única instrução `SELECT` ou `UNION` nas tabelas e colunas autorizadas pode ser
@@ -140,6 +140,47 @@ As respostas informam métrica, unidade, período, população válida e limita�
 | Q12 | Qual gênero tem a maior margem média de lucro? | Faz a média das margens dos filmes elegíveis, não a margem dos totais agregados. |
 | Q13 | Quais filmes têm a maior quantidade de avaliações de usuários? | Usa a contagem resumida de avaliações por filme. |
 | Q14 | Qual filme tem a maior divergência entre usuários e IMDb? | Compara a média dos usuários e a nota IMDb quando ambas têm votos válidos. |
+
+### Expansão da cobertura (Q15–Q50)
+
+| Caso | Pergunta oficial |
+| --- | --- |
+| Q15 | Quais os dez documentários de 2016 a 2024 com a maior nota no IMDb e pelo menos mil votos? Em notas iguais, priorize quem tem mais votos. Mostre título, ano, nota e votos. |
+| Q16 | De 2016 a 2024, em quais anos saíram mais filmes de terror do que de comédia? Mostre as duas contagens e a diferença em cada ano. |
+| Q17 | Entre os filmes que custaram até 10 milhões de reais, quais foram os cinco com maior lucro? Mostre título, orçamento, receita e lucro em reais. |
+| Q18 | Quais os cinco filmes com maior nota no IMDb entre os que têm pelo menos 5 mil votos no IMDb, ao menos um voto no TMDB e nota no TMDB pelo menos um ponto menor? Em notas IMDb iguais, priorize quem tem mais votos no IMDb. Mostre título, as duas notas, votos no IMDb e a diferença. |
+| Q19 | De 2016 a 2024, em qual ano as animações tiveram a maior nota média no IMDb? Só considere anos com pelo menos dez filmes avaliados. Mostre ano, média e quantidade de filmes. |
+| Q20 | Quais diretores trabalharam com Leonardo DiCaprio em pelo menos dois filmes? Mostre quantos fizeram juntos, quantos têm avaliação válida no IMDb e a média dessas notas, ordenando pela maior média. |
+| Q21 | Quais três gêneros tiveram o maior lucro médio em reais de 2016 a 2024? Use lucro como receita menos orçamento, só com os dois valores informados. Mostre, nesta ordem: gênero, lucro médio, número de filmes na conta e percentual que deu lucro. |
+| Q22 | Dos filmes de ficção científica de 2016 a 2024 com orçamento e receita informados, quantos deram lucro? Mostre o total elegível, quantos deram lucro e a porcentagem. |
+| Q23 | Entre produtoras com dez ou mais filmes com orçamento e receita conhecidos, quais as cinco com a maior porcentagem de filmes lucrativos? Mostre o total elegível, quantos deram lucro, a porcentagem e o lucro mediano em reais. |
+| Q24 | Desde 2016, quais filmes já lançados têm nota IMDb de pelo menos 8, 10 mil votos ou mais e receita acima do dobro do orçamento positivo? Mostre os dez de maior lucro, com título, ano, nota, votos e lucro em reais. |
+| Q25 | Que porcentagem da bilheteria total de 2023 veio dos dez filmes que mais arrecadaram naquele ano? |
+| Q26 | Quais filmes tiveram os cinco maiores prejuízos de 2023? |
+| Q27 | Quais filmes de animação que saíram no ano passado pelo menos se pagaram? |
+| Q28 | Quais filmes de ação que já estrearam este ano têm orçamento e bilheteria informados? |
+| Q29 | Dos cinco filmes mais caros de 2023, quais deram prejuízo e quanto faltou para se pagarem? |
+| Q30 | Qual foi o orçamento mediano dos filmes de terror de 2024? |
+| Q31 | Em quais anos a comédia teve mais estreias, mas o terror teve maior lucro médio? Conte todas as estreias, mesmo sem dados financeiros, e mostre as contagens e as médias dos dois gêneros. |
+| Q32 | Qual gênero mais aumentou a bilheteria total de 2022 para 2023, em reais? |
+| Q33 | Quais filmes de 2023 ficaram no top 10 tanto em bilheteria quanto em lucro? |
+| Q34 | Em 2024, qual gênero teve a maior proporção de filmes com orçamento e bilheteria informados? Qual foi a porcentagem? |
+| Q35 | Quanto as animações de 2023 arrecadaram para cada real de orçamento, somando tudo? |
+| Q36 | Quais filmes bombaram no ano passado? |
+| Q37 | Quantos filmes estrearam nos últimos cinco anos em cada gênero? |
+| Q38 | Quem está no elenco de Barbie, de 2023? |
+| Q39 | Em que filmes Leonardo DiCaprio atuou sob direção de Martin Scorsese? Mostre o título e o ano de cada um. |
+| Q40 | Quais cinco duplas de atores fizeram mais filmes de terror juntas em 2023? Mostre quantos filmes fizeram juntos. Ponha os nomes de cada dupla em ordem alfabética antes de usar os nomes para desempatar o ranking. |
+| Q41 | Quais diretores dirigiram pelo menos um filme de terror e um de comédia desde 2016? Mostre até dez nomes em ordem alfabética. |
+| Q42 | Quais cinco produtoras fizeram mais coproduções em 2024? Mostre quantos filmes cada uma fez com pelo menos outra produtora. |
+| Q43 | Das cinco produtoras com mais filmes de 2023, qual foi o filme de maior bilheteria de cada uma naquele ano? Mostre a bilheteria em reais. |
+| Q44 | Qual produtora trabalhou com o maior número de diretores diferentes em 2024? Mostre quantos diretores. |
+| Q45 | Quais filmes de 2019 têm nota 8 ou mais e pelo menos 10 mil votos tanto no IMDb quanto no TMDB? Mostre as notas e os votos das duas fontes. |
+| Q46 | Quais filmes saem do top 10 por nota no IMDb quando o mínimo sobe de mil para 10 mil votos? Mostre a nota e os votos, usando mais votos para desempatar. |
+| Q47 | E dessas aí, quais tiveram nota acima de 7 no IMDb? |
+| Q48 | Faz o mesmo pra terror. |
+| Q49 | Agora só de 2020 pra cá. |
+| Q50 | Quem dirigiu esse filme? |
 
 Além das consultas estruturadas, a busca híbrida usa sinopses para
 encontrar filmes por descrição e combina esse recorte com SQL quando necessário.
