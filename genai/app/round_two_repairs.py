@@ -15,8 +15,8 @@ _CASES = {
 _Q25_NON_BRL = re.compile(
     r"\b(?:dolar(?:es)?|usd|euros?|eur|libras?|gbp|ienes?|jpy)\b|(?:us|u)\$|[€£¥]"
 )
-_Q43_GENRE = re.compile(
-    r"\b(?:generos?|terror|horror|comedia|comedy|acao|action|animacao|animation|"
+_GENRE_FILTER = re.compile(
+    r"\b(?:generos?|terror|horror|comedias?|comedy|acao|action|animac(?:ao|oes)|animation|"
     r"aventura|adventure|documentarios?|documentary|drama|familia|family|"
     r"fantasia|fantasy|historia|history|musica|music|misterio|mystery|romance|"
     r"ficcao cientifica|science fiction|sci[- ]?fi|suspense|thriller|guerra|war|"
@@ -381,7 +381,7 @@ def match_reviewed_case(question: str):
         if years == expected[key] and re.match(pattern, question):
             if key == "Q25" and _Q25_NON_BRL.search(question):
                 return None
-            if key == "Q43" and _Q43_GENRE.search(question):
+            if key in {"Q25", "Q29", "Q43"} and _GENRE_FILTER.search(question):
                 return None
             return _CASES[key]
     return None

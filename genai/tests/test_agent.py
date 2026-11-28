@@ -40,6 +40,11 @@ def test_colloquial_score_comparison_routes_to_catalog_data() -> None:
      "arrecadou mais naquele ano, com o valor em reais.", "Q43"),
     ("Qual porcentagem da bilheteria de 2023 em reais veio dos dez filmes "
      "com maior receita?", "Q25"),
+    ("Em 2023, que porcentagem da bilheteria das animações veio dos dez filmes "
+     "de animação que mais arrecadaram?", None),
+    ("Dos cinco filmes mais caros de 2023, quais deram prejuízo?", "Q29"),
+    ("Dos cinco filmes mais caros de 2023, quais deram prejuízo? "
+     "Considera só os filmes de terror.", None),
     ("Qual porcentagem da bilheteria de 2023 em dólares veio dos dez filmes "
      "com maior receita?", None),
     ("Qual porcentagem da bilheteria de 2023 em US$ veio dos dez filmes "
