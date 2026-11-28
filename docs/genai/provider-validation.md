@@ -161,7 +161,7 @@ O avaliador aceita `--through-api` para executar o mesmo fluxo de resposta
 pública usado pelo chat e registrar `answer`, `insights` e as colunas retornadas.
 Combine com `--model-only --providers gemini` para medir a geração de SQL sem
 cache nem consulta de referência como fallback. A referência só compara os
-valores. `--paraphrases` seleciona frases alternativas de Q01–Q50, e
+valores. `--paraphrases` seleciona a primeira reformulação cadastrada por caso, e
 `--formulations` recebe um JSON com objeto por ID contendo `question` e,
 quando o pedido for parcial, `columns` a comparar na Gold.
 

@@ -2,6 +2,12 @@
 
 A suíte reúne os 50 casos oficiais de Q01 a Q50. Os resultados tabulares são comparados com as consultas de referência de cada lote. Q36 e Q50 esperam um pedido de esclarecimento.
 
+As continuações têm uma pergunta anterior definida na suíte:
+
+- Q47 e Q48 vêm depois de “Quais foram as cinco comédias mais lucrativas de 2023?”.
+- Q49 vem depois de “Quais cinco animações de 2016 pra cá tiveram a maior bilheteria em reais?”.
+- Q50 é avaliada em uma conversa sem título de filme no contexto.
+
 ## Q01–Q14
 
 [SQL de referência](reference-queries.sql)
@@ -79,13 +85,13 @@ contexto do modelo para que a resposta em português explique os filtros
 aplicados e não acrescente números que não vieram da ferramenta.
 
 O comparador em `genai/app/evaluation_runner.py` verifica quantidade de linhas
-e valores, com tolerância de R$ 0,01 para números. Se as colunas tiverem os
+e valores, com tolerância absoluta padrão de 0,01 para números. Se as colunas tiverem os
 mesmos nomes, a comparação usa esses nomes; caso o SQL equivalente use aliases
 distintos, os valores são comparados na ordem retornada. O script
 `genai/scripts/evaluate_agent_snapshot.py` reproduz o ciclo completo com o SQL
 de referência como modelo simulado, sem rede, para validar o executor e o
 comparador antes de qualquer teste manual com Gemini. Além dos valores, o
-script verifica as colunas obrigatórias de cada caso.
+script verifica as colunas obrigatórias do lote inicial Q01–Q14.
 
 ## Cenários ampliados
 
@@ -94,11 +100,5 @@ reformulações de linguagem, filtro por ano, empates, resultado vazio,
 ambiguidade e perguntas sobre recursos da plataforma. Esses cenários usam
 mocks e expectativas de comportamento; não fazem chamadas reais ao provedor.
 
-## Cobertura atual
-
-A suíte contém 50 perguntas oficiais. Os casos Q15–Q24 e Q25–Q50 estão no
-[catálogo da expansão](coverage-todo.md), com SQL em
-[expansion-reference-queries.sql](expansion-reference-queries.sql) e
-[round-two-reference-queries.sql](round-two-reference-queries.sql).
-Q47–Q49 usam contexto anterior. Q36 e Q50 avaliam pedidos de esclarecimento.
-Consulte a [bateria fixa e os resultados por provedor](provider-validation.md).
+Consulte a [bateria fixa e os resultados por provedor](provider-validation.md)
+para avaliar os 50 casos e as dez variações com chamadas reais.
