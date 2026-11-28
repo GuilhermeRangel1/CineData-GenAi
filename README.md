@@ -11,13 +11,13 @@ os resultados.
 | Guia | O que você encontra |
 | --- | --- |
 | [Assistente GenAI](#assistente-genai) | Fluxo da pergunta, componentes do agente e integração com o chatbot. |
-| [Consultas obrigatórias](#cobertura-obrigatória-e-avaliações-locais) | Cobertura Q01–Q14, regras de métricas e avaliação contra referências. |
+| [Consultas obrigatórias](#cobertura-obrigatória-e-avaliações-locais) | Cobertura Q01–Q50, regras de métricas e avaliação contra referências. |
 | [Extras da atividade](#extras-propostos-na-atividade) | Guardrails, gráficos, memória, fallback, cache, avaliação e busca híbrida. |
 | [Bancos de dados](#bancos-de-dados) | Papel da Gold e do banco operacional, sincronização e cópia local do GenAI. |
 | [Como executar](#como-executar-com-docker-compose) | Pré-requisitos, Docker Compose, Git LFS, configuração de provedor e conta de demonstração. |
 | [Configuração por ambiente](#configuração-por-ambiente) | Variáveis necessárias no Docker e opções para execução manual. |
 | [Testes](#testes) | Comandos de avaliação, qualidade e testes automatizados. |
-| [Documentação complementar](#documentação-complementar) | Regras de métricas, SQL de referência, casos Q01–Q14 e revisão da entrega. |
+| [Documentação complementar](#documentação-complementar) | Regras de métricas, SQL de referência, casos Q01–Q50 e revisão da entrega. |
 
 ## Assistente GenAI
 
@@ -25,18 +25,11 @@ O chatbot é o núcleo desta entrega. Ele recebe uma pergunta em português,
 identifica se ela pede uma métrica, um ranking, uma comparação ou filmes por
 descrição e retorna a evidência correspondente.
 
-O agente pede ao provedor selecionado que gere SQL pela ferramenta `run_sql` nas 14 perguntas
-canônicas da avaliação e nas perguntas analíticas livres. Algumas variações
-reconhecidas ainda usam SQL preparado. Perguntas descritivas podem procurar
-termos em sinopses; se também pedirem uma métrica, os filmes
-encontrados servem de recorte para uma consulta analítica.
+A avaliação cobre 50 perguntas oficiais (Q01–Q50). A aba Ajuda reúne 47 delas. As três continuações Q47–Q49 são avaliadas com a pergunta anterior na suíte de testes.
 
-A configuração de um provedor habilita as consultas de dados do chatbot. Nas nove perguntas
-canônicas com regras de agregação mais sensíveis, uma consulta de referência
-confere as linhas geradas pelo modelo e recupera falhas. Ela começa em paralelo
-à geração do SQL, sem acrescentar sua duração integral à espera. As demais
-perguntas canônicas também passam pelo modelo. A interface informa quando a
-chave ainda não foi configurada.
+Para consultas analíticas, o provedor pode gerar SQL pela ferramenta `run_sql`. Nos casos cobertos, o serviço compara o resultado com uma consulta de referência e pode usá-la para recuperar falhas ou divergências. Algumas perguntas reconhecidas usam consultas locais. Se faltar uma informação essencial, o chatbot pede esclarecimento.
+
+Consultas sobre um filme específico podem trazer premissa em português, notas, elenco, direção e dados financeiros. A busca por descrição usa sinopses e pode fornecer o recorte para uma consulta analítica.
 
 ```mermaid
 flowchart TB
@@ -45,11 +38,13 @@ flowchart TB
     R -->|Filmes por descrição| S[Busca em sinopses]
     R -->|Métricas e rankings| A[Agente analítico]
     S -.->|Se também pedir uma métrica| A
-    A --> M[Provedor configurado com run_sql nas Q01-Q14]
-    A --> P[SQL preparado para variações reconhecidas]
+    A --> M[Provedor gera SQL com run_sql]
+    A --> P[Consulta local ou de referência]
     M --> V[Validação e execução somente leitura]
     P --> V
-    S --> F[Resposta no chatbot]
+    R -->|Ficha de filme| T[Consulta ao catálogo e contexto]
+    T --> F[Resposta no chatbot]
+    S --> F
     V --> F
     F --> O[Texto, tabela, gráfico e insights]
 ```
@@ -88,11 +83,11 @@ Os insights complementam os valores, sem inventar fatos fora deles.
 Uma pergunta de continuação preserva o contexto analítico. Após “Qual produtora
 acumulou o maior lucro total em BRL?”, “E em 2020?” mantém a métrica e aplica o
 ano. Uma conversa nova começa sem essa referência. O modelo recebe somente até
-três resumos da conversa atual; tokens e dados da conta não são enviados ao
+dez resumos da conversa atual; tokens e dados da conta não são enviados ao
 provedor.
 
 Antes de chegar ao banco, a consulta passa por guardrails e por `sqlglot`: só um
-`SELECT` sobre tabelas e colunas autorizadas pode ser executado. O SQLite abre
+`SELECT` ou `UNION` sobre tabelas e colunas autorizadas pode ser executado. O SQLite abre
 em `mode=ro`, enquanto limites de linhas, timeout e joins complexos evitam
 sobrecarga. Cache, fallback e avaliações locais mantêm a resposta rápida e
 confiável.
@@ -122,8 +117,10 @@ flowchart LR
 
 ## Cobertura obrigatória e avaliações locais
 
+A suíte atual reúne 50 perguntas, incluindo as 14 iniciais listadas abaixo. O [catálogo de casos](docs/genai/evaluation-cases.md) reúne os três lotes. A [validação com provedores](docs/genai/provider-validation.md) registra as 50 oficiais e 10 variações aprovadas pela API, somando a rodada e os retestes.
+
 O agente transforma perguntas em SQL e valida a consulta antes de executá-la.
-Somente uma instrução `SELECT` nas tabelas e colunas autorizadas pode ser
+Uma única instrução `SELECT` ou `UNION` nas tabelas e colunas autorizadas pode ser
 executada. DDL, DML, múltiplas instruções e acesso a arquivos são rejeitados.
 As respostas informam métrica, unidade, período, população válida e limitações.
 
@@ -166,7 +163,7 @@ fórmulas e os filtros completos estão em
 | Ranking financeiro | `Quais são os 5 filmes com maior receita em BRL?` | SQL validado, tabela, gráfico e insight quando houver dados suficientes. |
 | Continuação contextual | Pergunte `Qual produtora acumulou o maior lucro total em BRL?` e depois `E em 2020?` | Mantém a métrica por produtora e aplica o ano à conversa atual. |
 | Busca híbrida | `Quais filmes têm histórias sobre viagem no tempo e qual teve maior receita?` | Busca sinopse, restringe candidatos e consulta os valores. |
-| Comparação de notas | `Em quais filmes há maior divergência entre TMDB e IMDb?` | Compara as duas notas, apresenta tabela e gráfico de dispersão. |
+| Comparação de notas | `Em quais filmes há maior divergência entre TMDB e IMDb?` | Mostra as duas notas na tabela e a diferença entre elas no gráfico de barras. |
 | Participação por gênero | `Quantos filmes existem associados a cada gênero?` | Conta os filmes por gênero e apresenta gráfico de rosca com insights. |
 
 ## Extras propostos na atividade
@@ -180,7 +177,8 @@ O serviço verifica a pergunta antes de consultar o modelo e recusa pedidos fora
 do escopo do CineData, SQL enviado diretamente e tentativas de alterar as
 instruções do agente. Se houver uma consulta analítica, outra camada valida o
 SQL gerado:
-permite um único `SELECT` nas tabelas autorizadas, limita resultados e bloqueia
+permite uma única instrução `SELECT` ou `UNION` nas tabelas autorizadas,
+limita resultados e bloqueia
 escrita, acesso a arquivos e consultas excessivamente custosas. O SQLite é
 aberto somente para leitura, mesmo depois da validação.
 
@@ -189,9 +187,9 @@ etapa não concede ao modelo acesso direto ao banco:
 
 | Camada | Aplicação concreta |
 | --- | --- |
-| Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo três resumos de contexto. |
+| Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo dez resumos de contexto. |
 | Filtro de entrada | Normaliza maiúsculas e acentos e bloqueia prompt injection, revelação de instruções, SQL explícito e pedidos para consultar URLs, internet ou fontes externas. |
-| Ferramenta do modelo | O modelo recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. As 14 perguntas canônicas geram SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e Q14 são conferidas contra consultas de referência; variações reconhecidas podem usar SQL preparado. |
+| Ferramenta do modelo | O provedor recebe a ferramenta `run_sql`. O serviço valida e executa as consultas em modo somente leitura e compara os resultados com referências nos casos cobertos. |
 | Validador SQL | `sqlglot` aceita uma única instrução `SELECT` ou `UNION`, com até 16.000 caracteres, oito CTEs, oito `JOINs`, doze subconsultas e 100 linhas. CTE recursiva, `CROSS JOIN`, outro banco, tabelas fora do contrato e funções como `load_extension`, `readfile`, `writefile`, `randomblob` e `zeroblob` são rejeitados. |
 | Executor SQLite | Abre o arquivo com `mode=ro`, limita a duração da consulta e usa o autorizador nativo do SQLite para negar `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ATTACH`, `DETACH`, `PRAGMA` e leitura de tabelas que não pertencem à Gold. |
 
@@ -238,7 +236,7 @@ das amostras.
 
 ### Memória de conversa
 
-Até três resumos da conversa atual ajudam a interpretar perguntas de
+Até dez resumos da conversa atual ajudam a interpretar perguntas de
 continuação. Em “E em 2020?”, por exemplo, o agente mantém a métrica anterior e
 altera o período. Uma nova conversa começa sem esse contexto; o histórico salvo
 de cada conta e o modo temporário são extensões dessa experiência.
@@ -253,8 +251,7 @@ respondeu fica registrado nos logs do serviço, sem expor a chave ao navegador.
 O roteador classifica localmente cada pergunta como simples, analítica, híbrida
 ou complexa, sem nova chamada de IA. Perguntas híbridas, longas, comparativas
 ou com contexto podem usar o modelo configurado para maior capacidade; as demais
-usam o modelo leve. As nove perguntas canônicas com conferência automática
-de resultado usam o modelo leve mesmo quando mencionam uma série anual.
+usam o modelo leve. Os casos com consulta de referência usam a rota analítica.
 A tentativa alternativa ocorre somente para falhas de rede,
 timeout ou respostas 408, 429 e 5xx. Ela não é uma segunda tentativa para
 "melhorar" uma resposta nem relaxa guardrails, validação SQL ou limites.
@@ -262,17 +259,18 @@ timeout ou respostas 408, 429 e 5xx. Ela não é uma segunda tentativa para
 ### Cache de respostas
 
 Perguntas livres equivalentes podem ser reutilizadas por cinco minutos na memória
-do serviço. As 14 perguntas completas da Ajuda compartilham a resposta pública
+do serviço. As formulações canônicas Q01–Q14 compartilham a resposta pública
 por até uma hora entre conversas, inclusive os insights; a primeira execução
 ainda gera SQL pelo modelo nos casos que usam essa rota. A chave do cache
-considera a pergunta, a revisão do banco analítico e a versão das regras.
+considera a pergunta, a revisão do banco analítico, a versão das regras e
+a data em UTC.
 Perguntas livres também consideram a conversa e o contexto, para que uma
 continuação diferente não receba uma resposta antiga. O cache desaparece
 quando o serviço reinicia.
 
 Na prática, a chave é um hash SHA-256 da pergunta normalizada, identificador da
-conversa (ou do caso fixo), até três resumos semânticos, tamanho e data de
-modificação da Gold e versão das regras. O serviço mantém até 100 respostas
+conversa (ou do caso fixo), até dez resumos semânticos, tamanho e data de
+modificação da Gold, versão das regras e data em UTC. O serviço mantém até 100 respostas
 bem-sucedidas em memória;
 o texto da pergunta não é usado como identificador em claro. Não há cache
 persistente nem compartilhado depois de reiniciar o contêiner.
@@ -321,7 +319,7 @@ visíveis da operação, sem expor raciocínio interno do modelo ou SQL. Cabeça
 de não cache e não buffering mantêm o progresso legível mesmo atrás do proxy.
 
 O navegador acessa o serviço pelo proxy `/genai/api/v1`; as chaves dos provedores ficam
-somente no ambiente do contêiner. Para continuidade, o GenAI recebe até três
+somente no ambiente do contêiner. Para continuidade, o GenAI recebe até dez
 resumos da conversa atual, e não o histórico persistente completo da conta. A
 resposta final possui contrato estruturado com texto, linhas, colunas,
 metadados da métrica, origem, indicação de cache, truncamento e quantidade de
@@ -444,6 +442,8 @@ GENAI_GROQ_MODEL=
 GENAI_OPENROUTER_API_KEY=
 GENAI_OPENROUTER_MODEL=
 GENAI_PROVIDER_TIMEOUT_SECONDS=12
+GENAI_GEMINI_ANALYTICAL_TIMEOUT_SECONDS=20
+GENAI_OPENROUTER_ANALYTICAL_TIMEOUT_SECONDS=36
 GENAI_PROVIDER_BUDGET_SECONDS=40
 GENAI_PROVIDER_COOLDOWN_SECONDS=60
 ```
@@ -546,8 +546,10 @@ demonstração e endereços do frontend; não é necessário criar `backend/.env
 | `GENAI_OPENROUTER_API_KEY`, `GENAI_OPENROUTER_MODEL` | Habilitam a rota OpenRouter quando ambos estão preenchidos. |
 | `GENAI_PROVIDER_ORDER` | Ordem das rotas; permite também testar um provedor isolado. |
 | `GENAI_PROVIDER_TIMEOUT_SECONDS`, `GENAI_PROVIDER_BUDGET_SECONDS`, `GENAI_PROVIDER_COOLDOWN_SECONDS` | Limites positivos: chamada, inferência por pergunta e pausa após falha. |
+| `GENAI_GEMINI_ANALYTICAL_TIMEOUT_SECONDS`, `GENAI_OPENROUTER_ANALYTICAL_TIMEOUT_SECONDS` | Limites por chamada analítica no Gemini e no OpenRouter, sujeitos ao orçamento da pergunta. |
 | `GENAI_GEMINI_MODEL`, `GENAI_GEMINI_COMPLEX_MODEL`, `GENAI_GEMINI_FALLBACK_MODEL` | Opcional. Use somente para trocar os modelos padrão. |
 | `TMDB_API_TOKEN` | Opcional. Habilita a busca administrativa no TMDB. |
+| `GENAI_TMDB_API_TOKEN` | Opcional. Ajuda o chatbot a resolver títulos e obter sinopses. |
 | `JWT_SECRET_KEY`, `INITIAL_ADMIN_*` | Somente ao mudar a configuração local padrão ou publicar o projeto. |
 | `DATABASE_URL`, `GOLD_DATABASE_PATH`, `VITE_API_BASE_URL`, `VITE_GENAI_API_BASE_URL` | Somente na execução manual, fora do Docker Compose. |
 
@@ -607,7 +609,7 @@ Pop-Location
 - [Esquema permitido pelo agente](docs/genai/gold-schema.md)
 - [Regras de métricas](docs/genai/metric-rules.md)
 - [Consultas SQL de referência](docs/genai/reference-queries.sql)
-- [Casos de avaliação Q01–Q14](docs/genai/evaluation-cases.md)
+- [Casos de avaliação Q01–Q50](docs/genai/evaluation-cases.md)
 - [Revisão final da entrega GenAI](docs/genai/review-final.md)
 - [Detalhes do módulo GenAI](genai/README.md)
 

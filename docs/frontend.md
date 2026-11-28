@@ -77,6 +77,19 @@ invalida consultas após alterações, preservando filtros e ordenação do cat�
 Ao remover o último item de uma página, a navegação retorna à última página válida.
 Dados são persistidos pela API, não em armazenamento local do navegador.
 
+## Chatbot
+
+A aba **Ajuda** oferece 47 das 50 perguntas oficiais, organizadas por tema.
+As três continuações Q47–Q49 fazem parte da bateria de avaliação e usam o
+contexto de uma pergunta anterior. O chat pode enviar até dez resumos da
+conversa atual ao serviço GenAI.
+
+Conforme o resultado, a interface exibe texto, tabela, gráfico e insights.
+Resultados tabulares podem ser exportados em CSV e gráficos em PNG.
+O cliente usa `VITE_GENAI_API_BASE_URL`, com padrão `/genai/api/v1`.
+Veja o [contrato HTTP](genai/api-contract.md) e o
+[catálogo de avaliação](genai/evaluation-cases.md).
+
 ## Destaque editorial
 
 Spider-Man: Across the Spider-Verse aparece como seleção editorial e também faz
@@ -105,7 +118,7 @@ do navegador podem impedir o vídeo.
 ## Verificações
 
 Execute em `frontend/`: `npm run lint`, `npm run test` e `npm run build`.
-Os 54 testes com Vitest e Testing Library cobrem catálogo, filtros, paginação,
+Os testes com Vitest e Testing Library cobrem catálogo, filtros, paginação,
 buscas fora de ordem, erros e nova tentativa, detalhes, pôster indisponível,
 player, autenticação, listas, amizades, perfis, comunidades (incluindo
 moderação administrativa), analytics e mapa de

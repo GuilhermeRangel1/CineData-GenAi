@@ -1,6 +1,6 @@
 # Casos de avaliação das perguntas obrigatórias
 
-Este catálogo transforma as 14 perguntas obrigatórias em casos identificáveis
+O primeiro lote transforma as 14 perguntas iniciais em casos identificáveis
 para testes locais. Cada caso aponta para a consulta de referência equivalente
 em [`reference-queries.sql`](reference-queries.sql) e define as colunas que o
 resultado deve conter.
@@ -51,3 +51,12 @@ Além das formulações canônicas, `genai/app/evaluation_scenarios.py` cobre
 reformulações de linguagem, filtro por ano, empates, resultado vazio,
 ambiguidade e perguntas sobre recursos da plataforma. Esses cenários usam
 mocks e expectativas de comportamento; não fazem chamadas reais ao provedor.
+
+## Cobertura atual
+
+A suíte contém 50 perguntas oficiais. Os casos Q15–Q24 e Q25–Q50 estão no
+[catálogo da expansão](coverage-todo.md), com SQL em
+[expansion-reference-queries.sql](expansion-reference-queries.sql) e
+[round-two-reference-queries.sql](round-two-reference-queries.sql).
+Q47–Q49 usam contexto anterior. Q36 e Q50 avaliam pedidos de esclarecimento.
+Consulte a [bateria fixa e os resultados por provedor](provider-validation.md).

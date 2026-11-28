@@ -1,5 +1,11 @@
 # Expansão da cobertura do agente
 
+A cobertura integrada em `prod` reúne 50 perguntas oficiais. A bateria
+de regressão pela API passou nas 50 oficiais e em dez variações com Gemini,
+somando a rodada e os retestes. Os registros abaixo acompanham as etapas da
+expansão. Os resultados consolidados e os comandos para repetir a bateria
+estão em [Validação real de provedores](provider-validation.md).
+
 Ampliar Q01–Q14 para 50 casos de avaliação em duas rodadas, de 24 e 50 casos.
 Cada caso novo representa uma intenção distinta e tem um resultado conferido
 no Gold. Escrever duas reformulações naturais por caso novo e reservar ao menos

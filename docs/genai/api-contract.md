@@ -4,9 +4,13 @@ O serviço usa o prefixo `/api/v1`, expõe `GET /health` e recebe perguntas em
 `POST /api/v1/questions`. A API não recebe SQL, chaves de provedor, tokens de
 sessão ou configuração de modelo do navegador.
 
+`POST /api/v1/questions/stream` aceita o mesmo corpo e retorna
+`application/x-ndjson`. A resposta envia eventos de progresso e termina com
+um evento de resultado ou erro.
+
 `GET /api/v1/capabilities` retorna `{"analytics_available": true}` quando a
-chave Gemini está configurada, ou `false` quando faltam credenciais. Isso não
-valida a chave junto ao provedor. Sem chave, apenas perguntas sobre a plataforma
+configuração habilita pelo menos um provedor, ou `false` quando nenhum está
+configurado. Esse endpoint verifica a configuração local. Sem provedor, perguntas sobre a plataforma
 podem responder; consultas a dados, inclusive SQL preparado e busca local,
 retornam `provider_not_configured`.
 
@@ -30,7 +34,7 @@ retornam `provider_not_configured`.
 | Campo | Regra |
 | --- | --- |
 | `question` | Obrigatório, texto não vazio, até 1.000 caracteres. |
-| `context` | Opcional, até três perguntas resumidas da conversa atual. |
+| `context` | Opcional, até dez perguntas resumidas da conversa atual. |
 | `conversation_id` | Opcional, entre 12 e 80 caracteres; separa entradas do cache. |
 
 ## Sucesso
@@ -68,11 +72,12 @@ guia da plataforma não requerem linhas; perguntas descritivas podem ter origem
 
 | Status | Código | Quando ocorre |
 | --- | --- | --- |
-| `400` | validação do FastAPI | Corpo ausente ou campo inválido. |
+| `422` | validação do FastAPI | Corpo ausente ou campo inválido. |
 | `422` | `ambiguous_question` | Falta métrica, período ou detalhe essencial. |
 | `422` | `guardrail_rejected` | Pedido adversarial, SQL direto ou fora do escopo. |
 | `422` | `unsupported_question` | Função não documentada no CineData. |
-| `503` | `provider_not_configured` | Chave Gemini ausente em uma consulta a dados. |
+| `503` | `provider_not_configured` | Nenhum provedor configurado para a consulta. |
+| `503` | `provider_unavailable` | Provedores indisponíveis para concluir a consulta. |
 | `503` | configuração ou Gold | Gold indisponível. |
 | `504` | `query_timeout` | Consulta excedeu o orçamento de execução. |
 | `502` | falha do agente | Erro não recuperável do provedor ou da orquestração. |

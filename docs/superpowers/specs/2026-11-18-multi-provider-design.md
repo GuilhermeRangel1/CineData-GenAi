@@ -1,6 +1,8 @@
 # Fallback entre provedores do chatbot
 
-Data: 2026-11-18. Estado: implementado; Groq validado na versão atual, OpenRouter parcialmente validado e Gemini isolado aguarda credencial válida.
+Registro histórico de 18/11/2026. Os resultados e as pendências abaixo
+correspondem à revisão daquela data. A cobertura posterior está em
+[Validação real de provedores](../../genai/provider-validation.md).
 
 ## Objetivo
 
