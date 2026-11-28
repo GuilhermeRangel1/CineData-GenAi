@@ -48,6 +48,17 @@ const AJUDA_SUGESTOES = [
       'Quais são os 10 filmes com maior receita em BRL?',
       'Qual é o lucro médio em BRL por gênero?',
       'Quais filmes têm as maiores margens de lucro?',
+      "Quais cinco filmes que custaram até R$ 10 milhões deram mais lucro? Só nome e lucro em reais.",
+      "Que porcentagem dos filmes de ficção científica de 2016 a 2024 deu lucro, entre os que têm orçamento e bilheteria registrados?",
+      "Desde 2016, quais dez filmes já lançados deram mais lucro, com nota IMDb 8 pra cima, 10 mil votos ou mais e bilheteria maior que o dobro do orçamento positivo? Só nome e lucro em reais.",
+      "Que porcentagem de toda a grana de bilheteria em 2023 foi pros dez que mais venderam?",
+      "Que cinco filmes de 2023 ficaram mais no prejuízo e de quanto foi a perda de cada um?",
+      "Das animações que saíram ano passado, quais recuperaram pelo menos o orçamento na bilheteria?",
+      "Quais filmes de ação já lançados neste ano têm custo e arrecadação no catálogo? Me dá os dois números.",
+      "Entre as cinco maiores produções de 2023 por orçamento, quais ficaram abaixo do ponto de equilíbrio? Quanto faltou?",
+      "Qual o valor que fica no meio dos orçamentos dos filmes de terror de 2024, ou seja, a mediana?",
+      "Que filmes lançados em 2023 aparecem nos dois rankings de dez, o de maior receita e o de maior lucro?",
+      "Se juntar orçamento e bilheteria das animações de 2023, quanto arrecadaram por real gasto?",
     ],
   },
   {
@@ -57,6 +68,13 @@ const AJUDA_SUGESTOES = [
       'Quais são os 5 filmes mais populares?',
       'Em quais filmes há maior divergência entre as notas TMDB e IMDb?',
       'Qual é a nota IMDb média por ano de lançamento?',
+      "Quais os 10 documentários mais bem avaliados no IMDb de 2016 a 2024, com pelo menos mil votos? Em empate, quem tem mais votos fica na frente. Só os títulos.",
+      "Quais os cinco filmes mais bem avaliados no IMDb que têm pelo menos 5 mil votos lá, algum voto no TMDB e nota pelo menos um ponto menor no TMDB? Desempata por votos no IMDb. Só os títulos.",
+      "De 2016 a 2024, as animações tiveram a melhor média no IMDb em que ano? Só vale ano com pelo menos dez avaliadas. Me dá o ano e a média.",
+      "Que filmes mais bombaram ano passado?",
+      'O que explica a mudança na nota média no IMDb dos filmes do catálogo entre 2022 e 2023?',
+      "Em 2019, que filmes chegaram a 8 de nota e a dez mil votos ou mais em ambos, IMDb e TMDB? Quero nota e número de votos de cada um dos dois.",
+      "Que títulos deixam o top 10 por nota IMDb se o mínimo de votos mudar de 1.000 pra 10.000? Quero nota e votos, com votos como desempate de nota.",
     ],
   },
   {
@@ -66,6 +84,12 @@ const AJUDA_SUGESTOES = [
       'Qual ator participou de mais filmes nos últimos cinco anos?',
       'Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?',
       'Qual dupla de ator e diretor trabalhou junta em mais filmes?',
+      "Quem dirigiu o DiCaprio pelo menos duas vezes? Me dá os nomes na ordem da maior nota média no IMDb.",
+      "Me mostra o elenco do filme Barbie que saiu em 2023.",
+      "Em que filmes dirigido pelo Martin Scorsese o Leonardo DiCaprio apareceu como ator? Lista título e ano.",
+      "Quais foram os cinco pares de atores que dividiram mais filmes de terror em 2023? Diz quantos por par. Ordena os dois nomes de cada par alfabeticamente e usa os nomes pra desempatar.",
+      "Quais diretores, de 2016 pra cá, dirigiram ao menos um terror e uma comédia? Até dez em ordem alfabética.",
+      "Quem assina a direção desse aí?",
     ],
   },
   {
@@ -75,6 +99,18 @@ const AJUDA_SUGESTOES = [
       'Quantos filmes existem associados a cada gênero?',
       'Qual produtora acumulou o maior lucro total em BRL?',
       'Qual gênero tem a maior margem média de lucro?',
+      "De 2016 a 2024, em que anos saiu mais terror que comédia? Só os anos.",
+      "Quais foram os três gêneros com maior lucro médio em reais de 2016 a 2024?",
+      "Quais cinco produtoras têm a maior porcentagem de filmes lucrativos, entre as com pelo menos dez filmes com custo e bilheteria informados? Só nome e percentual.",
+      "Em quais anos a comédia teve mais filmes lançados, mas terror teve lucro médio maior? Quero as duas médias e as duas contagens. Conta as estreias mesmo quando não se sabe a receita ou o orçamento.",
+      "De 2022 pra 2023, onde a arrecadação total cresceu mais, por gênero? Quanto aumentou em reais?",
+      'O que explica o aumento da bilheteria das animações de 2022 para 2023?',
+      'O que explica a mudança no lucro total dos filmes do catálogo entre 2022 e 2023?',
+      "Entre os gêneros de 2024, qual teve a maior fatia de filmes com os dois valores registrados, custo e bilheteria? Qual a porcentagem?",
+      "Quantos lançamentos teve por gênero nos cinco anos mais recentes?",
+      "Em 2024, quem são as cinco produtoras que mais fizeram filmes em coprodução? Quantos filmes com outra produtora cada uma fez?",
+      "Das cinco produtoras que mais produziram filmes em 2023, me dá o título que rendeu a maior bilheteria de cada uma em 2023 e o valor em reais.",
+      "Que produtora usou a maior variedade de diretores em 2024? Quantos diretores distintos?",
     ],
   },
   {
@@ -86,6 +122,9 @@ const AJUDA_SUGESTOES = [
     ],
   },
 ]
+const CONTEXTO_DAS_SUGESTOES: Readonly<Record<string, string | null | undefined>> = {
+  "Quem assina a direção desse aí?": null,
+}
 const FALAS: Record<RobotMood, string> = {
   idle: 'Tenho um universo de filmes para explorar com você.',
   listening: 'Pode escrever. Estou de olho na sua pergunta!',
@@ -110,7 +149,7 @@ function contextoDaConversa(mensagens: MensagemAssistente[]): ContextoConversaGe
       population: metadata.population,
     }]
   })
-  return contexto.length ? [contexto.at(-1)!] : []
+  return contexto.slice(-10)
 }
 
 function criarIdConversa() {
@@ -127,6 +166,7 @@ function SendIcon() {
 
 export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdmin?: boolean; isAuthenticated?: boolean }) {
   const [mensagens, setMensagens] = useState<MensagemAssistente[]>([])
+  const ultimaPerguntaRespondida = contextoDaConversa(mensagens).at(-1)?.question
   const [texto, setTexto] = useState('')
   const [erro, setErro] = useState('')
   const [perguntaFalhou, setPerguntaFalhou] = useState('')
@@ -256,7 +296,10 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
         setAnaliseDisponivel(false)
         setErro(falha.message)
         setPerguntaFalhou('')
-      } else if (falha instanceof ErroDaApi && ['query_timeout', 'service_error', 'stream_error', 'network_error'].includes(falha.codigo ?? '')) {
+      } else if (falha instanceof ErroDaApi && falha.codigo === 'network_error') {
+        setErro(falha.message)
+        setPerguntaFalhou(conteudo)
+      } else if (falha instanceof ErroDaApi && ['query_timeout', 'service_error', 'stream_error'].includes(falha.codigo ?? '')) {
         setErro('Não consegui concluir esta consulta agora. Tente novamente em instantes.')
         setPerguntaFalhou(conteudo)
       } else {
@@ -405,8 +448,8 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
           </div>
           {analiseDisponivel === false && (
             <div className="chatbot-setup-notice" aria-label="Configuração do chatbot">
-              <strong>Consultas aos filmes precisam de uma chave Gemini.</strong>
-              <span>Preencha <code>GENAI_GEMINI_API_KEY</code> em <code>genai/.env</code> e reinicie o serviço GenAI. A ajuda sobre o CineData continua disponível.</span>
+              <strong>Consultas aos filmes precisam de um provedor de IA configurado.</strong>
+              <span>Configure Gemini, Groq ou OpenRouter em <code>genai/.env</code> e recrie o serviço GenAI. A ajuda sobre o CineData continua disponível.</span>
             </div>
           )}
           {ajudaAberta && (
@@ -425,11 +468,29 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
               {AJUDA_SUGESTOES.filter((grupo) => !grupo.exigeAdmin || isAdmin).map((grupo) => (
                 <div className={`chatbot-help-group chatbot-help-group--${grupo.tema}`} key={grupo.titulo}>
                   <h3>{grupo.titulo}</h3>
-                  {grupo.perguntas.map((pergunta) => (
-                    <button key={pergunta} type="button" disabled={carregando || (analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin')} title={analiseDisponivel === false && grupo.tema !== 'explorar' && grupo.tema !== 'admin' ? 'Configure a chave Gemini para consultar os filmes' : undefined} onClick={() => void enviar(pergunta)}>
-                      {pergunta}<span aria-hidden="true">↗</span>
-                    </button>
-                  ))}
+                  {grupo.perguntas.map((pergunta) => {
+                    const contexto = CONTEXTO_DAS_SUGESTOES[pergunta]
+                    const contextoPendente = contexto === null
+                      ? ultimaPerguntaRespondida !== undefined
+                      : contexto !== undefined && ultimaPerguntaRespondida !== contexto
+                    const semProvedor = analiseDisponivel === false
+                      && grupo.tema !== 'explorar' && grupo.tema !== 'admin'
+                    const instrucao = contexto === null ? 'Em uma conversa nova' : contexto
+                      ? `Depois de: ${contexto}`
+                      : undefined
+                    return (
+                      <button
+                        key={pergunta}
+                        type="button"
+                        disabled={carregando || semProvedor || contextoPendente}
+                        title={semProvedor ? 'Configure um provedor de IA para consultar os filmes' : instrucao}
+                        onClick={() => void enviar(pergunta)}
+                      >
+                        {instrucao ? `${pergunta} · ${instrucao}` : pergunta}
+                        <span aria-hidden="true">↗</span>
+                      </button>
+                    )
+                  })}
                 </div>
               ))}
             </div>
@@ -447,7 +508,7 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
               <h3>O que vamos descobrir?</h3>
               <div className="chatbot-suggestions" aria-label="Sugestões para começar">
                 {SUGESTOES.map((sugestao, index) => (
-                  <button key={sugestao} type="button" aria-label={sugestao} onClick={() => void enviar(sugestao)} disabled={carregando || analiseDisponivel === false} title={analiseDisponivel === false ? 'Configure a chave Gemini para consultar os filmes' : undefined}>
+                  <button key={sugestao} type="button" aria-label={sugestao} onClick={() => void enviar(sugestao)} disabled={carregando || analiseDisponivel === false} title={analiseDisponivel === false ? 'Configure um provedor de IA para consultar os filmes' : undefined}>
                     <span className="chatbot-suggestion-number">0{index + 1}</span><span>{sugestao}</span><span className="chatbot-suggestion-arrow" aria-hidden="true">↗</span>
                   </button>
                 ))}
@@ -514,15 +575,14 @@ export function ChatbotHub({ isAdmin = false, isAuthenticated = false }: { isAdm
 }
 
 function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
-  const { metadata, rows } = resposta
+  const { metadata, rows, insights = [] } = resposta
   const columns = colunasVisiveis(metadata.columns)
   const titulo = tituloResultado(metadata)
   const observacao = observacaoResultado(metadata)
-  const mostrarTexto = metadata.source === 'platform' || metadata.source === 'mixed'
   const possuiGrafico = temGraficoDeResultado(metadata, rows)
   return (
     <div className="chatbot-result" aria-label="Resposta do chatbot">
-      {mostrarTexto && <p className="chatbot-result-answer">{textoParaExibicao(resposta.answer)}</p>}
+      {resposta.answer && <p className="chatbot-result-answer">{textoParaExibicao(resposta.answer)}</p>}
       {rows.length > 0 && (
         <div className="chatbot-result-heading">
           <h3>{tituloResultado(metadata)}</h3>
@@ -530,10 +590,10 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
         </div>
       )}
       <ChatbotResultChart metadata={metadata} rows={rows} />
-      {possuiGrafico && resposta.insights.length > 0 && (
+      {insights.length > 0 && (
         <section className="chatbot-insights" aria-label="Insights sobre os dados">
           <span>Insights</span>
-          <ul>{resposta.insights.map((insight) => <li key={insight}>{textoParaExibicao(insight)}</li>)}</ul>
+          <ul>{insights.map((insight) => <li key={insight}>{textoParaExibicao(insight)}</li>)}</ul>
         </section>
       )}
       {rows.length > 0 && columns.length > 0 && (
@@ -545,7 +605,13 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
               <tbody>
                 {rows.map((row, index) => (
                   <tr key={index}>
-                    {columns.map((column) => <td key={column}>{formatarCelula(column, row[column])}</td>)}
+                    {columns.map((column) => (
+                      <td key={column} className={typeof row[column] === 'number' ? 'chatbot-result-number' : undefined}>
+                        {resposta.metadata.query_id === 'Q43' && column === 'receita_brl' && row[column] == null
+                          ? 'Não informada'
+                          : formatarCelula(column, row[column])}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -554,7 +620,7 @@ function ResultadoGenAi({ resposta }: { resposta: RespostaGenAi }) {
         </details>
       )}
       {rows.length > 0 && columns.length === 0 && <p className="chatbot-result-note">Não há detalhes para mostrar nesta resposta.</p>}
-      {rows.length === 0 && !mostrarTexto && <p className="chatbot-result-note">Não encontrei resultados. Tente perguntar de outro jeito.</p>}
+      {rows.length === 0 && !resposta.answer && <p className="chatbot-result-note">Não encontrei resultados. Tente perguntar de outro jeito.</p>}
       {metadata.truncated && <p className="chatbot-result-note">Exibindo os primeiros {rows.length} resultados.</p>}
       {observacao && <p className="chatbot-result-note">{observacao}</p>}
     </div>

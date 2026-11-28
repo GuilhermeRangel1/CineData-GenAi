@@ -1,0 +1,251 @@
+[
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q01",
+    "question": "Quais são os 10 filmes com maior receita em BRL?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT t1.sk_movie_id, t1.titulo, t2.receita_brl FROM dim_movies AS t1 INNER JOIN fact_movies_performance AS t2 ON t1.sk_movie_id = t2.sk_movie_id WHERE NOT t2.receita_brl IS NULL ORDER BY t2.receita_brl DESC, t1.titulo ASC, t1.sk_movie_id ASC LIMIT 10"
+    ],
+    "seconds": 1.94
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q02",
+    "question": "Qual é o lucro médio em BRL por gênero?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "failed",
+    "error_type": "ProviderTransientError",
+    "error": "Os provedores de IA estão temporariamente indisponíveis. Tente novamente em breve.",
+    "query_source": [],
+    "sql_attempts": [],
+    "seconds": 12.01
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q03",
+    "question": "Quais filmes têm as maiores margens de lucro?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT m.sk_movie_id, m.titulo, 1.0 * (p.receita_brl - p.orcamento_brl) / p.receita_brl AS margem FROM dim_movies AS m JOIN fact_movies_performance AS p ON m.sk_movie_id = p.sk_movie_id WHERE NOT p.receita_brl IS NULL AND NOT p.orcamento_brl IS NULL AND p.receita_brl > 0 ORDER BY margem DESC, m.titulo COLLATE NOCASE ASC, m.sk_movie_id ASC LIMIT 10"
+    ],
+    "seconds": 8.17
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q04",
+    "question": "Quais são os 5 filmes mais populares?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 5,
+    "insights": 0,
+    "query_source": [
+      "model_repaired"
+    ],
+    "sql_attempts": [
+      "SELECT t.sk_movie_id, t.titulo, t.popularidade FROM (SELECT sk_movie_id, popularidade FROM fact_movies_performance WHERE NOT popularidade IS NULL ORDER BY popularidade DESC, sk_movie_id DESC LIMIT 5) AS p JOIN dim_movies AS t ON p.sk_movie_id = t.sk_movie_id ORDER BY p.popularidade DESC, t.titulo ASC, t.sk_movie_id ASC",
+      "SELECT t.sk_movie_id, t.titulo, p.popularidade FROM fact_movies_performance AS p JOIN dim_movies AS t ON p.sk_movie_id = t.sk_movie_id WHERE NOT p.popularidade IS NULL ORDER BY p.popularidade DESC, t.titulo ASC, t.sk_movie_id ASC LIMIT 5"
+    ],
+    "seconds": 4.64
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q05",
+    "question": "Em quais filmes há maior divergência entre as notas TMDB e IMDb?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT m.sk_movie_id, m.titulo, ABS(f.nota_tmdb - f.nota_imdb) AS divergencia, f.nota_tmdb, f.qtd_tmdb, f.nota_imdb, f.qtd_imdb FROM fact_movies_performance AS f JOIN dim_movies AS m ON f.sk_movie_id = m.sk_movie_id WHERE NOT f.nota_tmdb IS NULL AND NOT f.nota_imdb IS NULL AND f.qtd_tmdb > 0 AND f.qtd_imdb > 0 ORDER BY divergencia DESC, m.titulo COLLATE NOCASE ASC, m.sk_movie_id ASC LIMIT 10"
+    ],
+    "seconds": 1.66
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q06",
+    "question": "Qual é a nota IMDb média por ano de lançamento?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 11,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT m.ano_lancamento, COUNT(f.sk_movie_id) AS filmes_validos, AVG(f.nota_imdb) AS nota_imdb_media FROM dim_movies AS m JOIN fact_movies_performance AS f ON m.sk_movie_id = f.sk_movie_id WHERE m.data_lancamento <= DATE('now') AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0 GROUP BY m.ano_lancamento ORDER BY m.ano_lancamento ASC LIMIT 100"
+    ],
+    "seconds": 4.37
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q07",
+    "question": "Qual ator participou de mais filmes nos últimos cinco anos?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH recent_movies AS (SELECT sk_movie_id FROM dim_movies WHERE NOT data_lancamento IS NULL AND data_lancamento >= DATE('now', '-5 years') AND data_lancamento <= DATE('now')), actor_counts AS (SELECT p.sk_person_id, p.nome_pessoa, COUNT(DISTINCT rm.sk_movie_id) AS total_filmes, DENSE_RANK() OVER (ORDER BY COUNT(DISTINCT rm.sk_movie_id) DESC) AS rnk FROM dim_people AS p JOIN bridge_movie_person AS bmp ON p.sk_person_id = bmp.sk_person_id JOIN recent_movies AS rm ON bmp.sk_movie_id = rm.sk_movie_id WHERE p.tipo_pessoa = 'Ator' GROUP BY p.sk_person_id, p.nome_pessoa) SELECT sk_person_id, nome_pessoa, total_filmes FROM actor_counts WHERE rnk = 1 LIMIT 100"
+    ],
+    "seconds": 4.59
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "failed",
+    "error_type": "EvaluationMismatch",
+    "error": "Quantidade de linhas divergente: esperado 2, recebido 100.",
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT p.sk_person_id, p.nome_pessoa, COUNT(DISTINCT f.sk_movie_id) AS filmes_validos, AVG(1.0 * f.nota_imdb) AS nota_media FROM dim_people AS p JOIN bridge_movie_person AS bmp ON p.sk_person_id = bmp.sk_person_id JOIN fact_movies_performance AS f ON bmp.sk_movie_id = f.sk_movie_id WHERE p.tipo_pessoa = 'Diretor' AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0 GROUP BY p.sk_person_id, p.nome_pessoa HAVING COUNT(DISTINCT f.sk_movie_id) >= 5 ORDER BY nota_media DESC, filmes_validos DESC, p.nome_pessoa ASC, p.sk_person_id ASC LIMIT 100"
+    ],
+    "seconds": 1.64
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q09",
+    "question": "Qual dupla de ator e diretor trabalhou junta em mais filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH atores AS (SELECT DISTINCT p.sk_person_id AS sk_ator_id, b.sk_movie_id FROM dim_people AS p JOIN bridge_movie_person AS b ON p.sk_person_id = b.sk_person_id WHERE p.tipo_pessoa = 'Ator'), diretores AS (SELECT DISTINCT p.sk_person_id AS sk_diretor_id, b.sk_movie_id FROM dim_people AS p JOIN bridge_movie_person AS b ON p.sk_person_id = b.sk_person_id WHERE p.tipo_pessoa = 'Diretor'), duplas AS (SELECT a.sk_ator_id, d.sk_diretor_id, COUNT(DISTINCT a.sk_movie_id) AS filmes_em_comum FROM atores AS a JOIN diretores AS d ON a.sk_movie_id = d.sk_movie_id GROUP BY a.sk_ator_id, d.sk_diretor_id), ranked AS (SELECT sk_ator_id, sk_diretor_id, filmes_em_comum, MAX(filmes_em_comum) OVER () AS max_filmes FROM duplas) SELECT pa.nome_pessoa AS ator, pd.nome_pessoa AS diretor, r.filmes_em_comum FROM ranked AS r JOIN dim_people AS pa ON r.sk_ator_id = pa.sk_person_id JOIN dim_people AS pd ON r.sk_diretor_id = pd.sk_person_id WHERE r.filmes_em_comum = r.max_filmes ORDER BY ator, diretor LIMIT 100"
+    ],
+    "seconds": 11.78
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q10",
+    "question": "Quantos filmes existem associados a cada gênero?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT g.nome_genero, COUNT(DISTINCT b.sk_movie_id) AS total_filmes FROM dim_genres AS g JOIN bridge_movie_genre AS b ON g.sk_genre_id = b.sk_genre_id GROUP BY g.sk_genre_id, g.nome_genero ORDER BY total_filmes DESC, g.nome_genero ASC LIMIT 100"
+    ],
+    "seconds": 1.3
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q11",
+    "question": "Qual produtora acumulou o maior lucro total em BRL?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH lucros_produtoras AS (SELECT c.sk_company_id, c.nome_produtora, COUNT(DISTINCT f.sk_movie_id) AS filmes_elegiveis, SUM(f.receita_brl - f.orcamento_brl) AS lucro_total_brl FROM dim_companies AS c JOIN bridge_movie_company AS b ON c.sk_company_id = b.sk_company_id JOIN fact_movies_performance AS f ON b.sk_movie_id = f.sk_movie_id WHERE NOT f.receita_brl IS NULL AND NOT f.orcamento_brl IS NULL GROUP BY c.sk_company_id, c.nome_produtora), ranked AS (SELECT sk_company_id, nome_produtora, filmes_elegiveis, lucro_total_brl, RANK() OVER (ORDER BY lucro_total_brl DESC) AS rnk FROM lucros_produtoras) SELECT sk_company_id, nome_produtora, filmes_elegiveis, lucro_total_brl FROM ranked WHERE rnk = 1 LIMIT 100"
+    ],
+    "seconds": 1.79
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q12",
+    "question": "Qual gênero tem a maior margem média de lucro?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH genre_movie_margin AS (SELECT DISTINCT b.sk_genre_id, g.nome_genero, b.sk_movie_id, 1.0 * (f.receita_brl - f.orcamento_brl) / f.receita_brl AS margem FROM bridge_movie_genre AS b JOIN dim_genres AS g ON b.sk_genre_id = g.sk_genre_id JOIN fact_movies_performance AS f ON b.sk_movie_id = f.sk_movie_id WHERE f.receita_brl > 0 AND NOT f.orcamento_brl IS NULL), genre_stats AS (SELECT sk_genre_id, nome_genero, COUNT(sk_movie_id) AS filmes_validos, AVG(margem) AS margem_media FROM genre_movie_margin GROUP BY sk_genre_id, nome_genero), max_margin AS (SELECT MAX(margem_media) AS max_m FROM genre_stats) SELECT s.sk_genre_id, s.nome_genero, s.filmes_validos, s.margem_media FROM genre_stats AS s JOIN max_margin AS m ON s.margem_media = m.max_m ORDER BY s.sk_genre_id LIMIT 100"
+    ],
+    "seconds": 2.23
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q13",
+    "question": "Quais filmes têm a maior quantidade de avaliações de usuários?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT m.sk_movie_id, m.titulo, r.qtd_avaliacoes_usuarios FROM dim_reviews AS r JOIN dim_movies AS m ON r.sk_movie_id = m.sk_movie_id WHERE r.qtd_avaliacoes_usuarios = (SELECT MAX(qtd_avaliacoes_usuarios) FROM dim_reviews) ORDER BY m.titulo ASC LIMIT 100"
+    ],
+    "seconds": 7.11
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q14",
+    "question": "Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT t1.sk_movie_id, m.titulo, t1.nota_media_usuarios, t2.nota_imdb, t1.qtd_avaliacoes_usuarios, t2.qtd_imdb, ABS(t1.nota_media_usuarios - t2.nota_imdb) AS divergencia FROM dim_reviews AS t1 JOIN fact_movies_performance AS t2 ON t1.sk_movie_id = t2.sk_movie_id JOIN dim_movies AS m ON t1.sk_movie_id = m.sk_movie_id WHERE NOT t1.nota_media_usuarios IS NULL AND t1.qtd_avaliacoes_usuarios > 0 AND NOT t2.nota_imdb IS NULL AND t2.qtd_imdb > 0 ORDER BY divergencia DESC LIMIT 1"
+    ],
+    "seconds": 1.7
+  }
+]

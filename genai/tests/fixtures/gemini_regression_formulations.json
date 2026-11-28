@@ -1,0 +1,37 @@
+{
+  "Q06": {
+    "question": "Agrupa os filmes pelo ano em que saíram e mostra a média do IMDb e o número de filmes avaliados em cada ano."
+  },
+  "Q11": {
+    "question": "Que produtora lidera em lucro acumulado em reais? Indica também quantos filmes com dados financeiros ela tem na soma.",
+    "columns": [
+      "nome_produtora",
+      "filmes_elegiveis",
+      "lucro_total_brl"
+    ]
+  },
+  "Q19": {
+    "question": "Entre 2016 e 2024, qual ano ficou na frente pela média IMDb das animações? Só vale ano com dez ou mais filmes avaliados. Me dá o ano, a média e a contagem."
+  },
+  "Q25": {
+    "question": "Qual fatia da receita em reais de todos os filmes de 2023 veio só dos dez maiores em bilheteria? Quero em porcentagem."
+  },
+  "Q36": {
+    "question": "Quais filmes fizeram mais sucesso no ano passado?"
+  },
+  "Q43": {
+    "question": "Separa as cinco produtoras com mais lançamentos em 2023 e indica, para cada uma, o filme que mais arrecadou naquele mesmo ano, em reais."
+  },
+  "Q47": {
+    "question": "Dos cinco que você acabou de listar, quais tiraram mais de 7 no IMDb? Mostra a nota de cada um."
+  },
+  "Q48": {
+    "question": "Dá pra manter esse ranking por lucro e trocar só comédia por terror?"
+  },
+  "Q49": {
+    "question": "Refaz o top das animações pela bilheteria em reais, mas só de 2020 em diante. Mostra título, ano e bilheteria."
+  },
+  "Q50": {
+    "question": "Você sabe quem foi o diretor desse longa?"
+  }
+}

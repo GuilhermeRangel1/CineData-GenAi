@@ -1,9 +1,8 @@
 # CineData GenAI - instruções do projeto
 
 **Escopo vigente:** as etapas obrigatórias do módulo GenAI e a interface do
-chatbot estão implementadas localmente. O plano em `TODO.md` agora também
-registra a orientação sobre a própria plataforma, o botão Ajuda e melhorias
-opcionais. Trate cada melhoria como um bloco revisável, com checkpoint antes
+chatbot estão implementadas. A [cobertura do agente](../genai/coverage-todo.md)
+registra a expansão e os retestes. Trate cada melhoria como um bloco revisável, com checkpoint antes
 de avançar para a seguinte.
 
 ## Processo obrigatório de trabalho em checkpoints
@@ -85,7 +84,7 @@ por dados inventados, TMDB ou chamadas online.
 
 Implemente primeiro o caminho mínimo completo: pergunta -> geração de consulta -> validação -> execução no banco Gold -> resposta em linguagem natural. A consulta precisa refletir o pedido, e a resposta deve ser sustentada pelo resultado executado.
 
-As proteções necessárias para uma integração segura e funcional não são “extras”: restrinja o acesso ao Gold, rejeite operações de escrita e falhas de validação, trate erros de consulta/modelo e evite afirmar resultados que o SQL não retornou. O checklist detalhado de implementação e os critérios por etapa estão em [`TODO.md`](TODO.md).
+As proteções necessárias para uma integração segura e funcional não são “extras”: restrinja o acesso ao Gold, rejeite operações de escrita e falhas de validação, trate erros de consulta/modelo e evite afirmar resultados que o SQL não retornou. Consulte o [contrato do agente](../genai/agent-contract.md) e a [cobertura de avaliação](../genai/coverage-todo.md).
 
 São sugestões opcionais no enunciado: guardrails adicionais, interface visual,
 gráficos, memória de conversa, fallback entre modelos gratuitos, cache de

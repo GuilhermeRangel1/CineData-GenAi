@@ -2,7 +2,7 @@
 
 Entrega da atividade de GenAI do Rocket Lab 2026.2. O projeto implementa um
 agente analítico em Python que responde perguntas sobre filmes em linguagem
-natural usando Gemini, tool calling e a camada Gold SQLite em modo somente
+natural usando provedores de IA com tool calling e a camada Gold SQLite em modo somente
 leitura. O CineData fornece a interface para enviar as consultas e visualizar
 os resultados.
 
@@ -11,13 +11,13 @@ os resultados.
 | Guia | O que você encontra |
 | --- | --- |
 | [Assistente GenAI](#assistente-genai) | Fluxo da pergunta, componentes do agente e integração com o chatbot. |
-| [Consultas obrigatórias](#cobertura-obrigatória-e-avaliações-locais) | Cobertura Q01–Q14, regras de métricas e avaliação contra referências. |
+| [Consultas obrigatórias](#cobertura-obrigatória-e-avaliações-locais) | Cobertura Q01–Q50, regras de métricas e avaliação contra referências. |
 | [Extras da atividade](#extras-propostos-na-atividade) | Guardrails, gráficos, memória, fallback, cache, avaliação e busca híbrida. |
 | [Bancos de dados](#bancos-de-dados) | Papel da Gold e do banco operacional, sincronização e cópia local do GenAI. |
-| [Como executar](#como-executar-com-docker-compose) | Pré-requisitos, Docker Compose, Git LFS, chave Gemini e conta de demonstração. |
+| [Como executar](#como-executar-com-docker-compose) | Pré-requisitos, Docker Compose, Git LFS, configuração de provedor e conta de demonstração. |
 | [Configuração por ambiente](#configuração-por-ambiente) | Variáveis necessárias no Docker e opções para execução manual. |
 | [Testes](#testes) | Comandos de avaliação, qualidade e testes automatizados. |
-| [Documentação complementar](#documentação-complementar) | Regras de métricas, SQL de referência, casos Q01–Q14 e revisão da entrega. |
+| [Documentação complementar](#documentação-complementar) | Regras de métricas, SQL de referência, casos Q01–Q50 e revisão da entrega. |
 
 ## Assistente GenAI
 
@@ -25,18 +25,11 @@ O chatbot é o núcleo desta entrega. Ele recebe uma pergunta em português,
 identifica se ela pede uma métrica, um ranking, uma comparação ou filmes por
 descrição e retorna a evidência correspondente.
 
-O agente pede ao Gemini que gere SQL pela ferramenta `run_sql` nas 14 perguntas
-canônicas da avaliação e nas perguntas analíticas livres. Algumas variações
-reconhecidas ainda usam SQL preparado. Perguntas descritivas podem procurar
-termos em sinopses; se também pedirem uma métrica, os filmes
-encontrados servem de recorte para uma consulta analítica.
+A avaliação cobre 50 perguntas oficiais (Q01–Q50). A aba Ajuda reúne 47 delas. As três continuações Q47–Q49 são avaliadas com a pergunta anterior na suíte de testes.
 
-A chave Gemini habilita as consultas de dados do chatbot. Nas nove perguntas
-canônicas com regras de agregação mais sensíveis, uma consulta de referência
-confere as linhas geradas pelo modelo e recupera falhas. Ela começa em paralelo
-à geração do SQL, sem acrescentar sua duração integral à espera. As demais
-perguntas canônicas também passam pelo modelo. A interface informa quando a
-chave ainda não foi configurada.
+Para consultas analíticas, o provedor pode gerar SQL pela ferramenta `run_sql`. Nos casos cobertos, o serviço compara o resultado com uma consulta de referência e pode usá-la para recuperar falhas ou divergências. Algumas perguntas reconhecidas usam consultas locais. Se faltar uma informação essencial, o chatbot pede esclarecimento.
+
+Consultas sobre um filme específico podem trazer premissa em português, notas, elenco, direção e dados financeiros. A busca por descrição usa sinopses e pode fornecer o recorte para uma consulta analítica.
 
 ```mermaid
 flowchart TB
@@ -45,11 +38,13 @@ flowchart TB
     R -->|Filmes por descrição| S[Busca em sinopses]
     R -->|Métricas e rankings| A[Agente analítico]
     S -.->|Se também pedir uma métrica| A
-    A --> M[Gemini com run_sql nas Q01-Q14]
-    A --> P[SQL preparado para variações reconhecidas]
+    A --> M[Provedor gera SQL com run_sql]
+    A --> P[Consulta local ou de referência]
     M --> V[Validação e execução somente leitura]
     P --> V
-    S --> F[Resposta no chatbot]
+    R -->|Ficha de filme| T[Consulta ao catálogo e contexto]
+    T --> F[Resposta no chatbot]
+    S --> F
     V --> F
     F --> O[Texto, tabela, gráfico e insights]
 ```
@@ -66,7 +61,7 @@ O caminho analítico é composto por:
 
 Para usar a entrega, abra o CineData em `http://localhost:8080` e entre na aba
 **Chatbot**. O navegador chama `/genai/api/v1`; o Nginx encaminha essa rota ao
-serviço GenAI internamente, sem expor a chave Gemini. A porta `8001` é apenas a
+serviço GenAI internamente, sem expor credenciais dos provedores. A porta `8001` é apenas a
 porta local do serviço para desenvolvimento, health check e diagnóstico. Há
 também `POST /api/v1/questions/stream`, que entrega eventos de progresso e a
 resposta final no mesmo fluxo. O backend operacional guarda o histórico de
@@ -88,11 +83,11 @@ Os insights complementam os valores, sem inventar fatos fora deles.
 Uma pergunta de continuação preserva o contexto analítico. Após “Qual produtora
 acumulou o maior lucro total em BRL?”, “E em 2020?” mantém a métrica e aplica o
 ano. Uma conversa nova começa sem essa referência. O modelo recebe somente até
-três resumos da conversa atual; tokens e dados da conta não são enviados ao
+dez resumos da conversa atual; tokens e dados da conta não são enviados ao
 provedor.
 
 Antes de chegar ao banco, a consulta passa por guardrails e por `sqlglot`: só um
-`SELECT` sobre tabelas e colunas autorizadas pode ser executado. O SQLite abre
+`SELECT` ou `UNION` sobre tabelas e colunas autorizadas pode ser executado. O SQLite abre
 em `mode=ro`, enquanto limites de linhas, timeout e joins complexos evitam
 sobrecarga. Cache, fallback e avaliações locais mantêm a resposta rápida e
 confiável.
@@ -107,7 +102,7 @@ flowchart LR
     API --> OP[(SQLite operacional)]
     API --> TMDB[TMDB opcional]
     G -->|somente leitura| GOLD[(Gold SQLite)]
-    G --> GEMINI[Gemini]
+    G --> GEMINI[Provedor configurado]
     GOLD --> SYNC[Sincronização]
     SYNC --> OP
 ```
@@ -122,8 +117,10 @@ flowchart LR
 
 ## Cobertura obrigatória e avaliações locais
 
+A suíte atual reúne 50 perguntas, listadas abaixo. O [catálogo de casos](docs/genai/evaluation-cases.md) reúne os três lotes. A [validação com provedores](docs/genai/provider-validation.md) registra as 50 oficiais e 10 variações aprovadas pela API, somando a rodada e os retestes.
+
 O agente transforma perguntas em SQL e valida a consulta antes de executá-la.
-Somente uma instrução `SELECT` nas tabelas e colunas autorizadas pode ser
+Uma única instrução `SELECT` ou `UNION` nas tabelas e colunas autorizadas pode ser
 executada. DDL, DML, múltiplas instruções e acesso a arquivos são rejeitados.
 As respostas informam métrica, unidade, período, população válida e limitações.
 
@@ -143,6 +140,47 @@ As respostas informam métrica, unidade, período, população válida e limita�
 | Q12 | Qual gênero tem a maior margem média de lucro? | Faz a média das margens dos filmes elegíveis, não a margem dos totais agregados. |
 | Q13 | Quais filmes têm a maior quantidade de avaliações de usuários? | Usa a contagem resumida de avaliações por filme. |
 | Q14 | Qual filme tem a maior divergência entre usuários e IMDb? | Compara a média dos usuários e a nota IMDb quando ambas têm votos válidos. |
+
+### Expansão da cobertura (Q15–Q50)
+
+| Caso | Pergunta oficial |
+| --- | --- |
+| Q15 | Quais os dez documentários de 2016 a 2024 com a maior nota no IMDb e pelo menos mil votos? Em notas iguais, priorize quem tem mais votos. Mostre título, ano, nota e votos. |
+| Q16 | De 2016 a 2024, em quais anos saíram mais filmes de terror do que de comédia? Mostre as duas contagens e a diferença em cada ano. |
+| Q17 | Entre os filmes que custaram até 10 milhões de reais, quais foram os cinco com maior lucro? Mostre título, orçamento, receita e lucro em reais. |
+| Q18 | Quais os cinco filmes com maior nota no IMDb entre os que têm pelo menos 5 mil votos no IMDb, ao menos um voto no TMDB e nota no TMDB pelo menos um ponto menor? Em notas IMDb iguais, priorize quem tem mais votos no IMDb. Mostre título, as duas notas, votos no IMDb e a diferença. |
+| Q19 | De 2016 a 2024, em qual ano as animações tiveram a maior nota média no IMDb? Só considere anos com pelo menos dez filmes avaliados. Mostre ano, média e quantidade de filmes. |
+| Q20 | Quais diretores trabalharam com Leonardo DiCaprio em pelo menos dois filmes? Mostre quantos fizeram juntos, quantos têm avaliação válida no IMDb e a média dessas notas, ordenando pela maior média. |
+| Q21 | Quais três gêneros tiveram o maior lucro médio em reais de 2016 a 2024? Use lucro como receita menos orçamento, só com os dois valores informados. Mostre, nesta ordem: gênero, lucro médio, número de filmes na conta e percentual que deu lucro. |
+| Q22 | Dos filmes de ficção científica de 2016 a 2024 com orçamento e receita informados, quantos deram lucro? Mostre o total elegível, quantos deram lucro e a porcentagem. |
+| Q23 | Entre produtoras com dez ou mais filmes com orçamento e receita conhecidos, quais as cinco com a maior porcentagem de filmes lucrativos? Mostre o total elegível, quantos deram lucro, a porcentagem e o lucro mediano em reais. |
+| Q24 | Desde 2016, quais filmes já lançados têm nota IMDb de pelo menos 8, 10 mil votos ou mais e receita acima do dobro do orçamento positivo? Mostre os dez de maior lucro, com título, ano, nota, votos e lucro em reais. |
+| Q25 | Que porcentagem da bilheteria total de 2023 veio dos dez filmes que mais arrecadaram naquele ano? |
+| Q26 | Quais filmes tiveram os cinco maiores prejuízos de 2023? |
+| Q27 | Quais filmes de animação que saíram no ano passado pelo menos se pagaram? |
+| Q28 | Quais filmes de ação que já estrearam este ano têm orçamento e bilheteria informados? |
+| Q29 | Dos cinco filmes mais caros de 2023, quais deram prejuízo e quanto faltou para se pagarem? |
+| Q30 | Qual foi o orçamento mediano dos filmes de terror de 2024? |
+| Q31 | Em quais anos a comédia teve mais estreias, mas o terror teve maior lucro médio? Conte todas as estreias, mesmo sem dados financeiros, e mostre as contagens e as médias dos dois gêneros. |
+| Q32 | Qual gênero mais aumentou a bilheteria total de 2022 para 2023, em reais? |
+| Q33 | Quais filmes de 2023 ficaram no top 10 tanto em bilheteria quanto em lucro? |
+| Q34 | Em 2024, qual gênero teve a maior proporção de filmes com orçamento e bilheteria informados? Qual foi a porcentagem? |
+| Q35 | Quanto as animações de 2023 arrecadaram para cada real de orçamento, somando tudo? |
+| Q36 | Quais filmes bombaram no ano passado? |
+| Q37 | Quantos filmes estrearam nos últimos cinco anos em cada gênero? |
+| Q38 | Quem está no elenco de Barbie, de 2023? |
+| Q39 | Em que filmes Leonardo DiCaprio atuou sob direção de Martin Scorsese? Mostre o título e o ano de cada um. |
+| Q40 | Quais cinco duplas de atores fizeram mais filmes de terror juntas em 2023? Mostre quantos filmes fizeram juntos. Ponha os nomes de cada dupla em ordem alfabética antes de usar os nomes para desempatar o ranking. |
+| Q41 | Quais diretores dirigiram pelo menos um filme de terror e um de comédia desde 2016? Mostre até dez nomes em ordem alfabética. |
+| Q42 | Quais cinco produtoras fizeram mais coproduções em 2024? Mostre quantos filmes cada uma fez com pelo menos outra produtora. |
+| Q43 | Das cinco produtoras com mais filmes de 2023, qual foi o filme de maior bilheteria de cada uma naquele ano? Mostre a bilheteria em reais. |
+| Q44 | Qual produtora trabalhou com o maior número de diretores diferentes em 2024? Mostre quantos diretores. |
+| Q45 | Quais filmes de 2019 têm nota 8 ou mais e pelo menos 10 mil votos tanto no IMDb quanto no TMDB? Mostre as notas e os votos das duas fontes. |
+| Q46 | Quais filmes saem do top 10 por nota no IMDb quando o mínimo sobe de mil para 10 mil votos? Mostre a nota e os votos, usando mais votos para desempatar. |
+| Q47 | E dessas aí, quais tiveram nota acima de 7 no IMDb? |
+| Q48 | Faz o mesmo pra terror. |
+| Q49 | Agora só de 2020 pra cá. |
+| Q50 | Quem dirigiu esse filme? |
 
 Além das consultas estruturadas, a busca híbrida usa sinopses para
 encontrar filmes por descrição e combina esse recorte com SQL quando necessário.
@@ -166,7 +204,7 @@ fórmulas e os filtros completos estão em
 | Ranking financeiro | `Quais são os 5 filmes com maior receita em BRL?` | SQL validado, tabela, gráfico e insight quando houver dados suficientes. |
 | Continuação contextual | Pergunte `Qual produtora acumulou o maior lucro total em BRL?` e depois `E em 2020?` | Mantém a métrica por produtora e aplica o ano à conversa atual. |
 | Busca híbrida | `Quais filmes têm histórias sobre viagem no tempo e qual teve maior receita?` | Busca sinopse, restringe candidatos e consulta os valores. |
-| Comparação de notas | `Em quais filmes há maior divergência entre TMDB e IMDb?` | Compara as duas notas, apresenta tabela e gráfico de dispersão. |
+| Comparação de notas | `Em quais filmes há maior divergência entre TMDB e IMDb?` | Mostra as duas notas na tabela e a diferença entre elas no gráfico de barras. |
 | Participação por gênero | `Quantos filmes existem associados a cada gênero?` | Conta os filmes por gênero e apresenta gráfico de rosca com insights. |
 
 ## Extras propostos na atividade
@@ -180,7 +218,8 @@ O serviço verifica a pergunta antes de consultar o modelo e recusa pedidos fora
 do escopo do CineData, SQL enviado diretamente e tentativas de alterar as
 instruções do agente. Se houver uma consulta analítica, outra camada valida o
 SQL gerado:
-permite um único `SELECT` nas tabelas autorizadas, limita resultados e bloqueia
+permite uma única instrução `SELECT` ou `UNION` nas tabelas autorizadas,
+limita resultados e bloqueia
 escrita, acesso a arquivos e consultas excessivamente custosas. O SQLite é
 aberto somente para leitura, mesmo depois da validação.
 
@@ -189,9 +228,9 @@ etapa não concede ao modelo acesso direto ao banco:
 
 | Camada | Aplicação concreta |
 | --- | --- |
-| Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo três resumos de contexto. |
+| Contrato HTTP | Aceita pergunta não vazia de até 1.000 caracteres e no máximo dez resumos de contexto. |
 | Filtro de entrada | Normaliza maiúsculas e acentos e bloqueia prompt injection, revelação de instruções, SQL explícito e pedidos para consultar URLs, internet ou fontes externas. |
-| Ferramenta do modelo | O Gemini recebe somente a ferramenta `run_sql`; ele não recebe uma conexão SQLite nem credenciais do banco. As 14 perguntas canônicas geram SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e Q14 são conferidas contra consultas de referência; variações reconhecidas podem usar SQL preparado. |
+| Ferramenta do modelo | O provedor recebe a ferramenta `run_sql`. O serviço valida e executa as consultas em modo somente leitura e compara os resultados com referências nos casos cobertos. |
 | Validador SQL | `sqlglot` aceita uma única instrução `SELECT` ou `UNION`, com até 16.000 caracteres, oito CTEs, oito `JOINs`, doze subconsultas e 100 linhas. CTE recursiva, `CROSS JOIN`, outro banco, tabelas fora do contrato e funções como `load_extension`, `readfile`, `writefile`, `randomblob` e `zeroblob` são rejeitados. |
 | Executor SQLite | Abre o arquivo com `mode=ro`, limita a duração da consulta e usa o autorizador nativo do SQLite para negar `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ATTACH`, `DETACH`, `PRAGMA` e leitura de tabelas que não pertencem à Gold. |
 
@@ -199,7 +238,7 @@ O limite padrão é de cinco segundos; consultas obrigatórias reconhecidamente
 mais pesadas recebem limites específicos de quinze ou quarenta e cinco segundos.
 O executor busca no máximo 101 linhas para sinalizar truncamento e devolve no
 máximo 100 ao chatbot. Uma rejeição retorna uma mensagem controlada, sem expor
-o SQL gerado, a estrutura interna ou detalhes da chave Gemini.
+o SQL gerado, a estrutura interna ou detalhes das chaves dos provedores.
 
 ### Interface visual
 
@@ -238,7 +277,7 @@ das amostras.
 
 ### Memória de conversa
 
-Até três resumos da conversa atual ajudam a interpretar perguntas de
+Até dez resumos da conversa atual ajudam a interpretar perguntas de
 continuação. Em “E em 2020?”, por exemplo, o agente mantém a métrica anterior e
 altera o período. Uma nova conversa começa sem esse contexto; o histórico salvo
 de cada conta e o modo temporário são extensões dessa experiência.
@@ -253,8 +292,7 @@ respondeu fica registrado nos logs do serviço, sem expor a chave ao navegador.
 O roteador classifica localmente cada pergunta como simples, analítica, híbrida
 ou complexa, sem nova chamada de IA. Perguntas híbridas, longas, comparativas
 ou com contexto podem usar o modelo configurado para maior capacidade; as demais
-usam o modelo leve. As nove perguntas canônicas com conferência automática
-de resultado usam o modelo leve mesmo quando mencionam uma série anual.
+usam o modelo leve. Os casos com consulta de referência usam a rota analítica.
 A tentativa alternativa ocorre somente para falhas de rede,
 timeout ou respostas 408, 429 e 5xx. Ela não é uma segunda tentativa para
 "melhorar" uma resposta nem relaxa guardrails, validação SQL ou limites.
@@ -262,17 +300,18 @@ timeout ou respostas 408, 429 e 5xx. Ela não é uma segunda tentativa para
 ### Cache de respostas
 
 Perguntas livres equivalentes podem ser reutilizadas por cinco minutos na memória
-do serviço. As 14 perguntas completas da Ajuda compartilham a resposta pública
+do serviço. As formulações canônicas Q01–Q14 compartilham a resposta pública
 por até uma hora entre conversas, inclusive os insights; a primeira execução
 ainda gera SQL pelo modelo nos casos que usam essa rota. A chave do cache
-considera a pergunta, a revisão do banco analítico e a versão das regras.
+considera a pergunta, a revisão do banco analítico, a versão das regras e
+a data em UTC.
 Perguntas livres também consideram a conversa e o contexto, para que uma
 continuação diferente não receba uma resposta antiga. O cache desaparece
 quando o serviço reinicia.
 
 Na prática, a chave é um hash SHA-256 da pergunta normalizada, identificador da
-conversa (ou do caso fixo), até três resumos semânticos, tamanho e data de
-modificação da Gold e versão das regras. O serviço mantém até 100 respostas
+conversa (ou do caso fixo), até dez resumos semânticos, tamanho e data de
+modificação da Gold, versão das regras e data em UTC. O serviço mantém até 100 respostas
 bem-sucedidas em memória;
 o texto da pergunta não é usado como identificador em claro. Não há cache
 persistente nem compartilhado depois de reiniciar o contêiner.
@@ -282,7 +321,7 @@ persistente nem compartilhado depois de reiniciar o contêiner.
 Além de comparar as 14 consultas obrigatórias com resultados de referência,
 os cenários locais cobrem variações de linguagem, filtros, empates, ausência de
 dados e ambiguidades. Modelos simulados permitem
-verificar regras, valores e formato das respostas sem gastar cota Gemini. Essa
+verificar regras, valores e formato das respostas sem gastar cota dos provedores. Essa
 avaliação detecta regressões conhecidas; perguntas livres ainda dependem do
 comportamento do modelo e dos dados disponíveis.
 
@@ -297,7 +336,7 @@ e falhas controladas da Gold.
 
 Perguntas descritivas procuram filmes nas sinopses por similaridade textual
 calculada localmente, sem serviço externo de embeddings. Quando os termos da
-pergunta não bastam, o Gemini traduz apenas duas palavras centrais; títulos e
+pergunta não bastam, o provedor selecionado traduz apenas duas palavras centrais; títulos e
 sinopses permanecem no serviço local. A busca exige evidência próxima para os
 dois conceitos e descarta sinopses sem descrição. Se a mesma
 pergunta pedir um número, os filmes encontrados orientam uma consulta SQL
@@ -320,8 +359,8 @@ entendimento, busca, preparação e resultado. Os eventos descrevem etapas
 visíveis da operação, sem expor raciocínio interno do modelo ou SQL. Cabeçalhos
 de não cache e não buffering mantêm o progresso legível mesmo atrás do proxy.
 
-O navegador acessa o serviço pelo proxy `/genai/api/v1`; a chave Gemini fica
-somente no ambiente do contêiner. Para continuidade, o GenAI recebe até três
+O navegador acessa o serviço pelo proxy `/genai/api/v1`; as chaves dos provedores ficam
+somente no ambiente do contêiner. Para continuidade, o GenAI recebe até dez
 resumos da conversa atual, e não o histórico persistente completo da conta. A
 resposta final possui contrato estruturado com texto, linhas, colunas,
 metadados da métrica, origem, indicação de cache, truncamento e quantidade de
@@ -359,7 +398,8 @@ genai/
   app/
     agent.py               Orquestrador da pergunta analítica
     agent_models.py        Contratos de tool calling e resposta
-    gemini_adapter.py      Gemini e fallback de modelo
+    provider_router.py     Roteamento e fallback entre provedores
+    gemini_adapter.py      Integração com Gemini
     question_guard.py      Guardrails de pergunta
     sql_guard.py           Validação de SQL permitido
     sql_executor.py        Execução SQLite somente leitura
@@ -380,7 +420,7 @@ docker-compose.yml         Serviços frontend, backend e GenAI
 
 - Docker Desktop com Docker Compose v2;
 - Git e Git LFS somente para clonar e obter o arquivo Gold;
-- chave Gemini para todas as consultas de dados no chatbot.
+- ao menos um provedor de IA configurado para consultas de dados no chatbot.
 
 O Git LFS é necessário uma única vez porque o banco Gold tem cerca de 722 MB e
 é montado pelo host como arquivo somente leitura. Depois do clone, baixe o
@@ -430,13 +470,45 @@ projeto a uma rede, troque `JWT_SECRET_KEY` e as credenciais iniciais.
 Para encerrar mantendo os dados, use `Ctrl+C` ou `docker compose down`. Para
 recomeçar o banco operacional, remova `data/rocketlab.db`; não remova o Gold.
 
+### Provedores e fallback
+
+O chatbot usa Gemini → Groq → OpenRouter por padrão. Configure as chaves em
+`genai/.env`; Groq e OpenRouter também precisam de um modelo explícito com tool
+calling. Rotas sem chave/modelo são ignoradas. A ordem é configurável:
+
+```dotenv
+GENAI_PROVIDER_ORDER=gemini,groq,openrouter
+GENAI_GROQ_API_KEY=
+GENAI_GROQ_MODEL=
+GENAI_OPENROUTER_API_KEY=
+GENAI_OPENROUTER_MODEL=
+GENAI_PROVIDER_TIMEOUT_SECONDS=12
+GENAI_GEMINI_ANALYTICAL_TIMEOUT_SECONDS=20
+GENAI_OPENROUTER_ANALYTICAL_TIMEOUT_SECONDS=36
+GENAI_PROVIDER_BUDGET_SECONDS=40
+GENAI_PROVIDER_COOLDOWN_SECONDS=60
+```
+
+Em timeout, falha de rede, 429 ou erro 5xx, o serviço tenta a próxima rota e
+aguarda o cooldown antes de sondar a rota com falha. Credenciais rejeitadas
+desativam a rota até reiniciar com a configuração corrigida. O orçamento de
+inferência é compartilhado pelos turnos e insights da pergunta, sem incluir
+o tempo de SQL. Cada chamada cancela o transporte ao atingir seu limite.
+Não são feitas chamadas paralelas especulativas aos provedores.
+
+Depois de editar o `.env`, aplique com `docker compose up -d --no-build --no-deps genai`.
+O fallback reduz interrupções, mas não garante disponibilidade nem cota.
+O cache válido continua sendo reutilizado; sem resposta utilizável, o serviço
+informa indisponibilidade. Consulte o [roteiro de testes reais](docs/genai/provider-validation.md)
+para testar cada provedor isolado e a cadeia sem esconder falhas com cache.
+
 ### Modelos Gemini
 
-Não é preciso criar `genai/.env` para iniciar o CineData. Sem chave, o chatbot
-mostra um aviso de configuração, mantém a orientação sobre o uso do site e
+Não é preciso criar `genai/.env` para iniciar o CineData. Sem nenhum provedor
+configurado, o chatbot mostra um aviso de configuração, mantém a orientação sobre o uso do site e
 bloqueia todas as consultas a dados de filmes. Isso inclui as perguntas da
-Ajuda: as 14 consultas canônicas geram SQL com o Gemini e só ficam disponíveis
-depois da configuração da chave.
+Ajuda: as 14 consultas canônicas geram SQL pelo provedor selecionado e só ficam
+disponíveis depois da configuração de pelo menos uma rota.
 
 Para habilitar consultas analíticas, copie o arquivo de exemplo e preencha
 somente a chave:
@@ -445,7 +517,7 @@ somente a chave:
 Copy-Item genai/.env.example genai/.env
 ```
 
-Os demais valores do `genai/.env` já têm padrão. A mesma chave atende ao modelo
+Os demais valores do `genai/.env` já têm padrão. Na rota Gemini, a mesma chave atende ao modelo
 leve, ao modelo para perguntas complexas e ao fallback:
 
 ```dotenv
@@ -503,22 +575,41 @@ Vite para encaminhar o GenAI local.
 ## Configuração por ambiente
 
 Para executar a demonstração com Docker Compose, o único valor que a pessoa
-precisa fornecer para usar o chatbot analítico é `GENAI_GEMINI_API_KEY` em
+precisa fornecer para usar a rota Gemini é `GENAI_GEMINI_API_KEY` em
 `genai/.env`. O Compose já define banco, rotas, conta de
 demonstração e endereços do frontend; não é necessário criar `backend/.env` nem
 `frontend/.env` nesse fluxo.
 
 | Variável | Quando configurar |
 | --- | --- |
-| `GENAI_GEMINI_API_KEY` | Necessária para todas as consultas de dados do chatbot, mesmo as preparadas. |
+| `GENAI_GEMINI_API_KEY` | Habilita a rota Gemini; opcional com outro provedor configurado. |
+| `GENAI_GROQ_API_KEY`, `GENAI_GROQ_MODEL` | Habilitam a rota Groq quando ambos estão preenchidos. |
+| `GENAI_OPENROUTER_API_KEY`, `GENAI_OPENROUTER_MODEL` | Habilitam a rota OpenRouter quando ambos estão preenchidos. |
+| `GENAI_PROVIDER_ORDER` | Ordem das rotas; permite também testar um provedor isolado. |
+| `GENAI_PROVIDER_TIMEOUT_SECONDS`, `GENAI_PROVIDER_BUDGET_SECONDS`, `GENAI_PROVIDER_COOLDOWN_SECONDS` | Limites positivos: chamada, inferência por pergunta e pausa após falha. |
+| `GENAI_GEMINI_ANALYTICAL_TIMEOUT_SECONDS`, `GENAI_OPENROUTER_ANALYTICAL_TIMEOUT_SECONDS` | Limites por chamada analítica no Gemini e no OpenRouter, sujeitos ao orçamento da pergunta. |
 | `GENAI_GEMINI_MODEL`, `GENAI_GEMINI_COMPLEX_MODEL`, `GENAI_GEMINI_FALLBACK_MODEL` | Opcional. Use somente para trocar os modelos padrão. |
 | `TMDB_API_TOKEN` | Opcional. Habilita a busca administrativa no TMDB. |
+| `GENAI_TMDB_API_TOKEN` | Opcional. Ajuda o chatbot a resolver títulos e obter sinopses. |
 | `JWT_SECRET_KEY`, `INITIAL_ADMIN_*` | Somente ao mudar a configuração local padrão ou publicar o projeto. |
 | `DATABASE_URL`, `GOLD_DATABASE_PATH`, `VITE_API_BASE_URL`, `VITE_GENAI_API_BASE_URL` | Somente na execução manual, fora do Docker Compose. |
 
 ## Testes
 
-Os testes do agente usam clientes simulados e não consomem cota Gemini. As
+### Integração contínua
+
+O workflow `.github/workflows/ci.yml` verifica PRs para `main`, `develop` e `prod`, pushes
+nessas branches e execuções manuais. Backend, GenAI e frontend rodam em paralelo,
+com cache de dependências e cancelamento da execução anterior do mesmo PR.
+Cada job tem limite de cinco minutos, incluindo instalação e verificações.
+
+Os jobs Python usam Python 3.12, Ruff e os testes locais existentes. O frontend
+usa Node.js 24, lint, testes e build. O CI não precisa de chaves, chamadas reais
+às APIs, Docker nem download do Gold por Git LFS; os testes usam dados temporários
+e transportes simulados. O tempo real deve ser medido nas execuções do GitHub,
+pois instalação sem cache e filas podem aumentar a duração.
+
+Os testes do agente usam clientes simulados e não consomem cota de API. As
 consultas Q01–Q14 também podem ser comparadas com o banco configurado no
 Compose, usando SQL de referência como modelo simulado:
 
@@ -553,14 +644,13 @@ Pop-Location
 
 ## Documentação complementar
 
-- [Plano de execução](docs/.ruler/TODO.md)
 - [Banco de dados e sincronização Gold](docs/database.md)
 - [Guia de backend](docs/backend.md)
 - [Interface](docs/frontend.md)
 - [Esquema permitido pelo agente](docs/genai/gold-schema.md)
 - [Regras de métricas](docs/genai/metric-rules.md)
 - [Consultas SQL de referência](docs/genai/reference-queries.sql)
-- [Casos de avaliação Q01–Q14](docs/genai/evaluation-cases.md)
+- [Casos de avaliação Q01–Q50](docs/genai/evaluation-cases.md)
 - [Revisão final da entrega GenAI](docs/genai/review-final.md)
 - [Detalhes do módulo GenAI](genai/README.md)
 
@@ -568,7 +658,7 @@ Pop-Location
 
 - SQLite e execução local atendem à demonstração; produção concorrente exige
   banco servidor e infraestrutura dedicada.
-- A qualidade das respostas analíticas depende do Gemini e dos dados Gold.
+- A qualidade das respostas analíticas depende do provedor selecionado e dos dados Gold.
 - A busca por sinopses usa similaridade de termos, que pode não encontrar uma
   ideia quando ela não aparece nos textos disponíveis.
 - A avaliação local confirma os casos de referência; perguntas livres ainda

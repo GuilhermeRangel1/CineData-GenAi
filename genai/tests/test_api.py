@@ -3,6 +3,7 @@
 import json
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import api as api_module
@@ -10,7 +11,7 @@ from app.agent import AgentClarification, AgentGuardrail, AgentService, AgentUns
 from app.agent_models import AgentResponse
 from app.api import get_agent_service
 from app.config import get_settings
-from app.errors import ProviderConfigurationError, QueryTimeoutError
+from app.errors import ProviderConfigurationError, ProviderTransientError, QueryTimeoutError
 from app.evaluation_cases import get_evaluation_case
 from app.main import app
 from app.response_cache import ResponseCache
@@ -23,10 +24,45 @@ def test_health_returns_process_status(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+@pytest.mark.parametrize("provider", ["groq", "openrouter"])
+def test_capabilities_with_only_alternative_and_no_gemini(client, monkeypatch, provider):
+    from app.config import Settings
+
+    monkeypatch.setattr(api_module, "get_settings", lambda: Settings(
+        _env_file=None, gemini_api_key="",
+        **{f"{provider}_api_key": "private-key", f"{provider}_model": "chosen"},
+    ))
+    response = client.get("/api/v1/capabilities")
+    assert response.json() == {"analytics_available": True}
+    assert "private-key" not in response.text
+
+
+def test_all_providers_unavailable_rest_and_stream(client):
+    class UnavailableAgent:
+        def answer(self, question, context=()):
+            raise ProviderTransientError("unavailable")
+
+    app.dependency_overrides[get_agent_service] = lambda: UnavailableAgent()
+    try:
+        rest = client.post("/api/v1/questions", json={"question": "Quantos filmes existem?"})
+        stream = client.post("/api/v1/questions/stream",
+                             json={"question": "Quantos filmes existem?"})
+    finally:
+        app.dependency_overrides.clear()
+    assert rest.status_code == 503
+    assert rest.json()["error"]["code"] == "provider_unavailable"
+    events = [json.loads(line) for line in stream.text.splitlines()]
+    assert events[-1]["error"]["code"] == "provider_unavailable"
+
+
 def test_capabilities_reports_missing_key_without_exposing_secrets(
     client: TestClient, monkeypatch
 ) -> None:
-    monkeypatch.setenv("GENAI_GEMINI_API_KEY", "")
+    for key in (
+        "GENAI_GEMINI_API_KEY", "GENAI_GROQ_API_KEY", "GENAI_GROQ_MODEL",
+        "GENAI_OPENROUTER_API_KEY", "GENAI_OPENROUTER_MODEL",
+    ):
+        monkeypatch.setenv(key, "")
     get_settings.cache_clear()
     try:
         response = client.get("/api/v1/capabilities")

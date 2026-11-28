@@ -1,0 +1,254 @@
+[
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q01",
+    "question": "Quais são os 10 filmes com maior receita em BRL?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT d.sk_movie_id, d.titulo, f.receita_brl FROM dim_movies AS d JOIN fact_movies_performance AS f ON f.sk_movie_id = d.sk_movie_id WHERE NOT f.receita_brl IS NULL ORDER BY f.receita_brl DESC, d.titulo ASC, d.sk_movie_id ASC LIMIT 10"
+    ],
+    "seconds": 3.23
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q02",
+    "question": "Qual é o lucro médio em BRL por gênero?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT g.nome_genero, COUNT(DISTINCT m.sk_movie_id) AS filmes_elegiveis, AVG(1.0 * p.receita_brl - p.orcamento_brl) AS lucro_medio_brl FROM dim_genres AS g JOIN bridge_movie_genre AS bg ON bg.sk_genre_id = g.sk_genre_id JOIN dim_movies AS m ON m.sk_movie_id = bg.sk_movie_id JOIN fact_movies_performance AS p ON p.sk_movie_id = m.sk_movie_id WHERE NOT p.receita_brl IS NULL AND NOT p.orcamento_brl IS NULL GROUP BY g.nome_genero ORDER BY lucro_medio_brl DESC LIMIT 100"
+    ],
+    "seconds": 6.05
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q03",
+    "question": "Quais filmes têm as maiores margens de lucro?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT d.sk_movie_id, d.titulo, 1.0 * (f.receita_brl - f.orcamento_brl) / f.receita_brl AS margem FROM dim_movies AS d JOIN fact_movies_performance AS f ON f.sk_movie_id = d.sk_movie_id WHERE NOT f.receita_brl IS NULL AND NOT f.orcamento_brl IS NULL AND f.receita_brl > 0 ORDER BY margem DESC, d.titulo COLLATE NOCASE, d.sk_movie_id LIMIT 10"
+    ],
+    "seconds": 3.94
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q04",
+    "question": "Quais são os 5 filmes mais populares?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 5,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT d.sk_movie_id, d.titulo, f.popularidade FROM dim_movies AS d JOIN fact_movies_performance AS f ON f.sk_movie_id = d.sk_movie_id WHERE NOT f.popularidade IS NULL ORDER BY f.popularidade DESC, d.titulo ASC, d.sk_movie_id ASC LIMIT 5"
+    ],
+    "seconds": 3.29
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q05",
+    "question": "Em quais filmes há maior divergência entre as notas TMDB e IMDb?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT d.sk_movie_id, d.titulo, ABS(f.nota_tmdb - f.nota_imdb) AS divergencia, f.nota_tmdb, f.qtd_tmdb, f.nota_imdb, f.qtd_imdb FROM dim_movies AS d JOIN fact_movies_performance AS f ON d.sk_movie_id = f.sk_movie_id WHERE NOT f.nota_tmdb IS NULL AND NOT f.nota_imdb IS NULL AND f.qtd_tmdb > 0 AND f.qtd_imdb > 0 ORDER BY divergencia DESC, d.titulo COLLATE NOCASE, d.sk_movie_id LIMIT 10"
+    ],
+    "seconds": 4.09
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q06",
+    "question": "Qual é a nota IMDb média por ano de lançamento?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 11,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT dim_movies.ano_lancamento, COUNT(*) AS filmes_validos, AVG(1.0 * fact_movies_performance.nota_imdb) AS nota_imdb_media FROM dim_movies JOIN fact_movies_performance ON fact_movies_performance.sk_movie_id = dim_movies.sk_movie_id WHERE dim_movies.data_lancamento <= DATE('now') AND NOT fact_movies_performance.nota_imdb IS NULL AND fact_movies_performance.qtd_imdb > 0 GROUP BY dim_movies.ano_lancamento ORDER BY dim_movies.ano_lancamento ASC LIMIT 100"
+    ],
+    "seconds": 4.65
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q07",
+    "question": "Qual ator participou de mais filmes nos últimos cinco anos?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH recent_movies AS (SELECT sk_movie_id FROM dim_movies WHERE data_lancamento >= DATE('now', '-5 years') AND data_lancamento <= DATE('now')), actor_counts AS (SELECT bp.sk_person_id, p.nome_pessoa, COUNT(DISTINCT rm.sk_movie_id) AS total_filmes FROM bridge_movie_person AS bp JOIN dim_people AS p ON bp.sk_person_id = p.sk_person_id AND p.tipo_pessoa = 'Ator' JOIN recent_movies AS rm ON bp.sk_movie_id = rm.sk_movie_id GROUP BY bp.sk_person_id, p.nome_pessoa), max_count AS (SELECT MAX(total_filmes) AS mx FROM actor_counts) SELECT ac.sk_person_id, ac.nome_pessoa, ac.total_filmes FROM actor_counts AS ac JOIN max_count AS mc ON ac.total_filmes = mc.mx ORDER BY ac.sk_person_id LIMIT 100"
+    ],
+    "seconds": 9.0
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 2,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH director_stats AS (SELECT dp.sk_person_id, dp.nome_pessoa, COUNT(*) AS filmes_validos, 1.0 * SUM(fp.nota_imdb) / COUNT(*) AS nota_media FROM bridge_movie_person AS bp JOIN dim_people AS dp ON bp.sk_person_id = dp.sk_person_id JOIN fact_movies_performance AS fp ON bp.sk_movie_id = fp.sk_movie_id WHERE dp.tipo_pessoa = 'Diretor' AND NOT fp.nota_imdb IS NULL AND fp.qtd_imdb > 0 GROUP BY dp.sk_person_id, dp.nome_pessoa HAVING COUNT(*) >= 5), max_avg AS (SELECT MAX(nota_media) AS max_nota FROM director_stats) SELECT sk_person_id, nome_pessoa, filmes_validos, nota_media FROM director_stats WHERE nota_media = (SELECT max_nota FROM max_avg) ORDER BY nome_pessoa, sk_person_id LIMIT 100"
+    ],
+    "seconds": 8.78
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q09",
+    "question": "Qual dupla de ator e diretor trabalhou junta em mais filmes?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH actor_movies AS (SELECT bm.sk_movie_id, bm.sk_person_id AS actor_id FROM bridge_movie_person AS bm JOIN dim_people AS dp ON bm.sk_person_id = dp.sk_person_id WHERE dp.tipo_pessoa = 'Ator'), director_movies AS (SELECT bm.sk_movie_id, bm.sk_person_id AS director_id FROM bridge_movie_person AS bm JOIN dim_people AS dp ON bm.sk_person_id = dp.sk_person_id WHERE dp.tipo_pessoa = 'Diretor'), pair_counts AS (SELECT a.actor_id, d.director_id, COUNT(DISTINCT a.sk_movie_id) AS filmes_em_comum FROM actor_movies AS a JOIN director_movies AS d ON a.sk_movie_id = d.sk_movie_id GROUP BY a.actor_id, d.director_id), max_count AS (SELECT MAX(filmes_em_comum) AS max_filmes FROM pair_counts) SELECT p.nome_pessoa AS ator, dir.nome_pessoa AS diretor, pc.filmes_em_comum FROM pair_counts AS pc JOIN dim_people AS p ON pc.actor_id = p.sk_person_id JOIN dim_people AS dir ON pc.director_id = dir.sk_person_id WHERE pc.filmes_em_comum = (SELECT max_filmes FROM max_count) ORDER BY ator, diretor LIMIT 100"
+    ],
+    "seconds": 20.47
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q10",
+    "question": "Quantos filmes existem associados a cada gênero?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT g.nome_genero, COUNT(DISTINCT m.sk_movie_id) AS total_filmes FROM dim_genres AS g JOIN bridge_movie_genre AS b ON g.sk_genre_id = b.sk_genre_id JOIN dim_movies AS m ON b.sk_movie_id = m.sk_movie_id GROUP BY g.nome_genero ORDER BY total_filmes DESC, g.nome_genero LIMIT 100"
+    ],
+    "seconds": 2.07
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q11",
+    "question": "Qual produtora acumulou o maior lucro total em BRL?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH company_movies AS (SELECT c.sk_company_id, c.nome_produtora, bc.sk_movie_id, m.receita_brl, m.orcamento_brl FROM dim_companies AS c JOIN bridge_movie_company AS bc ON c.sk_company_id = bc.sk_company_id JOIN fact_movies_performance AS m ON bc.sk_movie_id = m.sk_movie_id WHERE NOT m.receita_brl IS NULL AND NOT m.orcamento_brl IS NULL), company_stats AS (SELECT sk_company_id, nome_produtora, COUNT(sk_movie_id) AS filmes_elegiveis, SUM(1.0 * receita_brl - orcamento_brl) AS lucro_total_brl FROM company_movies GROUP BY sk_company_id, nome_produtora), max_lucro AS (SELECT MAX(lucro_total_brl) AS max_lucro FROM company_stats) SELECT sk_company_id, nome_produtora, filmes_elegiveis, lucro_total_brl FROM company_stats WHERE lucro_total_brl = (SELECT max_lucro FROM max_lucro) ORDER BY sk_company_id LIMIT 100"
+    ],
+    "seconds": 9.21
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q12",
+    "question": "Qual gênero tem a maior margem média de lucro?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH genre_stats AS (SELECT dim_genres.sk_genre_id, dim_genres.nome_genero, COUNT(DISTINCT dim_movies.sk_movie_id) AS filmes_validos, AVG(1.0 * (fact_movies_performance.receita_brl - fact_movies_performance.orcamento_brl) / fact_movies_performance.receita_brl) AS margem_media FROM dim_genres JOIN bridge_movie_genre ON bridge_movie_genre.sk_genre_id = dim_genres.sk_genre_id JOIN dim_movies ON dim_movies.sk_movie_id = bridge_movie_genre.sk_movie_id JOIN fact_movies_performance ON fact_movies_performance.sk_movie_id = dim_movies.sk_movie_id WHERE fact_movies_performance.receita_brl > 0 AND NOT fact_movies_performance.orcamento_brl IS NULL GROUP BY dim_genres.sk_genre_id, dim_genres.nome_genero), max_margin AS (SELECT MAX(margem_media) AS max_margem FROM genre_stats) SELECT gs.sk_genre_id, gs.nome_genero, gs.filmes_validos, gs.margem_media FROM genre_stats AS gs JOIN max_margin AS mm ON gs.margem_media = mm.max_margem ORDER BY gs.sk_genre_id LIMIT 100"
+    ],
+    "seconds": 9.7
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q13",
+    "question": "Quais filmes têm a maior quantidade de avaliações de usuários?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT r.sk_movie_id, m.titulo, r.qtd_avaliacoes_usuarios FROM dim_reviews AS r JOIN dim_movies AS m ON r.sk_movie_id = m.sk_movie_id WHERE r.qtd_avaliacoes_usuarios = (SELECT MAX(qtd_avaliacoes_usuarios) FROM dim_reviews) LIMIT 100"
+    ],
+    "seconds": 3.47
+  },
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q14",
+    "question": "Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?",
+    "model_only": true,
+    "agent_sha256": "9394d44db3eb3d6e224e1f7d95982a634b6b047cdfc136dfc4305e011ec593dc",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH base AS (SELECT d.sk_movie_id, d.titulo, r.nota_media_usuarios, f.nota_imdb, r.qtd_avaliacoes_usuarios, f.qtd_imdb, ABS(r.nota_media_usuarios - f.nota_imdb) AS divergencia FROM dim_movies AS d JOIN dim_reviews AS r ON d.sk_movie_id = r.sk_movie_id JOIN fact_movies_performance AS f ON d.sk_movie_id = f.sk_movie_id WHERE NOT r.nota_media_usuarios IS NULL AND r.qtd_avaliacoes_usuarios > 0 AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0) SELECT sk_movie_id, titulo, nota_media_usuarios, nota_imdb, qtd_avaliacoes_usuarios, qtd_imdb, divergencia FROM base WHERE divergencia = (SELECT MAX(divergencia) FROM base) LIMIT 100"
+    ],
+    "seconds": 8.26
+  }
+]

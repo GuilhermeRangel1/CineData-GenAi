@@ -14,10 +14,11 @@ sistema de arquivos ou uma ferramenta além de `run_sql`.
    sinopses. Se também solicitarem uma métrica, os filmes encontrados viram
    contexto para uma consulta SQL protegida.
 4. Perguntas analíticas chegam ao modelo com a ferramenta `run_sql`.
-5. O modelo pode solicitar uma única chamada com o argumento `sql`. O serviço
-   valida e executa a consulta no Gold e devolve as linhas ao modelo.
-6. A resposta final usa apenas as linhas retornadas. Para Q01–Q14, ela inclui
-   resposta, métrica, unidade, período, população válida e limitações.
+5. O serviço valida e executa o SQL em modo somente leitura no Gold.
+   Nos casos cobertos, uma consulta de referência permite conferir os dados
+   e recuperar falhas. Algumas consultas reconhecidas são executadas localmente.
+6. A resposta tabular usa as linhas validadas. Os metadados podem incluir
+   métrica, unidade, período, população e limitações conforme o caso.
 7. Um `CLARIFY:` impede a execução quando faltar uma métrica ou filtro
    essencial. Resultados vazios e pedidos não suportados têm caminhos próprios.
 
@@ -35,16 +36,18 @@ complete(messages, tools) -> ModelTurn
 ```
 
 O adaptador converte essa porta para o SDK escolhido. O orquestrador não deve
-importar SDK, chave ou configuração específica do provedor. Em falhas
-temporárias previstas, o adaptador tenta uma única vez o modelo de fallback;
-falhas de guardrail, validação SQL ou banco não acionam fallback.
+importar SDK, chave ou configuração específica do provedor. O roteador usa
+Gemini, Groq e OpenRouter na ordem configurada. O adaptador Gemini pode tentar
+um modelo alternativo em falhas temporárias, dentro do tempo disponível.
 
 ## Contexto, cache e privacidade
 
-O frontend envia no máximo três resumos da conversa atual, sem tokens ou dados
+O frontend envia no máximo dez resumos da conversa atual, sem tokens ou dados
 da conta. O contexto serve para retomar filtros e métricas em perguntas de
-continuação. O `conversation_id` é usado para separar entradas do cache, que
-expira em cinco minutos e também invalida quando o Gold ou as regras mudam.
+continuação. O cache de perguntas livres usa `conversation_id` e expira em
+cinco minutos. As formulações canônicas Q01–Q14 usam um cache compartilhado
+de até uma hora. A revisão do Gold, a versão das regras e a data em UTC
+compõem ambas as chaves.
 
 O histórico salvo, criação de conversas e suas permissões são responsabilidades
 do backend principal. O GenAI recebe apenas o contexto mínimo de cada chamada.

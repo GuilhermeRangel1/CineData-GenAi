@@ -1,0 +1,16 @@
+[
+  {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "case": "Q09",
+    "question": "Qual dupla de ator e diretor trabalhou junta em mais filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "failed",
+    "error_type": "ProviderTransientError",
+    "error": "Os provedores de IA estão temporariamente indisponíveis. Tente novamente em breve.",
+    "query_source": [],
+    "sql_attempts": [],
+    "seconds": 12.01
+  }
+]

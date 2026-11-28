@@ -2,10 +2,9 @@
 
 Revisão realizada em 03/10/2026, comparando o projeto com o enunciado do Rocket Lab.
 
-Esta revisão registra as verificações daquela data. Melhorias posteriores na
-busca por sinopse e na linguagem exibida pelo chatbot estão descritas no README
-principal; os números de testes abaixo não representam uma nova execução após
-essas alterações.
+Esta revisão registra as verificações daquela data. A cobertura atual de 50
+perguntas e os testes com provedores estão em
+[Validação real de provedores](provider-validation.md).
 
 ## Entregas obrigatórias
 

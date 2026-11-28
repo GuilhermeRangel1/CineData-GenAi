@@ -1,7 +1,9 @@
 """Adaptador Gemini para a porta interna de tool calling."""
 
+import asyncio
 import json
 import logging
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -31,7 +33,8 @@ class GeminiToolCallingModel:
         self.model = model
         self.complex_model = complex_model if complex_model and complex_model != model else None
         self.fallback_model = fallback_model if fallback_model and fallback_model != model else None
-        self.client = client or genai.Client(api_key=api_key)
+        self.client = client
+        self._api_key = api_key
 
     def complete(
         self,
@@ -47,9 +50,12 @@ class GeminiToolCallingModel:
         messages: Sequence[dict[str, Any]],
         tools: Sequence[ToolDefinition],
         complexity: QuestionComplexity,
+        *,
+        timeout_seconds: float = 12,
     ) -> ModelTurn:
         """Escolhe o modelo principal localmente; fallback continua só para falhas."""
 
+        deadline = time.monotonic() + timeout_seconds
         config = types.GenerateContentConfig(
             system_instruction=self._system_instruction(messages),
             temperature=0,
@@ -73,10 +79,26 @@ class GeminiToolCallingModel:
         )
         for index, selected_model in enumerate(models):
             try:
-                response = self.client.models.generate_content(
-                    model=selected_model,
-                    contents=self._contents(messages),
-                    config=config,
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ProviderTransientError("Tempo de inferência esgotado.")
+                # Reserve one third of the original deadline for the second model.
+                attempt_timeout = remaining
+                if index == 0 and len(models) > 1:
+                    attempt_timeout = min(remaining, timeout_seconds * 2 / 3)
+                request_config = config.model_copy(deep=True)
+                request_config.http_options = types.HttpOptions(
+                    # A API rejeita prazos menores que 10 s. No cliente assíncrono,
+                    # _generate aplica o prazo local restante independentemente.
+                    timeout=max(10_000, int(attempt_timeout * 1000)),
+                    retry_options=types.HttpRetryOptions(attempts=1),
+                )
+                kwargs = dict(model=selected_model, contents=self._contents(messages),
+                              config=request_config)
+                response = (
+                    self.client.models.generate_content(**kwargs)
+                    if self.client is not None
+                    else asyncio.run(self._generate(kwargs, attempt_timeout))
                 )
                 result = self._normalize_response(response)
                 logger.info(
@@ -97,6 +119,11 @@ class GeminiToolCallingModel:
                 )
 
         raise ProviderConfigurationError("Nenhum modelo Gemini está configurado.")
+
+    async def _generate(self, kwargs, timeout_seconds):
+        async with asyncio.timeout(timeout_seconds):
+            async with genai.Client(api_key=self._api_key).aio as client:
+                return await client.models.generate_content(**kwargs)
 
     @staticmethod
     def _normalize_response(response: Any) -> ModelTurn:
@@ -167,7 +194,10 @@ class GeminiToolCallingModel:
                                     name=call["name"],
                                     args=call["arguments"],
                                 ),
-                                thought_signature=call.get("thought_signature"),
+                                # Histórico importado de outro provedor não tem assinatura.
+                                # Marcador oficial: https://ai.google.dev/gemini-api/docs/thought-signatures
+                                thought_signature=(call.get("thought_signature")
+                                                   or b"skip_thought_signature_validator"),
                             )
                         ],
                     )

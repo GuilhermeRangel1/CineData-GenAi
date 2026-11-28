@@ -1,0 +1,254 @@
+[
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q01",
+    "question": "Quais são os 10 filmes com maior receita em BRL?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT dm.sk_movie_id, dm.titulo, fmp.receita_brl FROM dim_movies AS dm JOIN fact_movies_performance AS fmp ON fmp.sk_movie_id = dm.sk_movie_id WHERE NOT fmp.receita_brl IS NULL ORDER BY fmp.receita_brl DESC, dm.titulo, dm.sk_movie_id LIMIT 10"
+    ],
+    "seconds": 1.0
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q02",
+    "question": "Qual é o lucro médio em BRL por gênero?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT dg.nome_genero, COUNT(DISTINCT fm.sk_movie_id) AS filmes_elegiveis, AVG(1.0 * (fm.receita_brl - fm.orcamento_brl)) AS lucro_medio_brl FROM fact_movies_performance AS fm JOIN dim_movies AS dm ON fm.sk_movie_id = dm.sk_movie_id JOIN bridge_movie_genre AS bmg ON dm.sk_movie_id = bmg.sk_movie_id JOIN dim_genres AS dg ON bmg.sk_genre_id = dg.sk_genre_id WHERE NOT fm.receita_brl IS NULL AND NOT fm.orcamento_brl IS NULL GROUP BY dg.nome_genero ORDER BY lucro_medio_brl DESC LIMIT 100"
+    ],
+    "seconds": 1.24
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q03",
+    "question": "Quais filmes têm as maiores margens de lucro?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT d.sk_movie_id, d.titulo, 1.0 * (f.receita_brl - f.orcamento_brl) / f.receita_brl AS margem FROM dim_movies AS d JOIN fact_movies_performance AS f ON f.sk_movie_id = d.sk_movie_id WHERE f.receita_brl > 0 AND NOT f.orcamento_brl IS NULL AND NOT f.receita_brl IS NULL ORDER BY margem DESC, d.titulo COLLATE NOCASE, d.sk_movie_id LIMIT 10"
+    ],
+    "seconds": 0.89
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q04",
+    "question": "Quais são os 5 filmes mais populares?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 5,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT f.sk_movie_id, d.titulo, f.popularidade FROM fact_movies_performance AS f JOIN dim_movies AS d ON f.sk_movie_id = d.sk_movie_id WHERE NOT f.popularidade IS NULL ORDER BY f.popularidade DESC, d.titulo ASC, f.sk_movie_id ASC LIMIT 5"
+    ],
+    "seconds": 1.12
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q05",
+    "question": "Em quais filmes há maior divergência entre as notas TMDB e IMDb?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT f.sk_movie_id, d.titulo, ABS(f.nota_tmdb - f.nota_imdb) AS divergencia, f.nota_tmdb, f.qtd_tmdb, f.nota_imdb, f.qtd_imdb FROM fact_movies_performance AS f JOIN dim_movies AS d ON f.sk_movie_id = d.sk_movie_id WHERE NOT f.nota_tmdb IS NULL AND NOT f.nota_imdb IS NULL AND f.qtd_tmdb > 0 AND f.qtd_imdb > 0 ORDER BY divergencia DESC, d.titulo COLLATE NOCASE, f.sk_movie_id LIMIT 10"
+    ],
+    "seconds": 1.07
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q06",
+    "question": "Qual é a nota IMDb média por ano de lançamento?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 11,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT dm.ano_lancamento, COUNT(*) AS filmes_validos, AVG(1.0 * fmp.nota_imdb) AS nota_imdb_media FROM dim_movies AS dm JOIN fact_movies_performance AS fmp ON fmp.sk_movie_id = dm.sk_movie_id WHERE dm.data_lancamento <= DATE('now') AND NOT fmp.nota_imdb IS NULL AND fmp.qtd_imdb > 0 GROUP BY dm.ano_lancamento ORDER BY dm.ano_lancamento ASC LIMIT 100"
+    ],
+    "seconds": 1.22
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q07",
+    "question": "Qual ator participou de mais filmes nos últimos cinco anos?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH recent_movies AS (SELECT sk_movie_id FROM dim_movies WHERE NOT data_lancamento IS NULL AND data_lancamento BETWEEN DATE('now', '-5 years') AND DATE('now')), actor_counts AS (SELECT p.sk_person_id, p.nome_pessoa, COUNT(DISTINCT rm.sk_movie_id) AS total_filmes FROM dim_people AS p JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id JOIN recent_movies AS rm ON rm.sk_movie_id = bp.sk_movie_id WHERE p.tipo_pessoa = 'Ator' GROUP BY p.sk_person_id, p.nome_pessoa), max_count AS (SELECT MAX(total_filmes) AS max_filmes FROM actor_counts) SELECT ac.sk_person_id, ac.nome_pessoa, ac.total_filmes FROM actor_counts AS ac JOIN max_count AS mc ON ac.total_filmes = mc.max_filmes ORDER BY ac.sk_person_id LIMIT 100"
+    ],
+    "seconds": 3.41
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 2,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH director_avg AS (SELECT p.sk_person_id, p.nome_pessoa, COUNT(*) AS filmes_validos, AVG(1.0 * f.nota_imdb) AS nota_media FROM dim_people AS p JOIN bridge_movie_person AS bp ON bp.sk_person_id = p.sk_person_id JOIN fact_movies_performance AS f ON f.sk_movie_id = bp.sk_movie_id WHERE p.tipo_pessoa = 'Diretor' AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0 GROUP BY p.sk_person_id, p.nome_pessoa HAVING COUNT(*) >= 5) SELECT sk_person_id, nome_pessoa, filmes_validos, nota_media FROM director_avg WHERE nota_media = (SELECT MAX(nota_media) FROM director_avg) ORDER BY nota_media DESC, nome_pessoa, sk_person_id LIMIT 100"
+    ],
+    "seconds": 1.88
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q09",
+    "question": "Qual dupla de ator e diretor trabalhou junta em mais filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH actors AS (SELECT DISTINCT bm.sk_movie_id, bm.sk_person_id AS actor_id FROM bridge_movie_person AS bm JOIN dim_people AS p ON bm.sk_person_id = p.sk_person_id WHERE p.tipo_pessoa = 'Ator'), directors AS (SELECT DISTINCT bm.sk_movie_id, bm.sk_person_id AS director_id FROM bridge_movie_person AS bm JOIN dim_people AS p ON bm.sk_person_id = p.sk_person_id WHERE p.tipo_pessoa = 'Diretor'), pairs AS (SELECT a.actor_id, d.director_id, COUNT(DISTINCT a.sk_movie_id) AS filmes_em_comum FROM actors AS a JOIN directors AS d ON a.sk_movie_id = d.sk_movie_id GROUP BY a.actor_id, d.director_id), max_pair AS (SELECT MAX(filmes_em_comum) AS max_filmes FROM pairs) SELECT pa.nome_pessoa AS ator, pd.nome_pessoa AS diretor, p.filmes_em_comum FROM pairs AS p JOIN dim_people AS pa ON p.actor_id = pa.sk_person_id JOIN dim_people AS pd ON p.director_id = pd.sk_person_id JOIN max_pair AS mp ON p.filmes_em_comum = mp.max_filmes ORDER BY p.filmes_em_comum DESC, pa.nome_pessoa, pd.nome_pessoa LIMIT 100"
+    ],
+    "seconds": 8.17
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q10",
+    "question": "Quantos filmes existem associados a cada gênero?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT dim_genres.nome_genero, COUNT(DISTINCT bridge_movie_genre.sk_movie_id) AS total_filmes FROM bridge_movie_genre JOIN dim_genres ON bridge_movie_genre.sk_genre_id = dim_genres.sk_genre_id JOIN dim_movies ON bridge_movie_genre.sk_movie_id = dim_movies.sk_movie_id GROUP BY dim_genres.nome_genero ORDER BY total_filmes DESC, dim_genres.nome_genero ASC LIMIT 100"
+    ],
+    "seconds": 1.14
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q11",
+    "question": "Qual produtora acumulou o maior lucro total em BRL?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH company_profit AS (SELECT c.sk_company_id, c.nome_produtora, COUNT(DISTINCT bc.sk_movie_id) AS filmes_elegiveis, SUM(fp.receita_brl - fp.orcamento_brl) AS lucro_total_brl FROM dim_companies AS c JOIN bridge_movie_company AS bc ON bc.sk_company_id = c.sk_company_id JOIN fact_movies_performance AS fp ON fp.sk_movie_id = bc.sk_movie_id WHERE NOT fp.receita_brl IS NULL AND NOT fp.orcamento_brl IS NULL GROUP BY c.sk_company_id, c.nome_produtora), max_profit AS (SELECT MAX(lucro_total_brl) AS max_lucro FROM company_profit) SELECT cp.sk_company_id, cp.nome_produtora, cp.filmes_elegiveis, cp.lucro_total_brl FROM company_profit AS cp JOIN max_profit AS mp ON cp.lucro_total_brl = mp.max_lucro ORDER BY cp.sk_company_id LIMIT 100"
+    ],
+    "seconds": 1.76
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q12",
+    "question": "Qual gênero tem a maior margem média de lucro?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "WITH per_genre AS (SELECT g.sk_genre_id, g.nome_genero, COUNT(DISTINCT m.sk_movie_id) AS filmes_validos, AVG(1.0 * (f.receita_brl - f.orcamento_brl) / f.receita_brl) AS margem_media FROM dim_genres AS g JOIN bridge_movie_genre AS bg ON bg.sk_genre_id = g.sk_genre_id JOIN dim_movies AS m ON m.sk_movie_id = bg.sk_movie_id JOIN fact_movies_performance AS f ON f.sk_movie_id = m.sk_movie_id WHERE f.receita_brl > 0 AND NOT f.orcamento_brl IS NULL GROUP BY g.sk_genre_id, g.nome_genero) SELECT * FROM per_genre WHERE margem_media = (SELECT MAX(margem_media) FROM per_genre) LIMIT 100"
+    ],
+    "seconds": 1.53
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q13",
+    "question": "Quais filmes têm a maior quantidade de avaliações de usuários?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT d.sk_movie_id, d.titulo, r.qtd_avaliacoes_usuarios FROM dim_movies AS d JOIN dim_reviews AS r ON d.sk_movie_id = r.sk_movie_id WHERE r.qtd_avaliacoes_usuarios = (SELECT MAX(qtd_avaliacoes_usuarios) FROM dim_reviews) LIMIT 100"
+    ],
+    "seconds": 0.74
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q14",
+    "question": "Qual filme tem a maior divergência entre a média dos usuários e a nota IMDb?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT d.sk_movie_id, m.titulo, d.nota_media_usuarios, f.nota_imdb, d.qtd_avaliacoes_usuarios, f.qtd_imdb, ABS(d.nota_media_usuarios - f.nota_imdb) AS divergencia FROM dim_reviews AS d JOIN fact_movies_performance AS f ON d.sk_movie_id = f.sk_movie_id JOIN dim_movies AS m ON m.sk_movie_id = d.sk_movie_id WHERE NOT d.nota_media_usuarios IS NULL AND d.qtd_avaliacoes_usuarios > 0 AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0 AND ABS(d.nota_media_usuarios - f.nota_imdb) = (SELECT MAX(ABS(d2.nota_media_usuarios - f2.nota_imdb)) FROM dim_reviews AS d2 JOIN fact_movies_performance AS f2 ON d2.sk_movie_id = f2.sk_movie_id WHERE NOT d2.nota_media_usuarios IS NULL AND d2.qtd_avaliacoes_usuarios > 0 AND NOT f2.nota_imdb IS NULL AND f2.qtd_imdb > 0) LIMIT 100"
+    ],
+    "seconds": 1.47
+  }
+]

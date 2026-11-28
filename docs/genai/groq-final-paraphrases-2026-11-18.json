@@ -1,0 +1,38 @@
+[
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q03",
+    "question": "Liste os dez títulos com maior margem de lucro por filme.",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 10,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT f.sk_movie_id, m.titulo, 1.0 * (f.receita_brl - f.orcamento_brl) / f.receita_brl AS margem FROM fact_movies_performance AS f JOIN dim_movies AS m ON f.sk_movie_id = m.sk_movie_id WHERE NOT f.receita_brl IS NULL AND NOT f.orcamento_brl IS NULL AND f.receita_brl > 0 ORDER BY margem DESC, m.titulo COLLATE NOCASE, f.sk_movie_id LIMIT 10"
+    ],
+    "seconds": 3.07
+  },
+  {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b",
+    "case": "Q12",
+    "question": "Qual categoria de gênero lidera a média das margens individuais dos filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 1,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT g.sk_genre_id, g.nome_genero, COUNT(DISTINCT m.sk_movie_id) AS filmes_validos, AVG(1.0 * (f.receita_brl - f.orcamento_brl) / f.receita_brl) AS margem_media FROM bridge_movie_genre AS bg JOIN dim_genres AS g ON bg.sk_genre_id = g.sk_genre_id JOIN dim_movies AS m ON bg.sk_movie_id = m.sk_movie_id JOIN fact_movies_performance AS f ON m.sk_movie_id = f.sk_movie_id WHERE NOT f.receita_brl IS NULL AND NOT f.orcamento_brl IS NULL AND f.receita_brl > 0 GROUP BY g.sk_genre_id, g.nome_genero ORDER BY margem_media DESC LIMIT 1"
+    ],
+    "seconds": 1.66
+  }
+]

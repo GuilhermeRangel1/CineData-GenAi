@@ -1,0 +1,38 @@
+[
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q02",
+    "question": "Qual é o lucro médio em BRL por gênero?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "passed",
+    "rows": 19,
+    "insights": 0,
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT g.nome_genero, COUNT(DISTINCT f.sk_movie_id) AS filmes_elegiveis, AVG(1.0 * (p.receita_brl - p.orcamento_brl)) AS lucro_medio_brl FROM dim_genres AS g JOIN bridge_movie_genre AS b ON g.sk_genre_id = b.sk_genre_id JOIN dim_movies AS f ON b.sk_movie_id = f.sk_movie_id JOIN fact_movies_performance AS p ON f.sk_movie_id = p.sk_movie_id WHERE NOT p.receita_brl IS NULL AND NOT p.orcamento_brl IS NULL GROUP BY g.sk_genre_id, g.nome_genero ORDER BY lucro_medio_brl DESC LIMIT 100"
+    ],
+    "seconds": 3.41
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-3.5-flash-lite",
+    "case": "Q08",
+    "question": "Quais diretores têm a maior nota IMDb média considerando no mínimo cinco filmes?",
+    "model_only": true,
+    "agent_sha256": "6c532a178d30170419b364ed8bcc2bb4400c239e54f8f403a071994793cbe33c",
+    "status": "failed",
+    "error_type": "EvaluationMismatch",
+    "error": "Quantidade de linhas divergente: esperado 2, recebido 100.",
+    "query_source": [
+      "model"
+    ],
+    "sql_attempts": [
+      "SELECT p.sk_person_id, p.nome_pessoa, COUNT(DISTINCT f.sk_movie_id) AS filmes_validos, AVG(1.0 * f.nota_imdb) AS nota_media FROM dim_people AS p JOIN bridge_movie_person AS bmp ON p.sk_person_id = bmp.sk_person_id JOIN fact_movies_performance AS f ON bmp.sk_movie_id = f.sk_movie_id WHERE p.tipo_pessoa = 'Diretor' AND NOT f.nota_imdb IS NULL AND f.qtd_imdb > 0 GROUP BY p.sk_person_id, p.nome_pessoa HAVING COUNT(DISTINCT f.sk_movie_id) >= 5 ORDER BY nota_media DESC, filmes_validos DESC, p.nome_pessoa ASC, p.sk_person_id ASC LIMIT 100"
+    ],
+    "seconds": 8.68
+  }
+]
