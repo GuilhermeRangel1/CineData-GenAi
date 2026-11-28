@@ -1,6 +1,7 @@
 # Tooling e convenções — CineData GenAI
 
-O plano de trabalho vigente está em [`TODO.md`](TODO.md). Este guia registra a
+O histórico da expansão está em [Cobertura do agente](../genai/coverage-todo.md).
+Este guia registra a
 arquitetura e os comandos usados para desenvolver e executar o CineData; não
 substitui os contratos analíticos em `genai/`.
 

@@ -13,11 +13,10 @@ pergunta → guardrails → provedor com run_sql → validação SQL → Gold re
 ```
 
 Perguntas sobre catálogo, listas, comunidades ou mapa de gostos usam o guia
-local em `docs/platform-guide.md` e não consomem cota Gemini. Perguntas sobre
-filmes podem usar a busca local nas sinopses. Se os termos da pergunta não
-encontrarem evidência suficiente, o Gemini traduz somente duas palavras da
-pergunta e a seleção continua local, sem enviar sinopses ao provedor. Quando
-há uma métrica, ela é consultada no Gold após a validação SQL.
+local em `docs/platform-guide.md`. Perguntas sobre filmes podem usar a busca
+nas sinopses. Quando a busca precisa ampliar os termos, o provedor recebe
+até dois termos da pergunta e a seleção continua local. A ficha de um filme
+também pode usar o provedor para resumir uma sinopse em português.
 
 A configuração de ao menos um provedor habilita todas as consultas a dados,
 inclusive SQL preparado ou busca local. Isso não significa que toda resposta
@@ -35,6 +34,10 @@ antes de configurar. Sem chave ou modelo, a rota é ignorada.
 
 Limites padrão: `GENAI_PROVIDER_TIMEOUT_SECONDS=12`,
 `GENAI_PROVIDER_BUDGET_SECONDS=40` e `GENAI_PROVIDER_COOLDOWN_SECONDS=60`.
+Para chamadas analíticas, o Gemini tem limite padrão de 20 segundos e o
+OpenRouter de 36 segundos, ambos sujeitos ao orçamento total da pergunta.
+Configure esses limites com `GENAI_GEMINI_ANALYTICAL_TIMEOUT_SECONDS` e
+`GENAI_OPENROUTER_ANALYTICAL_TIMEOUT_SECONDS`.
 O timeout cancela a chamada; o orçamento soma o tempo de inferência da pergunta
 e pausa durante SQL. Uma rota com falha transitória entra em cooldown; apenas
 uma tentativa de recuperação roda por vez. Chaves rejeitadas ficam desativadas
@@ -50,25 +53,22 @@ Protocolos: [Groq](https://console.groq.com/docs/openai),
 [OpenRouter](https://openrouter.ai/docs/api/reference/overview),
 [Google GenAI](https://googleapis.github.io/python-genai/).
 
-Nas 14 perguntas canônicas da Ajuda, o Gemini recebe o esquema necessário e as
-regras da métrica para gerar o SQL. Q04, Q05, Q06, Q07, Q08, Q09, Q10, Q11 e
-Q14 têm consultas de referência: o serviço compara as linhas retornadas e usa
-a referência se a geração ou a conferência falhar. A referência começa em
-paralelo à chamada do modelo. Os insights podem usar uma chamada textual ao
-Gemini sobre os resultados já validados; a série anual da nota IMDb mantém um
-resumo local. Variações reconhecidas podem usar SQL preparado; perguntas
-analíticas livres dependem do modelo.
+A suíte cobre 50 perguntas oficiais. O provedor recebe o esquema e as regras
+da métrica quando a consulta exige SQL gerado. Nos casos cobertos, o serviço
+compara o resultado com uma consulta de referência e pode usá-la para recuperar
+falhas. Consultas reconhecidas também podem usar SQL local. As respostas podem
+incluir insights calculados sobre os resultados validados.
 
 ## Segurança e disponibilidade
 
-- somente uma instrução `SELECT` sobre tabelas e colunas autorizadas;
+- uma única instrução `SELECT` ou `UNION` sobre tabelas e colunas autorizadas;
 - `sqlglot`, limite de linhas, timeout e SQLite `mode=ro` protegem a execução;
 - guardrails rejeitam SQL enviado pela pessoa, pedidos fora de escopo e
   tentativas de alterar as regras do agente;
 - o modelo principal pode recorrer uma vez ao modelo de fallback para falhas
   temporárias de conexão, cota, timeout ou resposta 5xx;
 - perguntas livres equivalentes ficam em cache por cinco minutos, isoladas
-  por conversa e contexto; as 14 perguntas completas da Ajuda compartilham
+  por conversa e contexto; as formulações canônicas Q01–Q14 compartilham
   respostas públicas por até uma hora, sempre considerando a revisão do Gold
   e a versão das regras;
 - o serviço nunca recebe token de sessão, senha ou identificador da conta.
@@ -81,7 +81,7 @@ se as consultas analíticas estão disponíveis, sem expor a chave.
 
 ```json
 {
-  "question": "Quais são os 5 filmes com maior receita em BRL?",
+  "question": "E em 2020?",
   "context": [
     {
       "question": "Qual produtora teve maior lucro?",
@@ -93,7 +93,7 @@ se as consultas analíticas estão disponíveis, sem expor a chave.
 }
 ```
 
-`context` é opcional, tem no máximo três resumos da conversa atual e permite
+`context` é opcional, tem no máximo dez resumos da conversa atual e permite
 continuações como “e em 2020?”. `conversation_id` é um identificador local do
 frontend usado para separar o cache das perguntas livres; Q01–Q14 canônicas
 compartilham a resposta pública por até uma hora. O histórico
@@ -102,9 +102,8 @@ persistente pertence ao backend principal. O contrato completo está em
 
 Uma resposta de sucesso contém `answer`, `rows`, `insights` e `metadata`.
 `metadata.source` informa se a evidência veio do Gold, do guia da plataforma,
-da busca semântica ou de uma combinação dessas fontes. Para consultas
-obrigatórias, os metadados incluem métrica, unidade, período, população e
-limitações.
+da busca semântica ou de uma combinação dessas fontes. Os metadados podem
+incluir métrica, unidade, período, população e limitações conforme o caso.
 
 ## Execução local
 
@@ -119,11 +118,10 @@ python -m uvicorn app.main:app --reload --port 8001
 O health check fica em `http://127.0.0.1:8001/health` e a API em
 `http://127.0.0.1:8001/api/v1/questions`.
 
-Para consultar dados de filmes, copie `.env.example` para `.env` e preencha
-`GENAI_GEMINI_API_KEY`. A chave é exigida também para consultas SQL preparadas
-e busca em sinopses; a orientação sobre a plataforma continua disponível sem
-ela. `GENAI_GEMINI_MODEL` e `GENAI_GEMINI_FALLBACK_MODEL` definem os modelos
-principal e alternativo.
+Para consultar dados de filmes, copie `.env.example` para `.env` e configure pelo menos um dos provedores descritos acima. Para Gemini, use
+`GENAI_GEMINI_API_KEY` e, se precisar ajustar os modelos,
+`GENAI_GEMINI_MODEL` e `GENAI_GEMINI_FALLBACK_MODEL`. O token opcional
+`GENAI_TMDB_API_TOKEN` ajuda na resolução de títulos e na busca de sinopses.
 
 ## Docker Compose e testes
 

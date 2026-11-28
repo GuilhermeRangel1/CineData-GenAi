@@ -41,8 +41,8 @@ Todas as avaliações usaram `model_only=true`; respostas aprovadas têm
 `query_source=model`. A consulta Gold é executada pelo avaliador somente depois
 da resposta, para comparar resultados. Ela nunca substitui a consulta do modelo.
 
-- [Groq Q01–Q14, versão atual](groq-final-2026-11-18.json)
-- [OpenRouter, rodada parcial com a versão atual](openrouter-current-partial-2026-11-18.json)
+- [Groq Q01–Q14 na revisão de 18/11](groq-final-2026-11-18.json)
+- [OpenRouter, rodada parcial na revisão de 18/11](openrouter-current-partial-2026-11-18.json)
 - [OpenRouter 14/14 numa imagem anterior](openrouter-previous-image-14-of-14-2026-11-18.json): excluído da contagem atual porque usou uma cópia antiga de `agent.py`.
 - [Paráfrases Q03/Q12 no Groq](groq-final-paraphrases-2026-11-18.json) e [pergunta nova top 3](groq-novel-prior-agent-2026-11-18.json), testadas antes do ajuste final de Q06. A tentativa de repetição no contexto atual falhou antes de gerar SQL por erro transitório do provedor.
 - [Avaliação inicial com recuperação por referência](live-provider-results-2026-11-18.json), anterior aos ajustes de precisão.
@@ -151,11 +151,17 @@ passaram após indisponibilidade temporária do provedor. A variação da
 Q11 passou após aceitar os nomes alternativos para lucro acumulado e
 quantidade de filmes com dados financeiros, mantendo a comparação dos valores.
 
+O reteste da Q48 no OpenRouter retornou os cinco filmes de terror esperados,
+mantendo o ano de 2023 e o ranking por lucro. No cenário com períodos distintos,
+o Gemini selecionou as três produtoras pelo volume de filmes de 2022 e encontrou
+em 2023 a bilheteria registrada de *Scarlet*, da Arte, de R$ 1.453.182,74.
+As outras duas produtoras apareceram sem bilheteria informada.
+
 O avaliador aceita `--through-api` para executar o mesmo fluxo de resposta
 pública usado pelo chat e registrar `answer`, `insights` e as colunas retornadas.
 Combine com `--model-only --providers gemini` para medir a geração de SQL sem
 cache nem consulta de referência como fallback. A referência só compara os
-valores. `--paraphrases` seleciona frases alternativas de Q01–Q50, e
+valores. `--paraphrases` seleciona a primeira reformulação cadastrada por caso, e
 `--formulations` recebe um JSON com objeto por ID contendo `question` e,
 quando o pedido for parcial, `columns` a comparar na Gold.
 
